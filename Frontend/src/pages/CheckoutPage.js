@@ -1,0 +1,1285 @@
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import {
+  Container,
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  TextField,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  Checkbox,
+  Button,
+  Select,
+  MenuItem,
+  Alert,
+  Divider,
+} from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CancelIcon from '@mui/icons-material/Cancel';
+import orderService from '../services/orderService';
+import cartService from '../services/cartService';
+
+const formatVND = (amount) => {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+};
+
+const CheckoutPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [addressForm, setAddressForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    country: 'Việt Nam',
+    province: '',
+    district: '',
+    ward: '',
+    address: '',
+  });
+
+  // Dynamic Address State
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedCodes, setSelectedCodes] = useState({
+    provinceCode: '',
+    districtCode: '',
+    wardCode: '',
+  });
+
+  // Fetch provinces on mount
+  useEffect(() => {
+    axios.get('https://provinces.open-api.vn/api/p/')
+      .then(res => setProvinces(res.data))
+      .catch(console.error);
+  }, []);
+
+  const handleProvinceChange = (e) => {
+    const code = e.target.value;
+    const name = provinces.find(p => p.code === code)?.name || '';
+    setSelectedCodes({ ...selectedCodes, provinceCode: code, districtCode: '', wardCode: '' });
+    setAddressForm({ ...addressForm, province: name, district: '', ward: '' });
+    setDistricts([]);
+    setWards([]);
+    if (code) {
+      axios.get(`https://provinces.open-api.vn/api/p/${code}?depth=2`)
+        .then(res => setDistricts(res.data.districts))
+        .catch(console.error);
+    }
+  };
+
+  const handleDistrictChange = (e) => {
+    const code = e.target.value;
+    const name = districts.find(d => d.code === code)?.name || '';
+    setSelectedCodes({ ...selectedCodes, districtCode: code, wardCode: '' });
+    setAddressForm({ ...addressForm, district: name, ward: '' });
+    setWards([]);
+    if (code) {
+      axios.get(`https://provinces.open-api.vn/api/d/${code}?depth=2`)
+        .then(res => setWards(res.data.wards))
+        .catch(console.error);
+    }
+  };
+
+  const handleWardChange = (e) => {
+    const code = e.target.value;
+    const name = wards.find(w => w.code === code)?.name || '';
+    setSelectedCodes({ ...selectedCodes, wardCode: code });
+    setAddressForm({ ...addressForm, ward: name });
+  };
+
+  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [hasNote, setHasNote] = useState(false);
+  const [note, setNote] = useState('');
+  const [requestVat, setRequestVat] = useState(false);
+  
+  // New State for VAT details
+  const [vatType, setVatType] = useState('individual'); // 'individual' | 'business'
+  const [vatDetails, setVatDetails] = useState({
+    buyerName: '',
+    email: '',
+    // Individual specific
+    address: '',
+    idCard: '',
+    passport: '',
+    // Business specific
+    companyName: '',
+    companyAddress: '',
+    taxId: '',
+    vatBudgetCode: '',
+  });
+
+  const [paymentType, setPaymentType] = useState('full'); // 'full' | 'deposit'
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [receiptImage, setReceiptImage] = useState(null); // Base64 receipt image
+
+  const [splitShipping, setSplitShipping] = useState(false);
+  
+  // Delivery Groups for multi-address
+  const [deliveryGroups, setDeliveryGroups] = useState([
+    {
+      id: Date.now(),
+      fullName: '',
+      email: '',
+      phone: '',
+      province: '',
+      district: '',
+      ward: '',
+      address: '',
+      provinceCode: '',
+      districtCode: '',
+      wardCode: '',
+      districts: [],
+      wards: [],
+      selectedItemIds: [], // Cart IDs of regular items
+      includeGifts: false // Whether to ship ALL gifts to this address
+    }
+  ]);
+
+  const [itemAddresses, setItemAddresses] = useState({}); // Legacy - will be derived from deliveryGroups if needed
+
+  const [deliveryDate, setDeliveryDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3); // Mặc định là 3 ngày sau
+    return d.toISOString().split('T')[0];
+  });
+
+  const minDeliveryDate = new Date().toISOString().split('T')[0];
+  const maxDeliveryDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  })();
+
+  // Validation Errors state
+  const [errors, setErrors] = useState({});
+
+  const handleFieldChange = (section, field, value) => {
+    if (section === 'address') {
+      setAddressForm({ ...addressForm, [field]: value });
+    } else if (section === 'vat') {
+      setVatDetails({ ...vatDetails, [field]: value });
+    }
+    // Clear error for this field
+    if (errors[field]) {
+      const newErrors = { ...errors };
+      delete newErrors[field];
+      setErrors(newErrors);
+    }
+  };
+
+  const handleReceiptUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Check login status
+  const isLoggedIn = !!localStorage.getItem('token');
+
+  const {
+    selectedItems: stateItems = [],
+    total: stateTotal = 0,
+    gifts: stateGifts = [],
+    productDiscount: stateProductDiscount = 0,
+    manualDiscountAmount: stateManualDiscount = 0,
+    promoDiscountAmount: statePromoDiscount = 0,
+    reorderFrom
+  } = location.state || {};
+
+  const totalDiscount = stateProductDiscount + stateManualDiscount + statePromoDiscount;
+
+  const [selectedItems, setSelectedItems] = useState(stateItems);
+  const [gifts, setGifts] = useState(stateGifts);
+  const [initialTotal, setInitialTotal] = useState(stateTotal);
+
+  useEffect(() => {
+    if (reorderFrom && reorderFrom.chiTiet) {
+      // 1. Separate regular items and gifts from the old order
+      const regularItems = reorderFrom.chiTiet.filter(i => i.donGia > 0).map(i => ({
+        id: i.maSanPham,
+        maSanPham: i.maSanPham,
+        tenSanPham: i.tenSanPham,
+        price: i.donGia,
+        quantity: i.soLuong,
+        currentPrice: i.donGia, // Use price from order
+        cartId: i.maSanPham // Fake cartId for matching
+      }));
+      
+      const giftItems = reorderFrom.chiTiet.filter(i => i.donGia === 0).map(i => ({
+        id: i.maSanPham,
+        maSanPham: i.maSanPham,
+        tenSanPham: i.tenSanPham,
+        quantity: i.soLuong,
+      }));
+
+      setSelectedItems(regularItems);
+      setGifts(giftItems);
+      // For reorder, reorderFrom.tongTien is the final amount. 
+      // We want initialTotal to be the subtotal BEFORE discount and shipping.
+      setInitialTotal(reorderFrom.tongTien - (reorderFrom.phiVanChuyen || 0) + (reorderFrom.giamGia || 0));
+      setDiscountAmount(reorderFrom.giamGia || 0);
+
+      // 2. Detect if it was split shipping
+      const itemAddresses = reorderFrom.chiTiet.map(i => i.diaChiGiaoHang).filter(Boolean);
+      const uniqueAddresses = [...new Set(itemAddresses)];
+      const isSplit = reorderFrom.diaChiGiaoHang === 'Giao hàng nhiều địa chỉ' || uniqueAddresses.length > 1;
+
+      // 3. Populate contact info (fallback to customer info if main is empty)
+      const fallbackName = reorderFrom.tenNguoiNhan || reorderFrom.tenKhachHang || '';
+      const fallbackPhone = reorderFrom.sdtNguoiNhan || reorderFrom.sdtKhachHang || '';
+      const fallbackEmail = reorderFrom.emailNguoiNhan || reorderFrom.emailKhachHang || '';
+
+      setAddressForm(prev => ({
+        ...prev,
+        fullName: fallbackName,
+        phone: fallbackPhone,
+        email: fallbackEmail,
+        address: isSplit ? '' : (reorderFrom.diaChiGiaoHang || '')
+      }));
+
+      // 4. Multi-address logic
+      if (isSplit) {
+        setSplitShipping(true);
+        const groups = [];
+        const addressMap = {};
+        
+        reorderFrom.chiTiet.forEach(item => {
+          const addr = item.diaChiGiaoHang || 'Địa chỉ mặc định';
+          if (!addressMap[addr]) {
+            addressMap[addr] = {
+              id: Date.now() + Math.random(),
+              fullName: fallbackName,
+              phone: fallbackPhone,
+              email: fallbackEmail,
+              address: addr,
+              province: '', district: '', ward: '',
+              provinceCode: '', districtCode: '', wardCode: '',
+              districts: [],
+              wards: [],
+              selectedItemIds: [],
+              includeGifts: item.donGia === 0
+            };
+            groups.push(addressMap[addr]);
+          }
+          if (item.donGia > 0) {
+            addressMap[addr].selectedItemIds.push(item.maSanPham);
+          } else {
+            addressMap[addr].includeGifts = true;
+          }
+        });
+        setDeliveryGroups(groups);
+      }
+
+      // 5. VAT Info
+      if (reorderFrom.yeuCauVat) {
+        setRequestVat(true);
+        setVatType(reorderFrom.vatType || 'individual');
+        setVatDetails({
+          buyerName: reorderFrom.vatBuyerName || '',
+          email: reorderFrom.vatEmail || '',
+          address: reorderFrom.vatAddress || '',
+          idCard: reorderFrom.vatIdCard || '',
+          companyName: reorderFrom.vatCompanyName || '',
+          companyAddress: reorderFrom.vatCompanyAddress || '',
+          taxId: reorderFrom.vatTaxId || '',
+        });
+      }
+      
+      setNote(reorderFrom.ghiChu || '');
+      setHasNote(!!reorderFrom.ghiChu);
+      setPaymentMethod(reorderFrom.pttt?.includes('ATM') ? 'atm' : 'cod');
+    }
+  }, [reorderFrom]);
+
+  const getUniqueAddressesCount = () => {
+    if (!splitShipping) return 1;
+    return deliveryGroups.length;
+  };
+
+  const [discountAmount, setDiscountAmount] = useState(totalDiscount);
+
+  const shippingFee = initialTotal > 5000000 ? 0 : getUniqueAddressesCount() * 50000;
+  const grandTotal = Math.max(0, initialTotal + shippingFee - discountAmount);
+
+  useEffect(() => {
+    if (paymentType === 'deposit') {
+      // Only set if current amount is 0 or less, or if we just switched
+      const minDeposit = Math.ceil(grandTotal * 0.2);
+      if (depositAmount === 0 || depositAmount > grandTotal) {
+        setDepositAmount(minDeposit);
+      }
+    } else if (paymentType === 'full') {
+      setDepositAmount(grandTotal);
+    }
+  }, [grandTotal, paymentType]); // Remove depositAmount from dependency array to allow editing
+
+  // Redirect if no state (direct access)
+  useEffect(() => {
+    if (!location.state || (!location.state.selectedItems && !location.state.reorderFrom)) {
+      navigate('/shopping-cart', { replace: true });
+    }
+  }, [location, navigate]);
+
+  if (!location.state || (!location.state.selectedItems && !location.state.reorderFrom)) {
+    return null;
+  }
+
+  const handleAddGroup = () => {
+    setDeliveryGroups([...deliveryGroups, {
+      id: Date.now(),
+      fullName: addressForm.fullName,
+      email: addressForm.email,
+      phone: addressForm.phone,
+      province: '', district: '', ward: '', address: '',
+      provinceCode: '', districtCode: '', wardCode: '',
+      districts: [], wards: [],
+      selectedItemIds: [],
+      includeGifts: false
+    }]);
+  };
+
+  const handleRemoveGroup = (id) => {
+    if (deliveryGroups.length > 1) {
+      setDeliveryGroups(deliveryGroups.filter(g => g.id !== id));
+    }
+  };
+
+  const updateGroup = (id, field, value) => {
+    setDeliveryGroups(deliveryGroups.map(g => {
+      if (g.id === id) {
+        return { ...g, [field]: value };
+      }
+      return g;
+    }));
+  };
+
+  const handleGroupProvinceChange = async (groupId, code) => {
+    const name = provinces.find(p => p.code === code)?.name || '';
+    let districtsOfProv = [];
+    if (code) {
+      const res = await axios.get(`https://provinces.open-api.vn/api/p/${code}?depth=2`);
+      districtsOfProv = res.data.districts;
+    }
+    setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? {
+      ...g, province: name, provinceCode: code, district: '', districtCode: '', ward: '', wardCode: '', districts: districtsOfProv, wards: []
+    } : g));
+  };
+
+  const handleGroupDistrictChange = async (groupId, code) => {
+    const group = deliveryGroups.find(g => g.id === groupId);
+    const name = group.districts.find(d => d.code === code)?.name || '';
+    let wardsOfDist = [];
+    if (code) {
+      const res = await axios.get(`https://provinces.open-api.vn/api/d/${code}?depth=2`);
+      wardsOfDist = res.data.wards;
+    }
+    setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? {
+      ...g, district: name, districtCode: code, ward: '', wardCode: '', wards: wardsOfDist
+    } : g));
+  };
+
+  const toggleItemInGroup = (groupId, itemId) => {
+    setDeliveryGroups(deliveryGroups.map(g => {
+      if (g.id === groupId) {
+        const isSelected = g.selectedItemIds.includes(itemId);
+        return {
+          ...g,
+          selectedItemIds: isSelected 
+            ? g.selectedItemIds.filter(id => id !== itemId)
+            : [...g.selectedItemIds, itemId]
+        };
+      }
+      // If selected in another group, it should be removed from there?
+      // Actually, standard UI: one item to one address.
+      if (g.id !== groupId && !g.selectedItemIds.includes(itemId)) return g;
+      return {
+        ...g,
+        selectedItemIds: g.selectedItemIds.filter(id => id !== itemId)
+      };
+    }));
+  };
+
+  const toggleGiftsInGroup = (groupId) => {
+    setDeliveryGroups(deliveryGroups.map(g => {
+      if (g.id === groupId) {
+        return { ...g, includeGifts: !g.includeGifts };
+      }
+      return { ...g, includeGifts: false }; // Only one group can have gifts
+    }));
+  };
+
+  const handleCheckout = async () => {
+    if (!isLoggedIn) {
+      alert('Vui lòng đăng nhập để tiến hành thanh toán.');
+      navigate('/auth', { state: { returnUrl: '/checkout', ...location.state } });
+      return;
+    }
+
+    // Vietnamese Standard Regex
+    // Vietnamese Standard Regex
+    const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
+    const cleanPhone = addressForm.phone.replace(/[\s.-]/g, '');
+    const cleanPhoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cccdRegex = /^[0-9]{12}$/;
+    const taxIdRegex = /^[0-9]{10,13}$/;
+
+    // Validation
+    const newErrors = {};
+    if (!splitShipping) {
+      if (!addressForm.fullName.trim()) newErrors.fullName = 'Bắt buộc';
+      if (!addressForm.phone.trim()) {
+        newErrors.phone = 'Bắt buộc';
+      } else if (!cleanPhoneRegex.test(cleanPhone)) {
+        newErrors.phone = 'SĐT không hợp lệ (10 số, đầu 03/05/07/08/09)';
+      }
+      if (!addressForm.email.trim()) {
+        newErrors.email = 'Bắt buộc';
+      } else if (!emailRegex.test(addressForm.email)) {
+        newErrors.email = 'Email không đúng định dạng';
+      }
+      if (!addressForm.province) newErrors.province = 'Bắt buộc';
+      if (!addressForm.district) newErrors.district = 'Bắt buộc';
+      if (!addressForm.ward) newErrors.ward = 'Bắt buộc';
+      if (!addressForm.address.trim()) newErrors.address = 'Bắt buộc';
+    } else {
+      // Validate each group
+      deliveryGroups.forEach((g, idx) => {
+        const prefix = `g${idx}_`;
+        if (!g.fullName.trim()) newErrors[`${prefix}fullName`] = 'Bắt buộc';
+        if (!g.phone.trim()) {
+          newErrors[`${prefix}phone`] = 'Bắt buộc';
+        } else if (!phoneRegex.test(g.phone)) {
+          newErrors[`${prefix}phone`] = 'SĐT không hợp lệ';
+        }
+        if (!g.province) newErrors[`${prefix}province`] = 'Bắt buộc';
+        if (!g.district) newErrors[`${prefix}district`] = 'Bắt buộc';
+        if (!g.ward) newErrors[`${prefix}ward`] = 'Bắt buộc';
+        if (!g.address.trim()) newErrors[`${prefix}address`] = 'Bắt buộc';
+        
+        if (g.selectedItemIds.length === 0 && !g.includeGifts) {
+           newErrors[`${prefix}items`] = 'Vui lòng chọn ít nhất 1 sản phẩm';
+        }
+      });
+
+      // Check if all items are assigned
+      const assignedItemIds = deliveryGroups.flatMap(g => g.selectedItemIds);
+      const allItemIds = selectedItems.map(item => item.cartId || item.id);
+      const unassigned = allItemIds.filter(id => !assignedItemIds.includes(id));
+      if (unassigned.length > 0) {
+        alert('Vui lòng phân phối tất cả sản phẩm vào các địa chỉ.');
+        return;
+      }
+    }
+
+    // VAT Validation
+    if (requestVat) {
+      if (!vatDetails.buyerName.trim()) newErrors.buyerName = 'Bắt buộc';
+      if (!vatDetails.email.trim()) {
+        newErrors.email = 'Bắt buộc';
+      } else if (!emailRegex.test(vatDetails.email)) {
+        newErrors.email = 'Email không hợp lệ';
+      }
+      
+      if (vatType === 'individual') {
+        if (!vatDetails.address.trim()) newErrors.vatAddress = 'Bắt buộc';
+        if (vatDetails.idCard.trim() && !cccdRegex.test(vatDetails.idCard)) {
+          newErrors.idCard = 'CCCD phải đủ 12 số';
+        }
+      } else {
+        if (!vatDetails.companyName.trim()) newErrors.companyName = 'Bắt buộc';
+        if (!vatDetails.companyAddress.trim()) newErrors.companyAddress = 'Bắt buộc';
+        if (!vatDetails.taxId.trim()) {
+          newErrors.taxId = 'Bắt buộc';
+        } else if (!taxIdRegex.test(vatDetails.taxId)) {
+          newErrors.taxId = 'MST phải từ 10-13 số';
+        }
+      }
+    }
+
+    if (paymentType === 'deposit') {
+      if (depositAmount < grandTotal * 0.2) {
+        alert('Số tiền đặt cọc tối thiểu là 20% giá trị đơn hàng.');
+        return;
+      }
+      if (depositAmount > grandTotal) {
+        alert('Số tiền đặt cọc không được vượt quá tổng giá trị đơn hàng.');
+        return;
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      
+      const groupErrorIdx = Object.keys(newErrors).find(k => k.startsWith('g'))?.match(/\d+/)?.[0];
+      if (groupErrorIdx !== undefined) {
+        alert(`Vui lòng kiểm tra lại thông tin tại Địa chỉ ${parseInt(groupErrorIdx) + 1}.`);
+      } else {
+        alert('Vui lòng kiểm tra lại thông tin giao hàng.');
+      }
+      return;
+    }
+
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const mainFullAddress = `${addressForm.address}, ${addressForm.ward}, ${addressForm.district}, ${addressForm.province}`;
+      
+      // Construct Order Items with individual addresses
+      const orderItems = [];
+      
+      if (!splitShipping) {
+        selectedItems.forEach(item => {
+          orderItems.push({
+            maSanPham: item.productId || item.maSanPham || item.id,
+            soLuong: item.quantity || item.soLuong || 1,
+            donGia: item.price || item.donGia || item.currentPrice || 0,
+            giamGia: 0,
+            diaChiGiaoHang: mainFullAddress,
+            tenNguoiNhan: addressForm.fullName,
+            sdtNguoiNhan: addressForm.phone
+          });
+        });
+      } else {
+        deliveryGroups.forEach(g => {
+          const groupAddress = `${g.address}, ${g.ward}, ${g.district}, ${g.province}`;
+          g.selectedItemIds.forEach(itemId => {
+            const item = selectedItems.find(si => (si.cartId || si.id) === itemId);
+            if (item) {
+              orderItems.push({
+                maSanPham: item.productId || item.maSanPham || item.id,
+                soLuong: item.quantity || item.soLuong || 1,
+                donGia: item.price || item.donGia || item.currentPrice || 0,
+                giamGia: 0,
+                diaChiGiaoHang: groupAddress,
+                tenNguoiNhan: g.fullName,
+                sdtNguoiNhan: g.phone
+              });
+            }
+          });
+          
+          if (g.includeGifts) {
+            gifts.forEach(gift => {
+              orderItems.push({
+                maSanPham: gift.productId || gift.id,
+                soLuong: gift.quantity || 1,
+                donGia: 0,
+                giamGia: 0,
+                diaChiGiaoHang: groupAddress,
+                tenNguoiNhan: g.fullName,
+                sdtNguoiNhan: g.phone
+              });
+            });
+          }
+        });
+      }
+
+      const representativeInfo = (splitShipping && deliveryGroups.length > 1)
+        ? {
+            fullName: deliveryGroups[0].fullName,
+            phone: deliveryGroups[0].phone,
+            email: deliveryGroups[0].email,
+            address: 'Giao hàng nhiều địa chỉ'
+          }
+        : splitShipping && deliveryGroups.length === 1
+          ? {
+            fullName: deliveryGroups[0].fullName,
+            phone: deliveryGroups[0].phone,
+            email: deliveryGroups[0].email,
+            address: `${deliveryGroups[0].address}, ${deliveryGroups[0].ward}, ${deliveryGroups[0].district}, ${deliveryGroups[0].province}`
+          }
+          : {
+            fullName: addressForm.fullName,
+            phone: addressForm.phone,
+            email: addressForm.email,
+            address: mainFullAddress
+          };
+
+      const orderData = {
+        maKhachHang: user?.maKhachHang || user?.MaKhachHang,
+        tongTien: grandTotal,
+        thanhToan: paymentType === 'deposit' ? depositAmount : grandTotal,
+        giamGia: discountAmount,
+        pttt: paymentMethod === 'atm' ? 'Chuyển khoản ATM/Banking (VietQR)' : 'Thanh toán khi nhận hàng (COD)',
+        ghiChu: note,
+        anhBangChung: receiptImage,
+        
+        tenNguoiNhan: representativeInfo.fullName,
+        sdtNguoiNhan: representativeInfo.phone,
+        emailNguoiNhan: representativeInfo.email,
+        diaChiGiaoHang: representativeInfo.address,
+
+        yeuCauVat: requestVat,
+        vatType: vatType,
+        vatBuyerName: vatDetails.buyerName,
+        vatEmail: vatDetails.email,
+        vatCompanyName: vatDetails.companyName,
+        vatTaxId: vatDetails.taxId,
+        ngayGiao: deliveryDate, // Sending the chosen delivery date
+
+        items: orderItems,
+        phiVanChuyen: shippingFee
+      };
+
+      const res = await orderService.createOrder(orderData);
+      if (res.data) {
+        await cartService.clearUserCart();
+        alert('✅ Đặt hàng thành công!');
+        navigate('/my-orders', { replace: true });
+      }
+    } catch (err) {
+      console.error(err);
+      alert('❌ Lỗi đặt hàng: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  return (
+    <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', pb: 10 }}>
+      <Container maxWidth="lg" sx={{ py: 3 }}>
+        
+        {/* Warning / Login Prompt */}
+        {!isLoggedIn && (
+          <Alert 
+            icon={<WarningAmberIcon fontSize="inherit" />} 
+            severity="warning" 
+            sx={{ mb: 3, bgcolor: '#fff3cd', color: '#856404', borderRadius: '4px', '& .MuiAlert-icon': { color: '#856404' } }}
+          >
+            Bạn đã là thành viên? <Typography component="span" onClick={() => navigate('/auth', { state: { returnUrl: '/checkout', ...location.state } })} sx={{ fontWeight: 'bold', color: '#e68c55', cursor: 'pointer' }}>Đăng nhập ngay</Typography>
+          </Alert>
+        )}
+
+        <Grid container spacing={3}>
+          {/* Main content column */}
+          <Grid item xs={12}>
+            
+            {/* ĐỊA CHỈ GIAO HÀNG */}
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>
+                  Thông tin nhận hàng
+                </Typography>
+                <FormControlLabel
+                  control={<Checkbox checked={splitShipping} onChange={e => setSplitShipping(e.target.checked)} />}
+                  label={<Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976d2' }}>Tôi muốn giao các sản phẩm đến nhiều địa chỉ khác nhau</Typography>}
+                />
+              </Box>
+              <Divider sx={{ mb: 3 }} />
+              
+              {!splitShipping ? (
+                <Grid container spacing={2}>
+                  {/* Single Address Fields */}
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Họ tên người nhận</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField fullWidth size="small" value={addressForm.fullName} onChange={e => handleFieldChange('address', 'fullName', e.target.value)} error={!!errors.fullName} helperText={errors.fullName} />
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Số điện thoại</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField fullWidth size="small" value={addressForm.phone} onChange={e => handleFieldChange('address', 'phone', e.target.value)} error={!!errors.phone} helperText={errors.phone} />
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Email</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField fullWidth size="small" value={addressForm.email} onChange={e => handleFieldChange('address', 'email', e.target.value)} error={!!errors.email} helperText={errors.email} />
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Tỉnh/Thành Phố</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField select fullWidth size="small" value={selectedCodes.provinceCode} onChange={handleProvinceChange} error={!!errors.province} helperText={errors.province}>
+                      <MenuItem value="" disabled>Chọn tỉnh/thành Phố</MenuItem>
+                      {provinces.map(p => <MenuItem key={p.code} value={p.code}>{p.name}</MenuItem>)}
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Quận/Huyện</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField select fullWidth size="small" value={selectedCodes.districtCode} onChange={handleDistrictChange} disabled={!selectedCodes.provinceCode} error={!!errors.district} helperText={errors.district}>
+                      <MenuItem value="" disabled>Chọn quận/huyện</MenuItem>
+                      {districts.map(d => <MenuItem key={d.code} value={d.code}>{d.name}</MenuItem>)}
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Phường/Xã</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField select fullWidth size="small" value={selectedCodes.wardCode} onChange={handleWardChange} disabled={!selectedCodes.districtCode} error={!!errors.ward} helperText={errors.ward}>
+                      <MenuItem value="" disabled>Chọn phường/xã</MenuItem>
+                      {wards.map(w => <MenuItem key={w.code} value={w.code}>{w.name}</MenuItem>)}
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={3}><Typography variant="body2">Địa chỉ cụ thể</Typography></Grid>
+                  <Grid item xs={12} sm={9}>
+                    <TextField fullWidth size="small" placeholder="Số nhà, tên đường..." value={addressForm.address} onChange={e => handleFieldChange('address', 'address', e.target.value)} error={!!errors.address} helperText={errors.address} />
+                  </Grid>
+                </Grid>
+              ) : (
+                <Box>
+                  {deliveryGroups.map((group, idx) => (
+                    <Paper key={group.id} variant="outlined" sx={{ p: 2, mb: 3, border: '1px solid #e0e0e0', position: 'relative' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                         <Typography variant="subtitle2" color="primary" fontWeight="bold">Địa chỉ {idx + 1}</Typography>
+                         {deliveryGroups.length > 1 && (
+                           <Button size="small" color="error" onClick={() => handleRemoveGroup(group.id)}>Xóa địa chỉ</Button>
+                         )}
+                      </Box>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField fullWidth size="small" label="Người nhận" value={group.fullName} onChange={e => updateGroup(group.id, 'fullName', e.target.value)} error={!!errors[`g${idx}_fullName`]} />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField fullWidth size="small" label="SĐT" value={group.phone} onChange={e => updateGroup(group.id, 'phone', e.target.value)} error={!!errors[`g${idx}_phone`]} />
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <TextField select fullWidth size="small" label="Tỉnh/TP" value={group.provinceCode} onChange={e => handleGroupProvinceChange(group.id, e.target.value)} error={!!errors[`g${idx}_province`]}>
+                             {provinces.map(p => <MenuItem key={p.code} value={p.code}>{p.name}</MenuItem>)}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <TextField select fullWidth size="small" label="Quận/Huyện" value={group.districtCode} onChange={e => handleGroupDistrictChange(group.id, e.target.value)} disabled={!group.provinceCode} error={!!errors[`g${idx}_district`]}>
+                             {group.districts.map(d => <MenuItem key={d.code} value={d.code}>{d.name}</MenuItem>)}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <TextField select fullWidth size="small" label="Phường/Xã" value={group.wardCode} onChange={e => {
+                            const name = group.wards.find(w => w.code === e.target.value)?.name || '';
+                            setDeliveryGroups(deliveryGroups.map(g => g.id === group.id ? {...g, ward: name, wardCode: e.target.value} : g));
+                          }} disabled={!group.districtCode} error={!!errors[`g${idx}_ward`]}>
+                             {group.wards.map(w => <MenuItem key={w.code} value={w.code}>{w.name}</MenuItem>)}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField fullWidth size="small" label="Địa chỉ cụ thể" value={group.address} onChange={e => updateGroup(group.id, 'address', e.target.value)} error={!!errors[`g${idx}_address`]} />
+                        </Grid>
+                      </Grid>
+
+                      <Typography variant="body2" fontWeight="bold" sx={{ mt: 3, mb: 1, color: errors[`g${idx}_items`] ? 'error.main' : 'inherit' }}>
+                        Chọn sản phẩm giao đến địa chỉ này: {errors[`g${idx}_items`] && <span style={{ fontWeight: 'normal', fontSize: '0.8rem' }}>({errors[`g${idx}_items`]})</span>}
+                      </Typography>
+                      <Box sx={{ bgcolor: '#fafafa', p: 1, borderRadius: 1, border: errors[`g${idx}_items`] ? '1px solid #d32f2f' : 'none' }}>
+                        {selectedItems.map(item => {
+                          const itemId = item.cartId || item.id;
+                          const isAssignedElsewhere = deliveryGroups.some(g => g.id !== group.id && g.selectedItemIds.includes(itemId));
+                          return (
+                            <FormControlLabel
+                              key={itemId}
+                              control={
+                                <Checkbox 
+                                  size="small" 
+                                  checked={group.selectedItemIds.includes(itemId)} 
+                                  onChange={() => toggleItemInGroup(group.id, itemId)}
+                                  disabled={isAssignedElsewhere}
+                                />
+                              }
+                              label={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <img src={item.image} width="30" height="30" alt="" style={{ borderRadius: 2 }} />
+                                  <Typography variant="body2" sx={{ color: isAssignedElsewhere ? 'text.disabled' : 'text.primary' }}>
+                                    {item.productName} (x{item.quantity})
+                                  </Typography>
+                                </Box>
+                              }
+                              sx={{ display: 'block', mb: 0.5 }}
+                            />
+                          );
+                        })}
+                      </Box>
+
+                      {gifts.length > 0 && (
+                        <Box sx={{ mt: 2, pt: 1, borderTop: '1px dashed #ccc' }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox 
+                                size="small" 
+                                sx={{ color: '#e68c55', '&.Mui-checked': { color: '#e68c55' } }}
+                                checked={group.includeGifts} 
+                                onChange={() => toggleGiftsInGroup(group.id)}
+                                disabled={deliveryGroups.some(g => g.id !== group.id && g.includeGifts)}
+                              />
+                            }
+                            label={
+                              <Typography variant="body2" sx={{ color: '#e68c55', fontWeight: 'bold' }}>
+                                Chuyển TẤT CẢ quà tặng đến địa chỉ này
+                              </Typography>
+                            }
+                          />
+                        </Box>
+                      )}
+                    </Paper>
+                  ))}
+
+                  <Button variant="outlined" startIcon={<span>+</span>} onClick={handleAddGroup} sx={{ mt: 1, textTransform: 'none' }}>
+                    Thêm địa chỉ giao hàng mới
+                  </Button>
+                </Box>
+              )}
+            </Paper>
+
+            {/* THỜI GIAN GIAO HÀNG */}
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px', borderLeft: '4px solid #e68c55' }}>
+              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
+                Thời gian nhận hàng dự kiến
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2">Ngày giao hàng mong muốn:</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    (Giao nhanh nhất có thể hoặc theo lịch của bạn)
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={8}>
+                  <TextField
+                    type="date"
+                    fullWidth
+                    size="small"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    inputProps={{
+                      min: minDeliveryDate,
+                      max: maxDeliveryDate
+                    }}
+                    helperText={`Hệ thống cam kết giao hàng trễ nhất trong vòng 3 ngày (đến ngày ${new Date(maxDeliveryDate).toLocaleDateString('vi-VN')})`}
+                    sx={{ maxWidth: 300 }}
+                  />
+                </Grid>
+              </Grid>
+            </Paper>
+
+
+            {/* PHƯƠNG THỨC THANH TOÁN */}
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
+              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
+                Phương thức thanh toán
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <RadioGroup value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+
+                <FormControlLabel value="atm" control={<Radio size="small" />} label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2">ATM / Internet Banking (Chuyển khoản VietQR)</Typography>
+                    <Box component="span" sx={{ bgcolor: '#e8f5e9', color: '#2e7d32', fontSize: '10px', px: 1, borderRadius: '10px', fontWeight: 'bold' }}>Khuyên dùng</Box>
+                  </Box>
+                } sx={{ mb: 1 }}/>
+                
+                {paymentMethod === 'atm' && (
+                  <Box sx={{ ml: 4, p: 2, bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', mb: 2, textAlign: 'center' }}>
+                    <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Quét mã VietQR để thanh toán</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center', gap: 2, justifyContent: 'center' }}>
+                      <Box 
+                        component="img" 
+                        src={`https://img.vietqr.io/image/vcb-1031657749-compact2.png?amount=${paymentType === 'deposit' ? depositAmount : grandTotal}&addInfo=THANH TOAN DON HANG VLXD&accountName=TRUONG THANH TUAN`}
+                        alt="VietQR Payment"
+                        sx={{ width: 200, height: 200, border: '1px solid #eee', p: 1, bgcolor: '#fff' }}
+                      />
+                      <Box sx={{ textAlign: 'left' }}>
+                        <Typography variant="body2"><strong>Ngân hàng:</strong> Vietcombank</Typography>
+                        <Typography variant="body2"><strong>Số TK:</strong> 1031657749</Typography>
+                        <Typography variant="body2"><strong>Chủ TK:</strong> TRƯƠNG THANH TUẤN</Typography>
+                        <Typography variant="body2"><strong>Số tiền:</strong> <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>{formatVND(paymentType === 'deposit' ? depositAmount : grandTotal)}</span></Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
+                          * Nội dung chuyển khoản đã được tích hợp trong mã QR.
+                        </Typography>
+                        
+                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #f0f0f0' }}>
+                          <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Tải ảnh xác nhận chuyển khoản:</Typography>
+                          <Button
+                            variant="outlined"
+                            component="label"
+                            size="small"
+                            color="primary"
+                            startIcon={<span>📷</span>}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            {receiptImage ? "Chọn ảnh khác" : "Chọn ảnh từ máy"}
+                            <input
+                              type="file"
+                              hidden
+                              accept="image/*"
+                              onChange={handleReceiptUpload}
+                            />
+                          </Button>
+                          
+                          {receiptImage && (
+                            <Box sx={{ mt: 1, position: 'relative', width: 100 }}>
+                              <img 
+                                src={receiptImage} 
+                                alt="Receipt" 
+                                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd' }} 
+                              />
+                              <Button 
+                                size="small" 
+                                sx={{ position: 'absolute', top: -5, right: -5, minWidth: 20, height: 20, borderRadius: '50%', bgcolor: 'error.main', color: '#fff', p: 0 }}
+                                onClick={() => setReceiptImage(null)}
+                              >
+                                ×
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Box>
+                )}
+
+
+                <FormControlLabel value="cod" control={<Radio size="small" color="error" />} label="Thanh toán bằng tiền mặt khi nhận hàng" sx={{ mb: 1 }}/>
+              </RadioGroup>
+
+              <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 3, mb: 1, color: '#c92127' }}>
+                HÌNH THỨC THANH TOÁN
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <RadioGroup value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
+                <FormControlLabel value="full" control={<Radio size="small" />} label={
+                  <Typography variant="body2">Thanh toán toàn bộ (100%) - {formatVND(grandTotal)}</Typography>
+                } sx={{ mb: 1 }} />
+                <FormControlLabel value="deposit" control={<Radio size="small" />} label={
+                  <Typography variant="body2">Đặt cọc trước (Tối thiểu 20%)</Typography>
+                } sx={{ mb: 1 }} />
+              </RadioGroup>
+
+              {paymentType === 'deposit' && (
+                <Box sx={{ ml: 4, mt: 1, maxWidth: 300 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                    Số tiền đặt cọc (Tối thiểu: {formatVND(grandTotal * 0.2)})
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setDepositAmount(val);
+                    }}
+                    InputProps={{
+                      endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>VNĐ</Typography>
+                    }}
+                    error={depositAmount < grandTotal * 0.2 || depositAmount > grandTotal}
+                    helperText={
+                      depositAmount < grandTotal * 0.2 
+                        ? `Số tiền cọc tối thiểu: ${formatVND(grandTotal * 0.2)}` 
+                        : depositAmount > grandTotal 
+                          ? "Số tiền cọc không được vượt quá tổng hóa đơn" 
+                          : ""
+                    }
+                  />
+                  {depositAmount >= grandTotal * 0.2 && (
+                    <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+                      Còn lại phải thanh toán: {formatVND(grandTotal - depositAmount)}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Paper>
+
+            {/* THÔNG TIN KHÁC */}
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
+               <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
+                Thông tin khác
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <FormControlLabel 
+                  control={<Checkbox size="small" checked={hasNote} onChange={(e) => setHasNote(e.target.checked)}/>} 
+                  label={<Typography variant="body2">Ghi chú</Typography>} 
+                />
+                {hasNote && (
+                  <TextField 
+                    fullWidth 
+                    size="small" 
+                    placeholder="Ghi chú thêm về đơn hàng..." 
+                    multiline rows={2} 
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    sx={{ ml: 4, width: 'calc(100% - 32px)', mb: 2 }}
+                  />
+                )}
+                
+                <FormControlLabel 
+                  control={<Checkbox size="small" checked={requestVat} onChange={(e) => setRequestVat(e.target.checked)} />} 
+                  label={
+                    <Typography variant="body2">Xuất hóa đơn GTGT <span style={{ color: '#1976d2', cursor: 'pointer' }}>Chi tiết</span></Typography>
+                  } 
+                />
+                {requestVat && (
+                  <Box sx={{ ml: 4, mt: 1 }}>
+                    <Typography variant="caption" color="error" sx={{ display: 'block', mb: 2 }}>
+                      *Từ 01/07/2025, Quý khách chịu trách nhiệm về thông tin địa chỉ xuất Hóa đơn theo quy định Hành chính mới. Hệ thống sẽ không xuất lại hóa đơn nếu thông tin không đúng.
+                    </Typography>
+                    
+                    <RadioGroup 
+                      row value={vatType} 
+                      onChange={(e) => {
+                        setVatType(e.target.value);
+                        setErrors({}); // Clear VAT errors on type switch
+                      }}
+                      sx={{ mb: 2 }}
+                    >
+                      <FormControlLabel value="individual" control={<Radio size="small" color="error" />} label={<Typography variant="body2">Cá nhân</Typography>} />
+                      <FormControlLabel value="business" control={<Radio size="small" color="error" />} label={<Typography variant="body2">Doanh nghiệp</Typography>} sx={{ ml: 2 }} />
+                    </RadioGroup>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField 
+                          fullWidth size="small" label="Họ tên người mua hàng" 
+                          placeholder="Nhập họ tên người mua hàng"
+                          value={vatDetails.buyerName}
+                          onChange={(e) => handleFieldChange('vat', 'buyerName', e.target.value)}
+                          error={!!errors.buyerName}
+                          helperText={errors.buyerName}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+
+                      {vatType === 'individual' ? (
+                        <>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Địa chỉ cá nhân" 
+                              placeholder="Nhập địa chỉ cá nhân"
+                              value={vatDetails.address}
+                              onChange={(e) => handleFieldChange('vat', 'address', e.target.value)}
+                              error={!!errors.vatAddress}
+                              helperText={errors.vatAddress}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Căn cước công dân" 
+                              placeholder="Nhập căn cước công dân"
+                              value={vatDetails.idCard}
+                              onChange={(e) => handleFieldChange('vat', 'idCard', e.target.value)}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Số hộ chiếu" 
+                              placeholder="Nhập số hộ chiếu"
+                              value={vatDetails.passport}
+                              onChange={(e) => handleFieldChange('vat', 'passport', e.target.value)}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                        </>
+                      ) : (
+                        <>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Tên doanh nghiệp *" 
+                              placeholder="Nhập tên doanh nghiệp"
+                              value={vatDetails.companyName}
+                              onChange={(e) => handleFieldChange('vat', 'companyName', e.target.value)}
+                              error={!!errors.companyName}
+                              helperText={errors.companyName}
+                              InputLabelProps={{ shrink: true }}
+                              required
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Địa chỉ doanh nghiệp *" 
+                              placeholder="Nhập địa chỉ doanh nghiệp"
+                              value={vatDetails.companyAddress}
+                              onChange={(e) => handleFieldChange('vat', 'companyAddress', e.target.value)}
+                              error={!!errors.companyAddress}
+                              helperText={errors.companyAddress}
+                              InputLabelProps={{ shrink: true }}
+                              required
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Mã số thuế *" 
+                              placeholder="Nhập mã số thuế"
+                              value={vatDetails.taxId}
+                              onChange={(e) => handleFieldChange('vat', 'taxId', e.target.value)}
+                              error={!!errors.taxId}
+                              helperText={errors.taxId}
+                              InputLabelProps={{ shrink: true }}
+                              required
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField 
+                              fullWidth size="small" label="Mã đơn vị QHNS" 
+                              placeholder="Nhập mã đơn vị quan hệ ngân sách"
+                              value={vatDetails.budgetCode}
+                              onChange={(e) => handleFieldChange('vat', 'budgetCode', e.target.value)}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                        </>
+                      )}
+                      
+                      <Grid item xs={12}>
+                        <TextField 
+                          fullWidth size="small" label="Email nhận hóa đơn *" 
+                          placeholder="Nhập email nhận hóa đơn"
+                          value={vatDetails.email}
+                          onChange={(e) => handleFieldChange('vat', 'email', e.target.value)}
+                          error={!!errors.vatEmail}
+                          helperText={errors.vatEmail}
+                          InputLabelProps={{ shrink: true }}
+                          required
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+
+            {/* KIỂM TRA LẠI ĐƠN HÀNG */}
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
+              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
+                Kiểm tra lại đơn hàng
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {(() => {
+                  const allItems = [
+                    ...selectedItems.map(i => ({ ...i, isGift: false })),
+                    ...gifts.map(g => ({ ...g, isGift: true }))
+                  ];
+
+                  // Group by address
+                  const groups = {};
+                  
+                  if (!splitShipping) {
+                    const mainAddress = `${addressForm.address}, ${addressForm.ward}, ${addressForm.district}, ${addressForm.province}`;
+                    groups[mainAddress] = { items: allItems, receiver: addressForm.fullName, phone: addressForm.phone };
+                  } else {
+                    deliveryGroups.forEach(g => {
+                      const addr = `${g.address}, ${g.ward}, ${g.district}, ${g.province}`;
+                      if (!groups[addr]) {
+                        groups[addr] = { items: [], receiver: g.fullName, phone: g.phone };
+                      }
+                      
+                      g.selectedItemIds.forEach(itemId => {
+                        const item = allItems.find(si => !si.isGift && (si.cartId || si.id) === itemId);
+                        if (item) groups[addr].items.push(item);
+                      });
+                      
+                      if (g.includeGifts) {
+                        const giftItems = allItems.filter(si => si.isGift);
+                        groups[addr].items.push(...giftItems);
+                      }
+                    });
+                  }
+
+                  return Object.entries(groups).map(([address, data], gIdx) => (
+                    <Box key={gIdx} sx={{ mb: 2 }}>
+                      <Box sx={{ bgcolor: '#f8f9fa', p: 1.5, borderRadius: 1, mb: 1, border: '1px solid #eee' }}>
+                        <Typography variant="subtitle2" fontWeight="bold" color="primary">
+                          📍 Địa chỉ {Object.keys(groups).length > 1 ? gIdx + 1 : ''}: {address !== ', , , ' ? address : 'Chưa nhập địa chỉ'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Người nhận: {data.receiver || '...'} | SĐT: {data.phone || '...'}
+                        </Typography>
+                      </Box>
+                      
+                      {data.items.map((item, idx) => (
+                        <React.Fragment key={`${item.cartId || item.id}-${idx}`}>
+                          <Grid container spacing={2} alignItems="center" sx={{ mb: 1, pl: 2 }}>
+                            <Grid item xs={2} sm={1}>
+                              <Box sx={{ position: 'relative' }}>
+                                <img src={item.image} alt={item.productName || item.name} style={{ width: '100%', borderRadius: '4px', filter: item.isGift ? 'grayscale(0.2)' : 'none' }} />
+                                {item.isGift && (
+                                  <Box sx={{ position: 'absolute', top: -5, left: -5, bgcolor: '#d32f2f', color: '#fff', fontSize: '10px', px: 0.5, borderRadius: '2px' }}>Quà tặng</Box>
+                                )}
+                              </Box>
+                            </Grid>
+                            <Grid item xs={5} sm={7}>
+                              <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.productName || item.name}</Typography>
+                            </Grid>
+                            <Grid item xs={2} sm={1} textAlign="right">
+                              <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.isGift ? '0đ' : formatVND(item.currentPrice)}</Typography>
+                              {item.hasDiscount && !item.isGift && (
+                                 <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through' }}>
+                                   {formatVND(item.originalPrice)}
+                                 </Typography>
+                              )}
+                            </Grid>
+                            <Grid item xs={1} sm={1} textAlign="center">
+                              <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.quantity || 1}</Typography>
+                            </Grid>
+                            <Grid item xs={2} sm={2} textAlign="right">
+                              <Typography variant="body2" fontWeight="bold" color="#e68c55">
+                                {item.isGift ? '0đ' : formatVND(item.currentPrice * (item.quantity || 1))}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                          {idx < data.items.length - 1 && <Divider sx={{ my: 1, ml: 2 }} />}
+                        </React.Fragment>
+                      ))}
+                    </Box>
+                  ));
+                })()}
+              </Box>
+            </Paper>
+
+
+          </Grid>
+        </Grid>
+      </Container>
+      
+      {/* STICKY BOTTOM BAR */}
+      <Box sx={{ 
+        position: 'fixed', bottom: 0, left: 0, right: 0, 
+        bgcolor: '#fff', borderTop: '1px solid #eee', 
+        p: 2, px: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+        zIndex: 1000
+      }}>
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            Bằng việc tiến hành Mua hàng, Bạn đã đồng ý với
+          </Typography>
+          <br/>
+          <Typography variant="caption" color="#1976d2" sx={{ cursor: 'pointer', fontWeight: 'bold' }}>
+            Điều khoản & Điều kiện của Hệ thống
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+           <Box sx={{ textAlign: 'right' }}>
+             <Typography variant="caption" color="text.secondary">Phí vận chuyển: {formatVND(shippingFee)}</Typography>
+             <Typography variant="h6" color="#d32f2f" fontWeight="bold">
+               {formatVND(grandTotal)}
+             </Typography>
+           </Box>
+           <Button 
+             variant="contained" 
+             onClick={handleCheckout}
+             sx={{ 
+               bgcolor: '#c92127', color: '#fff', borderRadius: '4px', px: 4, py: 1.5,
+               fontWeight: 'bold', fontSize: '1rem',
+               '&:hover': { bgcolor: '#a8161a' }
+             }}
+           >
+             Xác nhận thanh toán
+           </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+export default CheckoutPage;

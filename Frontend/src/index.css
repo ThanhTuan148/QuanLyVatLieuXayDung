@@ -1,0 +1,39 @@
+/* src/index.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #f5f5f5;
+}
+
+html {
+  overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
+  scrollbar-gutter: stable;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Hiệu ứng hover viền cam toàn cục cho các Card/Paper/Box sản phẩm */
+.customer-portal .MuiCard-root,
+.customer-portal .MuiPaper-root,
+.hover-orange {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 2px solid #f0f0f0 !important;
+  /* Viền mặc định nhẹ nhàng */
+}
+
+.customer-portal .MuiCard-root:hover,
+.customer-portal .MuiPaper-root:hover,
+.hover-orange:hover {
+  border-color: #e68c55 !important;
+  box-shadow: 0 12px 30px rgba(230, 140, 85, 0.25) !important;
+  transform: translateY(-5px) !important;
+}

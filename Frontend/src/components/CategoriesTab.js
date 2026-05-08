@@ -1,0 +1,170 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Button, Typography, Paper, LinearProgress
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import categoryService from '../services/categoryService';
+import CategoryForm from './CategoryForm';
+import DataTable from './DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
+
+function CategoriesTab() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const { permissions } = usePermissions();
+  const canCreate = permissions?.products?.coTheTao ?? true;
+  const canEdit = permissions?.products?.coTheSua ?? true;
+  const canDelete = permissions?.products?.coTheXoa ?? true;
+
+  useEffect(() => { fetchCategories(); }, []);
+
+  const fetchCategories = async () => {
+    setLoading(true);
+    try { 
+      const res = await categoryService.getAllCategories(); 
+      setCategories(res.data || []); 
+    }
+    catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa Danh mục này?')) return;
+    try { 
+      await categoryService.deleteCategory(id); 
+      fetchCategories(); 
+    }
+    catch { alert('Xóa thất bại (Có thể do đang có sản phẩm thuộc danh mục này)'); }
+  };
+
+  const handleSave = async (payload) => {
+    try {
+      if (editing?.maLoaiSanPham) await categoryService.updateCategory(editing.maLoaiSanPham, payload);
+      else await categoryService.createCategory(payload);
+      setFormOpen(false); 
+      fetchCategories();
+    } catch { alert('Lưu thất bại'); }
+  };
+
+  const handleExport = async () => {
+    try {
+      const res = await categoryService.exportExcel();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `LoaiSanPham_${new Date().getTime()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (e) {
+      alert('Lỗi xuất file Excel');
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setLoading(true);
+      const res = await categoryService.importExcel(file);
+      alert(res.data?.message || 'Nhập dữ liệu thành công!');
+      fetchCategories();
+    } catch (err) {
+      alert('Lỗi nhập dữ liệu');
+      setLoading(false);
+    }
+    e.target.value = null;
+  };
+
+  const columns = [
+    { 
+      field: 'maLoai', 
+      headerName: 'Hệ Thống ID', 
+      width: 150,
+      renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#11998e' }}>{params.value}</Typography>
+    },
+    { 
+      field: 'tenLoai', 
+      headerName: 'Tên Loại / Danh Mục', 
+      flex: 1,
+      minWidth: 200,
+      renderCell: (params) => <Box sx={{ fontWeight: 500 }}>{params.value}</Box>
+    },
+    {
+      field: 'hinhAnh',
+      headerName: 'Hình Ảnh',
+      width: 100,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        params.value ? (
+          <img src={params.value} alt={params.row.tenLoai}
+            style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: 8, border: '1px solid #efefef', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+          />
+        ) : (
+          <Box sx={{ width: 42, height: 42, borderRadius: 2, background: '#f5f6fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', border: '1px solid #eee', color: '#ccc' }}>🖼️</Box>
+        )
+      )
+    },
+    { field: 'moTa', headerName: 'Mô Tả', flex: 1.5, minWidth: 250 },
+    {
+      field: 'actions',
+      headerName: 'Thao Tác',
+      width: 150,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {canEdit && <Button size="small" variant="text" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+          {canDelete && <Button size="small" color="error" variant="text" onClick={() => handleDelete(params.row.maLoaiSanPham)}>Xóa</Button>}
+        </Box>
+      )
+    }
+  ];
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Quản Lý Danh Mục (Loại Sản Phẩm)</Typography>
+          <Typography variant="body2" color="textSecondary">Phân loại các nhóm vật liệu xây dựng</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-categories" onChange={handleImport} />
+          <label htmlFor="import-excel-categories">
+            <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
+              Nhập Excel
+            </Button>
+          </label>
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} color="primary" onClick={handleExport}>
+            Xuất Excel
+          </Button>
+          {canCreate && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
+              sx={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', borderRadius: 2 }}>
+              Thêm Phân Loại
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {loading && <LinearProgress sx={{ mb: 2 }} />}
+
+      <DataTable 
+        rows={categories}
+        columns={columns}
+        getRowId={(row) => row.maLoai}
+        loading={loading}
+      />
+
+      <CategoryForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
+    </Box>
+  );
+}
+
+export default CategoriesTab;
