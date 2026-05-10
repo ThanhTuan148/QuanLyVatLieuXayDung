@@ -19,6 +19,10 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [receiptImage, setReceiptImage] = useState(null);
+  
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isCustomer = user.role === 'Customer' || !!user.maKhachHang;
 
   useEffect(() => {
     if (open && debt) {
@@ -26,6 +30,8 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
       setCustomerCash(debt.soTienConLai || 0);
       setError('');
       setNote('');
+      setReceiptImage(null);
+      if (isCustomer) setPaymentMethod('Chuyển khoản');
     }
   }, [open, debt]);
 
@@ -54,16 +60,22 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
       setError('Tiền mặt chưa đủ để thanh toán');
       return;
     }
+    if (isCustomer && paymentMethod === 'Chuyển khoản' && !receiptImage) {
+      setError('Vui lòng tải ảnh minh chứng chuyển khoản (Biên lai)');
+      return;
+    }
 
     setLoading(true);
     try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
       const payload = {
         maCongNo: debt.maCongNo,
         soTien: amount,
         pttt: paymentMethod,
         ghiChu: note,
-        maNhanVien: localStorage.getItem('maNhanVien') || 1, // Placeholder
-        ngayTT: new Date().toISOString()
+        maNhanVien: user.employeeId || user.maNhanVien || null,
+        ngayTT: new Date().toISOString(),
+        anhBangChung: receiptImage
       };
 
       await debtService.recordPayment(payload);
@@ -74,6 +86,17 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
       setError(err.response?.data?.message || 'Có lỗi xảy ra khi thanh toán');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReceiptUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptImage(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -113,9 +136,11 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
           sx={{ mb: 3 }}
           color="primary"
         >
-          <ToggleButton value="Tiền mặt" sx={{ py: 1.5, gap: 1 }}>
-            <PaymentsIcon fontSize="small" /> Tiền mặt
-          </ToggleButton>
+          {!isCustomer && (
+            <ToggleButton value="Tiền mặt" sx={{ py: 1.5, gap: 1 }}>
+              <PaymentsIcon fontSize="small" /> Tiền mặt
+            </ToggleButton>
+          )}
           <ToggleButton value="Chuyển khoản" sx={{ py: 1.5, gap: 1 }}>
             <AccountBalanceIcon fontSize="small" /> Chuyển khoản / QR
           </ToggleButton>
@@ -157,15 +182,42 @@ function PaymentModal({ open, onClose, debt, onSuccess }) {
               </Grid>
             </>
           ) : (
-            <Grid item xs={12}>
-               <Box sx={{ border: '2px dashed #e0e0e0', p: 2, borderRadius: 2, textAlign: 'center', bgcolor: '#fafafa' }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, color: '#1976d2', fontWeight: 'bold' }}>Quét Mã QR VietQR</Typography>
-                  <Box sx={{ width: 120, height: 120, bgcolor: '#eee', mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, mb: 1, border: '1px solid #ddd' }}>
-                    <QrCode2Icon sx={{ fontSize: 80, color: '#444' }} />
+              <Grid item xs={12}>
+               <Box sx={{ border: '2px dashed #1976d2', p: 2, borderRadius: 2, textAlign: 'center', bgcolor: '#f0f7ff' }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, color: '#1976d2', fontWeight: 'bold' }}>Quét Mã QR VietQR để thanh toán</Typography>
+                  <Box sx={{ bgcolor: '#fff', p: 1, borderRadius: 2, display: 'inline-block', mb: 1, border: '1px solid #e0e0e0' }}>
+                    <img 
+                      src={`https://img.vietqr.io/image/vcb-1031657749-compact2.png?amount=${amount}&addInfo=THANH TOAN CONG NO ${debt?.maCN || debt?.maCongNo}&accountName=TRUONG THANH TUAN`}
+                      alt="VietQR"
+                      style={{ width: 200, height: 'auto', borderRadius: 4 }}
+                    />
                   </Box>
-                  <Typography variant="caption" display="block">STK: 123456789 - MB Bank</Typography>
-                  <Typography variant="caption" display="block">Chủ TK: CÔNG TY VLXD ANTIGRAVITY</Typography>
-                  <Typography variant="caption" display="block" sx={{ fontWeight: 'bold' }}>Nội dung: {debt?.maCN} PAY</Typography>
+                  <Typography variant="caption" display="block">Ngân hàng: <b>Vietcombank</b></Typography>
+                  <Typography variant="caption" display="block">STK: <b>1031657749</b></Typography>
+                  <Typography variant="caption" display="block">Chủ TK: <b>TRƯƠNG THANH TUẤN</b></Typography>
+                  <Typography variant="caption" display="block" sx={{ fontWeight: 'bold', color: '#c92127' }}>
+                    Nội dung: THANH TOAN CONG NO {debt?.maCN || debt?.maCongNo}
+                  </Typography>
+
+                  <Box sx={{ mt: 2, borderTop: '1px solid #ddd', pt: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Tải lên ảnh chứng từ (Biên lai):</Typography>
+                    <Button variant="outlined" component="label" size="small" startIcon={<span>📷</span>} sx={{ mb: 1 }}>
+                      {receiptImage ? "Thay đổi ảnh" : "Chọn ảnh biên lai"}
+                      <input type="file" hidden accept="image/*" onChange={handleReceiptUpload} />
+                    </Button>
+                    {receiptImage && (
+                      <Box sx={{ position: 'relative', width: 100, mx: 'auto', mt: 1 }}>
+                        <img src={receiptImage} alt="Receipt" style={{ width: '100%', borderRadius: 4, border: '1px solid #ddd' }} />
+                        <IconButton 
+                          size="small" 
+                          sx={{ position: 'absolute', top: -10, right: -10, bgcolor: 'error.main', color: '#fff', '&:hover': { bgcolor: '#a8161a' }, p: 0.2 }}
+                          onClick={() => setReceiptImage(null)}
+                        >
+                          <CloseIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Box>
+                    )}
+                  </Box>
                </Box>
             </Grid>
           )}

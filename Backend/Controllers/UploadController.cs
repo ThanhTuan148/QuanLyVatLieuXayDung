@@ -14,15 +14,21 @@ namespace BuildingMaterialAPI.Controllers
         }
 
         [HttpPost("image")]
-        public async Task<IActionResult> UploadImage(IFormFile file)
+        public async Task<IActionResult> UploadImage([FromForm] IFormFile file)
         {
             return await HandleUpload(file, "products");
         }
 
         [HttpPost("avatar")]
-        public async Task<IActionResult> UploadAvatar(IFormFile file)
+        public async Task<IActionResult> UploadAvatar([FromForm] IFormFile file)
         {
             return await HandleUpload(file, "avatars");
+        }
+
+        [HttpPost("signature")]
+        public async Task<IActionResult> UploadSignature([FromForm] IFormFile file)
+        {
+            return await HandleUpload(file, "signatures");
         }
 
         private async Task<IActionResult> HandleUpload(IFormFile file, string folder)
@@ -52,11 +58,12 @@ namespace BuildingMaterialAPI.Controllers
                 await file.CopyToAsync(stream);
             }
 
-            // Return the relative URL to access the image
+            // Return the relative URL and local path info
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             var imageUrl = $"{baseUrl}/images/{folder}/{fileName}";
+            var relativePath = $"/images/{folder}/{fileName}";
 
-            return Ok(new { imageUrl, fileName });
+            return Ok(new { imageUrl, relativePath, fileName });
         }
 
         [HttpDelete("image/{fileName}")]

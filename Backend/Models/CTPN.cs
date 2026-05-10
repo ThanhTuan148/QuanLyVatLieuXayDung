@@ -16,6 +16,7 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayTao")] public DateTime NgayTao { get; set; }
         /// <summary>null = chưa xử lý | "Đã Duyệt" | "Không Duyệt"</summary>
         [Column("TrangThai")] public string? TrangThai { get; set; }
+        [Column("GhiChu")] public string? GhiChu { get; set; }
         [Column("MaKhoHang")] public int? MaKhoHang { get; set; }
         [Column("MaNhaCungCap")] public int? MaNhaCungCap { get; set; }
 

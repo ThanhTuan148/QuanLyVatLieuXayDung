@@ -71,6 +71,7 @@ export default function DeliveriesPage() {
       field: 'ngayGiaoThucTe', 
       headerName: 'Ngày Giao Thực Tế', 
       width: 150,
+      type: 'date',
       valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('vi-VN') : '-'
     },
     { field: 'diaChi', headerName: 'Địa Chỉ', flex: 1.5, minWidth: 200 },

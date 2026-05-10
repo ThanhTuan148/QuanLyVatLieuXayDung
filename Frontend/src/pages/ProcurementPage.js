@@ -67,8 +67,7 @@ function ProcurementPage() {
   const [rejectSelectedIds, setRejectSelectedIds] = useState(new Set()); // Chọn để TỪ CHỐI HẲN
   const [statusHistory, setStatusHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState([]);
-  // revisionNote: ghi chú chung cho tất cả mục yêu cầu sửa
-  const [revisionNote, setRevisionNote] = useState('');
+  const [revisionNote, setRevisionNote] = useState(''); // Still used in some legacy logic or as fallback
 
   // Inventory Alerts state
   const [inventoryAlerts, setInventoryAlerts] = useState([]);
@@ -302,48 +301,73 @@ function ProcurementPage() {
           finalTargetStatus = null; // API sau /reject sẽ tự lo
           isRejectAction = true;
         }
+
+        // Validation: All revised/rejected items must have a note
+        const missingNotes = viewDialog.chiTiet.filter(c => {
+          const action = itemActions[c.maCTPN];
+          return (action === 'revise' || action === 'reject') && !c.ghiChu;
+        });
+
+        if (missingNotes.length > 0) {
+          setActionLoading(false);
+          return alert(`Vui lòng nhập lý do (Ghi chú) cho ${missingNotes.length} sản phẩm bị Yêu cầu sửa/Từ chối!`);
+        }
       }
 
-      // Xóa những item bị từ chối khỏi phiếu trước khi lưu nếu đây là hành động xử lý phiếu
-      let chiTietLuu = viewDialog.chiTiet;
       if (targetStatus === 'processed') {
-          chiTietLuu = chiTietLuu.filter(c => itemActions[c.maCTPN] !== 'reject');
+          // Use batch approval endpoint to process everything at once
+          const batchPayload = {
+              macTPNDuyet: Object.keys(itemActions).filter(k => itemActions[k] === 'approve').map(Number),
+              macTPNSua:   Object.keys(itemActions).filter(k => itemActions[k] === 'revise').map(Number),
+              macTPNTuChoi: Object.keys(itemActions).filter(k => itemActions[k] === 'reject').map(Number),
+              chiTietUpdate: viewDialog.chiTiet
+                .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+                .map(c => ({
+                  maCTPN: c.maCTPN,
+                  maSanPham: c.maSanPham,
+                  soLuong: Number(c.soLuong),
+                  donGia: Number(c.donGia),
+                  maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
+                  maKhoHang: c.maKhoHang || 1,
+                  ghiChu: c.ghiChu
+                })),
+              userId: userId
+          };
+          await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve-items`, batchPayload);
       } else {
-          chiTietLuu = chiTietLuu.filter(c => isApprovalMode || c.trangThai !== 'Từ Chối');
+          // Standard update (for warehouse staff re-submitting or simple edits)
+          const payload = {
+            maNhanVien: userId || 1, 
+            ghiChu: viewDialog.ghiChu,
+            ngayNhap: viewDialog.ngayNhap,
+            targetStatus: finalTargetStatus, 
+            chiTiet: viewDialog.chiTiet
+              .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+              .map(c => ({
+                maCTPN: c.maCTPN,
+                maSanPham: c.maSanPham,
+                soLuong: Number(c.soLuong),
+                donGia: Number(c.donGia),
+                maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
+                maKhoHang: c.maKhoHang || 1,
+                ghiChu: c.ghiChu,
+                trangThai: c.trangThai
+              }))
+          };
+          await api.put(`/procurement/${viewDialog.maPhieuNhap}`, payload);
+
+          if (isApproveAction && !hasRevise) {
+              await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve`, { userId: userId || 1 });
+          } else if (isRejectAction && !hasRevise && !isApproveAction) {
+              await api.put(`/procurement/${viewDialog.maPhieuNhap}/reject`, { lyDo: "Quản lý từ chối phiếu đề xuất", userId: userId || 1 });
+          }
       }
 
-      const payload = {
-        maNhanVien: userId || 1, 
-        ghiChu: viewDialog.ghiChu,
-        ngayNhap: viewDialog.ngayNhap,
-        targetStatus: finalTargetStatus, 
-        chiTiet: chiTietLuu.map(c => ({
-          maCTPN: c.maCTPN,
-          maSanPham: c.maSanPham,
-          soLuong: Number(c.soLuong),
-          donGia: Number(c.donGia),
-          maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
-          maKhoHang: c.maKhoHang || 1
-        }))
-      };
-
-      await api.put(`/procurement/${viewDialog.maPhieuNhap}`, payload);
-
-      // Nếu quản lý Duyệt hoàn toàn (không có yêu cầu sửa)
-      if (isApproveAction && !hasRevise) {
-          await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve`, { userId: userId || 1 });
-      } else if (isRejectAction && !hasRevise && !isApproveAction) {
-          await api.put(`/procurement/${viewDialog.maPhieuNhap}/reject`, { lyDo: revisionNote || "Quản lý từ chối phiếu đề xuất", userId: userId || 1 });
-      }
-
-      alert('Cập nhật phiếu thành công!');
-      
-      // Refresh everything to sync UI
+      alert('Thao tác thành công!');
       loadData();
       const updated = await api.get(`/procurement/${viewDialog.maPhieuNhap}`);
       setViewDialog({ ...updated.data, mode: 'view' });
       loadHistory(viewDialog.maPhieuNhap);
-      setRevisionNote('');
     } catch (e) {
       const msg = e.response?.data?.message || e.response?.data || e.message;
       alert('Lỗi cập nhật: ' + msg);
@@ -439,16 +463,19 @@ function ProcurementPage() {
         macTPNDuyet: approveIds,
         macTPNSua:   reviseIds,
         macTPNTuChoi: rejectIds,
-        chiTietUpdate: viewDialog.chiTiet.map(c => ({
-          maCTPN: c.maCTPN,
-          maSanPham: c.maSanPham,
-          soLuong: Number(c.soLuong),
-          donGia: Number(c.donGia),
-          maNhaCungCap: Number(c.maNhaCungCap) || null,
-          maKhoHang: c.maKhoHang || 1
-        })),
-        ghiChuChung: rejectReason || revisionNote,
-        lyDoSua: revisionNote,
+        chiTietUpdate: viewDialog.chiTiet
+          .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+          .map(c => ({
+            maCTPN: c.maCTPN,
+            maSanPham: c.maSanPham,
+            soLuong: Number(c.soLuong),
+            donGia: Number(c.donGia),
+            maNhaCungCap: Number(c.maNhaCungCap) || null,
+            maKhoHang: c.maKhoHang || 1,
+            ghiChu: c.ghiChu
+          })),
+        ghiChuChung: rejectReason || "Xử lý chi tiết mặt hàng",
+        lyDoSua: "Xử lý chi tiết mặt hàng",
         userId: userId
       });
       alert(`✅ ${res.data.message}`);
@@ -456,7 +483,7 @@ function ProcurementPage() {
       setViewDialog(null);
       setItemActions({});
       setRejectReason('');
-      setRevisionNote('');
+      setRejectReason('');
     } catch (e) {
       alert(e.response?.data?.message || 'Lỗi duyệt');
     } finally {
@@ -549,15 +576,16 @@ function ProcurementPage() {
 
       // Initialize actions from database status
       const initialActions = {};
-      detail.data.chiTiet.forEach(c => {
-        if (c.trangThai === 'Yêu Cầu Sửa') initialActions[c.maCTPN] = 'revise';
+      detail.data.chiTiet?.forEach(c => {
+        if (c.trangThai === 'Đã Duyệt') initialActions[c.maCTPN] = 'approve';
+        else if (c.trangThai === 'Yêu Cầu Sửa') initialActions[c.maCTPN] = 'revise';
         else if (c.trangThai === 'Từ Chối') initialActions[c.maCTPN] = 'reject';
-        else initialActions[c.maCTPN] = 'approve';
+        // Nếu là 'Đề Xuất' hoặc null thì để trống cho Quản lý chọn mới
       });
       setItemActions(initialActions);
-      setRevisionNote('');
     } catch (e) {
       console.error(e);
+      alert(e.response?.data?.message || 'Lỗi khi tải chi tiết phiếu nhập. Vui lòng kiểm tra kết nối API hoặc Database.');
     }
   };
 
@@ -620,6 +648,7 @@ function ProcurementPage() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'Đề Xuất':
+      case 'Chờ Duyệt':
       case 'Đề Xuất (Nhập Bù)': return 'info';
       case 'Yêu Cầu Sửa': return 'warning';
       case 'Đã Duyệt': return 'primary';
@@ -632,15 +661,33 @@ function ProcurementPage() {
     }
   };
 
-  const getItemStatusChip = (trangThai) => {
-    if (!trangThai) return null;
-    if (trangThai === 'Đã Duyệt') return <Chip label="Đã Duyệt" color="success" size="small" />;
-    if (trangThai === 'Không Duyệt') return <Chip label="Không Duyệt" color="error" size="small" />;
-    return null;
+  const canReProcess = viewDialog && !viewDialog.chiTiet?.some(c => c.soLuongDaNhan > 0);
+  const isApprovalMode = viewDialog && (['Đề Xuất', 'Đề Xuất (Nhập Bù)', 'Đang xử lý', 'Chờ Duyệt', 'Yêu Cầu Sửa'].includes(viewDialog.trangThai) || (['Đã Duyệt', 'Từ Chối'].includes(viewDialog.trangThai) && canReProcess)) && isQuanLy;
+
+  const getItemStatusChip = (row) => {
+    if (!row.trangThai) return null;
+    const isSplit = row.maPhieuHienTai && row.maPhieuHienTai !== viewDialog?.maPhieuNhap;
+    
+    switch (row.trangThai) {
+      case 'Đã Duyệt': 
+        return (
+          <Tooltip title={isSplit ? `Đã tách sang phiếu nhập #${row.maPhieuHienTai}` : ""}>
+            <Chip 
+              label={isSplit ? "Đã Tách" : "Đã Duyệt"} 
+              color="success" size="small" variant={isSplit ? "outlined" : "filled"} 
+            />
+          </Tooltip>
+        );
+      case 'Yêu Cầu Sửa': return <Chip label="Sửa" color="warning" size="small" variant="filled" />;
+      case 'Từ Chối': return <Chip label="Từ Chối" color="error" size="small" variant="filled" />;
+      case 'Đề Xuất': 
+      case 'Chờ Duyệt': 
+        return <Chip label="Đề Xuất" color="info" size="small" variant="outlined" />;
+      default: return <Chip label={row.trangThai} size="small" variant="outlined" />;
+    }
   };
 
   const minPrice = getMinPrice();
-  const isApprovalMode = viewDialog && ['Đề Xuất', 'Đề Xuất (Nhập Bù)', 'Đang xử lý', 'Chờ Duyệt', 'Yêu Cầu Sửa'].includes(viewDialog.trangThai) && isQuanLy;
   const allSelected = viewDialog && approveSelectedIds.size === viewDialog.chiTiet?.length;
   const someSelected = viewDialog && approveSelectedIds.size > 0 && !allSelected;
 
@@ -898,6 +945,7 @@ function ProcurementPage() {
         ]}
         getRowId={(row) => row.maPhieuNhap}
         loading={loading}
+        dateField="ngayNhap"
       />
 
       {/* DIALOG: LẬP ĐỀ XUẤT */}
@@ -1151,7 +1199,7 @@ function ProcurementPage() {
                   <Autocomplete
                     options={suppliers}
                     getOptionLabel={(opt) => opt.tenNCC}
-                    value={suppliers.find(s => (s.maNhaCungCap || s.maNCC) == Number(viewDialog.maNhaCungCap)) || null}
+                    value={suppliers.find(s => Number(s.maNhaCungCap || s.maNCC) === Number(viewDialog.maNhaCungCap)) || null}
                     onChange={(e, val) => {
                        if (val) setViewDialog({ ...viewDialog, maNhaCungCap: Number(val.maNhaCungCap || val.maNCC), tenNhaCungCap: val.tenNCC });
                     }}
@@ -1213,9 +1261,8 @@ function ProcurementPage() {
                 >
                   <DataTable 
                     rows={viewDialog.chiTiet.filter(c => {
-                      const isVisible = isApprovalMode || c.trangThai !== 'Từ Chối';
-                      const matchSearch = (c.tenSanPham + c.maSanPham).toLowerCase().includes(itemSearch.toLowerCase());
-                      return isVisible && matchSearch;
+                      const matchSearch = (c.tenSanPham + (c.maSanPham || '')).toLowerCase().includes(itemSearch.toLowerCase());
+                      return matchSearch;
                     }).map((c, idx) => ({ ...c, id: c.maCTPN || `item-${idx}`, stt: idx + 1 }))}
                     columns={[
                       { field: 'stt', headerName: 'STT', width: 60 },
@@ -1238,12 +1285,30 @@ function ProcurementPage() {
                         headerName: 'Nhà Cung Cấp', 
                         width: 180,
                         renderCell: (params) => (
-                          <Chip 
-                            label={params.value || '---'} 
-                            size="small" 
-                            variant="outlined" 
-                            sx={{ borderRadius: '8px', fontWeight: 700, border: '1px solid #e2e8f0', color: '#334155' }} 
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip 
+                              label={params.value || '---'} 
+                              size="small" 
+                              variant="outlined" 
+                              sx={{ borderRadius: '8px', fontWeight: 700, border: '1px solid #e2e8f0', color: '#334155' }} 
+                            />
+                            {isApprovalMode && (
+                               <Tooltip title="Chọn nhà cung cấp khác">
+                                 <IconButton size="small" onClick={async () => {
+                                     setPriceLoading(true); 
+                                     try { 
+                                       const res = await api.get(`/procurement/price-compare/${params.row.maSanPham}`); 
+                                       setPriceHistory(res.data); 
+                                       setEditingProductId(params.row.maSanPham); 
+                                       setShowPriceCompare(true); 
+                                     } catch (e) { console.error(e); } 
+                                     finally { setPriceLoading(false); } 
+                                 }}>
+                                    <FilterListIcon fontSize="inherit" />
+                                 </IconButton>
+                               </Tooltip>
+                            )}
+                          </Box>
                         )
                       },
                       { 
@@ -1253,9 +1318,9 @@ function ProcurementPage() {
                         renderCell: (params) => (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9' }}>
-                              {params.value?.toLocaleString()} đ
+                               {params.value?.toLocaleString()} đ
                             </Typography>
-                            {(isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho)) && (
+                            {(isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa')) && (
                               <IconButton 
                                 size="small" 
                                 sx={{ bgcolor: '#f0f9ff', color: '#0ea5e9', '&:hover': { bgcolor: '#e0f2fe' } }}
@@ -1276,7 +1341,7 @@ function ProcurementPage() {
                           </Box>
                         )
                       },
-                      ...(!( !isApprovalMode && viewDialog.trangThai === 'Yêu Cầu Sửa') ? [{
+                      {
                         field: 'actions',
                         headerName: isApprovalMode ? 'Quyết Định' : 'Trạng Thái',
                         width: 240,
@@ -1289,62 +1354,102 @@ function ProcurementPage() {
                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, py: 1 }}>
                               <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', letterSpacing: 1 }}>HÀNH ĐỘNG NHANH</Typography>
                               <Box sx={{ display: 'flex', gap: 1 }}>
-                                <IconButton size="small" sx={{ color: '#10b981', border: '1.5px solid #10b981', '&:hover': { bgcolor: '#ecfdf5' } }} onClick={() => {
-                                  const next = { ...itemActions };
-                                  viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'approve');
-                                  setItemActions(next);
-                                }}><CheckCircleOutlineIcon fontSize="small" /></IconButton>
-                                <IconButton size="small" sx={{ color: '#f59e0b', border: '1.5px solid #f59e0b', '&:hover': { bgcolor: '#fffbeb' } }} onClick={() => {
-                                  const next = { ...itemActions };
-                                  viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'revise');
-                                  setItemActions(next);
-                                }}><CompareArrowsIcon fontSize="small" /></IconButton>
-                                <IconButton size="small" sx={{ color: '#ef4444', border: '1.5px solid #ef4444', '&:hover': { bgcolor: '#fef2f2' } }} onClick={() => {
-                                  const next = { ...itemActions };
-                                  viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'reject');
-                                  setItemActions(next);
-                                }}><BlockIcon fontSize="small" /></IconButton>
+                                <Tooltip title="Duyệt tất cả">
+                                  <IconButton size="small" sx={{ color: '#10b981', border: '1.5px solid #10b981', '&:hover': { bgcolor: '#ecfdf5' } }} onClick={() => {
+                                    const next = { ...itemActions };
+                                    viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'approve');
+                                    setItemActions(next);
+                                  }}><CheckCircleOutlineIcon fontSize="small" /></IconButton>
+                                </Tooltip>
+                                <Tooltip title="Yêu cầu sửa tất cả">
+                                  <IconButton size="small" sx={{ color: '#f59e0b', border: '1.5px solid #f59e0b', '&:hover': { bgcolor: '#fffbeb' } }} onClick={() => {
+                                    const next = { ...itemActions };
+                                    viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'revise');
+                                    setItemActions(next);
+                                  }}><CompareArrowsIcon fontSize="small" /></IconButton>
+                                </Tooltip>
+                                <Tooltip title="Từ chối tất cả">
+                                  <IconButton size="small" sx={{ color: '#ef4444', border: '1.5px solid #ef4444', '&:hover': { bgcolor: '#fef2f2' } }} onClick={() => {
+                                    const next = { ...itemActions };
+                                    viewDialog.chiTiet.forEach(c => next[c.maCTPN] = 'reject');
+                                    setItemActions(next);
+                                  }}><BlockIcon fontSize="small" /></IconButton>
+                                </Tooltip>
                               </Box>
                             </Box>
                           );
                         },
                         renderCell: (params) => {
-                          if (!isApprovalMode) return getItemStatusChip(params.row.trangThai);
+                          if (!isApprovalMode) return getItemStatusChip(params.row);
                           const maCTPN = params.row.maCTPN;
                           const currentAction = itemActions[maCTPN];
+                          
+                          // Nếu món này đã được tách sang phiếu khác, không cho chọn lại hành động
+                          const isSplit = params.row.maPhieuHienTai && params.row.maPhieuHienTai !== viewDialog?.maPhieuNhap;
+                          if (isSplit) return getItemStatusChip(params.row);
+
                           return (
                             <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', width: '100%' }}>
-                              <Button 
-                                size="small" variant={currentAction === 'approve' ? 'contained' : 'outlined'}
-                                color="success" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
-                                onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'approve' }))}
-                              >
-                                <CheckCircleOutlineIcon fontSize="small" />
-                              </Button>
-                              <Button 
-                                size="small" variant={currentAction === 'revise' ? 'contained' : 'outlined'}
-                                color="warning" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
-                                onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'revise' }))}
-                              >
-                                <CompareArrowsIcon fontSize="small" />
-                              </Button>
-                              <Button 
-                                size="small" variant={currentAction === 'reject' ? 'contained' : 'outlined'}
-                                color="error" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
-                                onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'reject' }))}
-                              >
-                                <BlockIcon fontSize="small" />
-                              </Button>
+                              <Tooltip title="Duyệt">
+                                <Button 
+                                  size="small" variant={currentAction === 'approve' ? 'contained' : 'outlined'}
+                                  color="success" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
+                                  onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'approve' }))}
+                                >
+                                  <CheckCircleOutlineIcon fontSize="small" />
+                                </Button>
+                              </Tooltip>
+                              <Tooltip title="Yêu cầu sửa">
+                                <Button 
+                                  size="small" variant={currentAction === 'revise' ? 'contained' : 'outlined'}
+                                  color="warning" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
+                                  onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'revise' }))}
+                                >
+                                  <CompareArrowsIcon fontSize="small" />
+                                </Button>
+                              </Tooltip>
+                              <Tooltip title="Từ chối">
+                                <Button 
+                                  size="small" variant={currentAction === 'reject' ? 'contained' : 'outlined'}
+                                  color="error" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
+                                  onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'reject' }))}
+                                >
+                                  <BlockIcon fontSize="small" />
+                                </Button>
+                              </Tooltip>
                             </Box>
                           );
                         }
-                      }] : []),
+                      },
+                      {
+                        field: 'ghiChu',
+                        headerName: 'Ghi Chú',
+                        width: 250,
+                        renderCell: (params) => {
+                          const isItemEditable = (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa');
+                          if (!isApprovalMode && !isItemEditable) return <Typography variant="caption">{params.value || params.row.ghiChu || '---'}</Typography>;
+                          
+                          const maCTPN = params.row.maCTPN;
+                          const action = isApprovalMode ? itemActions[maCTPN] : 'revise'; // NV kho mặc định là sửa nếu được cho phép
+                          const isRequired = isApprovalMode && (action === 'revise' || action === 'reject');
+                          const idx = viewDialog.chiTiet.findIndex(x => x.maCTPN === maCTPN);
+                          
+                          return (
+                            <NoteInput 
+                              value={params.row.ghiChu || ''}
+                              action={action}
+                              isRequired={isRequired}
+                              onChange={(val) => handleEditItemValue(idx, 'ghiChu', val)}
+                            />
+                          );
+                        }
+                      },
                       { 
                         field: 'soLuong', 
                         headerName: 'S.Lượng', 
                         width: 100,
                         renderCell: (params) => {
-                          const isEditable = isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho);
+                          const isEditable = isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa');
                           if (isEditable) {
                             return (
                               <TextField 
@@ -1355,6 +1460,7 @@ function ProcurementPage() {
                                   const idx = viewDialog.chiTiet.findIndex(x => x.maCTPN === params.row.maCTPN);
                                   handleEditItemValue(idx, 'soLuong', Number(e.target.value));
                                 }} 
+                                onKeyDown={(e) => e.stopPropagation()}
                               />
                             );
                           }
@@ -1381,7 +1487,13 @@ function ProcurementPage() {
                         hide: viewDialog.mode !== 'receive',
                         renderCell: (params) => (
                           <TextField
-                            size="small" type="number" sx={{ width: 80 }}
+                            size="small" type="number" 
+                            sx={{ 
+                              width: 80,
+                              filter: viewDialog.mode !== 'receive' ? 'blur(3px)' : 'none',
+                              opacity: viewDialog.mode !== 'receive' ? 0.3 : 1,
+                              pointerEvents: viewDialog.mode !== 'receive' ? 'none' : 'auto'
+                            }}
                             value={receiveData.find(r => r.maCTPN === params.row.maCTPN)?.soLuongDaNhan || 0}
                             onChange={(e) => handleReceiveChange(params.row.maCTPN, 'soLuongDaNhan', Number(e.target.value))}
                           />
@@ -1424,15 +1536,6 @@ function ProcurementPage() {
                 {isApprovalMode && (
                   <Paper elevation={0} sx={{ mt: 3, p: 3, borderRadius: '16px', border: '1px solid #fee2e2', bgcolor: '#fff' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#ef4444', mb: 2 }}>KHU VUC QUAN LY</Typography>
-                    {Object.values(itemActions).some(v => v === 'revise') && (
-                      <TextField
-                        fullWidth multiline rows={3} size="small"
-                        placeholder="Nhap ly do yeu cau sua..."
-                        value={revisionNote}
-                        onChange={e => setRevisionNote(e.target.value)}
-                        sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-                      />
-                    )}
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <Button
                         fullWidth variant="contained" 
@@ -1497,17 +1600,7 @@ function ProcurementPage() {
             </Box>
           </DialogContent>
           <DialogActions>
-            {isApprovalMode && isQuanLy && (
-              <Button 
-                variant="contained" 
-                color="primary" 
-                onClick={() => handleUpdateProposal()} 
-                disabled={actionLoading}
-                startIcon={<CheckCircleOutlineIcon />}
-              >
-                CẬP NHẬT PHIẾU (LƯU THAY ĐỔI)
-              </Button>
-            )}
+
             {viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && (
               <Button variant="contained" color="warning" onClick={() => handleUpdateProposal()} disabled={actionLoading}>
                 GỬI LẠI ĐỀ XUẤT (ĐÃ CHỈNH SỬA)
@@ -1702,5 +1795,37 @@ function ProcurementPage() {
     </Box>
   );
 }
+
+// Sub-component to handle stable input for Notes (prevent cursor jumps and IME doubling)
+const NoteInput = ({ value, action, isRequired, onChange }) => {
+  const [localValue, setLocalValue] = React.useState(value);
+
+  React.useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  return (
+    <TextField 
+      size="small" fullWidth 
+      placeholder={isRequired ? "Bắt buộc nhập lý do..." : "Không cần ghi chú"}
+      value={localValue || ''}
+      disabled={action === 'approve'}
+      error={isRequired && !localValue}
+      sx={{ 
+        '& .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: action === 'approve' ? '#f1f5f9' : '#fff' },
+        filter: action === 'approve' ? 'grayscale(1) opacity(0.5)' : 'none'
+      }}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={() => {
+        if (localValue !== value) {
+          onChange(localValue);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === ' ') e.stopPropagation();
+      }}
+    />
+  );
+};
 
 export default ProcurementPage;

@@ -42,6 +42,8 @@ namespace BuildingMaterialAPI.Data
         public DbSet<CTPhieuTraHangNCC> CTPhieuTraHangNCCs { get; set; }
         public DbSet<PhieuGiaoHang> PhieuGiaoHangs { get; set; }
         public DbSet<CTPhieuGiaoHang> CTPhieuGiaoHangs { get; set; }
+        public DbSet<PhieuXuatKho> PhieuXuatKhos { get; set; }
+        public DbSet<CTPhieuXuatKho> CTPhieuXuatKhos { get; set; }
 
         // Công nợ
         public DbSet<CongNo> CongNos { get; set; }
@@ -251,6 +253,13 @@ namespace BuildingMaterialAPI.Data
                 .HasForeignKey(ct => ct.MaSanPham)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Phiếu xuất kho
+            modelBuilder.Entity<CTPhieuXuatKho>()
+                .HasOne(ct => ct.PhieuXuatKho)
+                .WithMany(p => p.ChiTiet)
+                .HasForeignKey(ct => ct.MaPhieuXK)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Công nợ
             modelBuilder.Entity<CongNo>()
                 .HasOne(cn => cn.KhachHang)
@@ -321,6 +330,14 @@ namespace BuildingMaterialAPI.Data
             // ===================================
             // CẤU HÌNH CỘT TÍNH TOÁN (COMPUTED)
             // ===================================
+            // Decimal precision configuration
+            foreach (var property in modelBuilder.Model.GetEntityTypes()
+                .SelectMany(t => t.GetProperties())
+                .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+            {
+                property.SetColumnType("decimal(18,2)");
+            }
+
             modelBuilder.Entity<Quyen>().Property(e => e.MaQ).ValueGeneratedOnAddOrUpdate();
             modelBuilder.Entity<VaiTro>().Property(e => e.MaVT).ValueGeneratedOnAddOrUpdate();
             modelBuilder.Entity<TaiKhoan>().Property(e => e.MaTK).ValueGeneratedOnAddOrUpdate();
@@ -338,6 +355,7 @@ namespace BuildingMaterialAPI.Data
             modelBuilder.Entity<CongNo>().Property(e => e.MaCN).ValueGeneratedOnAddOrUpdate();
             modelBuilder.Entity<ChiTietTraNo>().Property(e => e.MaTT).ValueGeneratedOnAddOrUpdate();
             modelBuilder.Entity<KhuyenMai>().Property(e => e.MaKM).ValueGeneratedOnAddOrUpdate();
+            modelBuilder.Entity<PhieuXuatKho>().Property(e => e.MaXK).ValueGeneratedOnAddOrUpdate();
 
         }
     }

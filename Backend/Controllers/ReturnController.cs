@@ -703,8 +703,39 @@ namespace BuildingMaterialAPI.Controllers
                 NgayTao = DateTime.UtcNow
             });
 
+            // --- TỰ ĐỘNG CẤN TRỪ CÔNG NỢ ---
+            var congNo = await _ctx.CongNos.FirstOrDefaultAsync(cn => cn.MaHoaDon == p.MaHoaDon);
+            if (congNo != null && p.TongTienHoan > 0)
+            {
+                decimal refundAmount = p.TongTienHoan ?? 0;
+                
+                // Trừ tiền nợ
+                congNo.SoTienNo -= refundAmount;
+                if (congNo.SoTienNo < 0) congNo.SoTienNo = 0;
+                
+                // Tính lại số tiền còn lại (nếu cần)
+                congNo.SoTienConLai = congNo.SoTienNo - congNo.SoTienDaTra;
+                if (congNo.SoTienConLai < 0) congNo.SoTienConLai = 0;
+                
+                congNo.NgayCapNhat = DateTime.UtcNow;
+                congNo.GhiChu += $" | Cấn trừ {refundAmount:N0}đ từ phiếu đổi trả {p.MaDT}";
+
+                // Ghi lịch sử thanh toán/cấn trừ
+                _ctx.ChiTietTraNos.Add(new ChiTietTraNo {
+                    MaCongNo = congNo.MaCongNo,
+                    MaHoaDon = p.MaHoaDon,
+                    NgayTT = DateTime.Now,
+                    SoTien = refundAmount,
+                    PTTT = "Cấn trừ hàng trả",
+                    GhiChu = $"Hệ thống tự động khấu trừ giá trị hàng trả từ phiếu {p.MaDT}",
+                    MaNhanVien = 1, // Mặc định hệ thống/admin
+                    TrangThai = "Thành công",
+                    NgayTao = DateTime.UtcNow
+                });
+            }
+
             await _ctx.SaveChangesAsync();
-            return Ok(new { message = "Xác nhận nhập kho thành công!" });
+            return Ok(new { message = "Xác nhận nhập kho và cấn trừ công nợ thành công!" });
         }
     }
 

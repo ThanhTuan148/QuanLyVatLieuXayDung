@@ -25,6 +25,7 @@ import CustomerAboutPage from './pages/CustomerAboutPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import CustomerOrdersPage from './pages/CustomerOrdersPage';
 import CustomerOrderDetailPage from './pages/CustomerOrderDetailPage';
+import CustomerDebtsPage from './pages/CustomerDebtsPage';
 import ProcurementPage from './pages/ProcurementPage';
 import ReturnsPage from './pages/ReturnsPage';
 import FlashSalePage from './pages/FlashSalePage';
@@ -33,6 +34,7 @@ import DebtsPage from './pages/DebtsPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import PriceHistoryPage from './pages/PriceHistoryPage';
+import ReportsPage from './pages/ReportsPage';
 import ShoppingLayout from './components/ShoppingLayout';
 import { PermissionProvider } from './contexts/PermissionContext';
 
@@ -106,6 +108,7 @@ function App() {
           <Route path="/profile" element={isAuthenticated ? <ShoppingLayout><CustomerProfilePage /></ShoppingLayout> : <Navigate to="/auth" />} />
           <Route path="/my-orders" element={isAuthenticated ? <ShoppingLayout><CustomerOrdersPage /></ShoppingLayout> : <Navigate to="/auth" />} />
           <Route path="/order-detail/:id" element={isAuthenticated ? <ShoppingLayout><CustomerOrderDetailPage /></ShoppingLayout> : <Navigate to="/auth" />} />
+          <Route path="/my-debts" element={isAuthenticated ? <ShoppingLayout><CustomerDebtsPage /></ShoppingLayout> : <Navigate to="/auth" />} />
 
 
           {/* Admin / Staff routes - protected by token and role */}
@@ -125,6 +128,7 @@ function App() {
           <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
           <Route path="/employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
           <Route path="/price-history" element={<AdminRoute><PriceHistoryPage /></AdminRoute>} />
+          <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/shopping" />} />

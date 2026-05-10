@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Box, Grid, Divider, Chip, CircularProgress, TextField, MenuItem
+  Box, Grid, Divider, Chip, CircularProgress, TextField, MenuItem, Alert
 } from '@mui/material';
 import api from '../services/api';
+import authService from '../services/authService';
 
 const formatVND = (v) => v ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '0 ₫';
 
@@ -26,6 +27,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   const [lat, setLat] = useState(null);
   const [lng, setLng] = useState(null);
   const [isGettingGPS, setIsGettingGPS] = useState(false);
+  const currentUser = authService.getUser();
 
   useEffect(() => {
     if (open && deliveryId) {
@@ -106,6 +108,17 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
         items: Object.values(itemUpdates)
       };
 
+      if (status === 'Đã giao' && delivery.pttt?.includes('ATM') === false) {
+        const expected = delivery.soTienPhaiThu || 0;
+        const actual = amountPaid ? parseFloat(amountPaid) : 0;
+        
+        if (expected > 0 && actual !== expected) {
+          alert(`❌ SỐ TIỀN THU KHÔNG KHỚP!\nKhách hàng đã chọn thanh toán: ${formatVND(expected)} khi nhận hàng.\nBạn đang nhập: ${formatVND(actual)}.\nVui lòng kiểm tra và nhập lại chính xác.`);
+          setActionLoading(false);
+          return;
+        }
+      }
+
       await api.put(`/deliveries/${deliveryId}`, payload);
       if (onUpdated) onUpdated();
     } catch (err) {
@@ -140,6 +153,12 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
     { value: 'Khách từ chối', label: '❌ Khách từ chối' }
   ];
 
+  const canUpdate = delivery && (
+    currentUser?.EmployeeId === delivery.maNhanVien || 
+    currentUser?.RoleName === 'QuanLy' || 
+    currentUser?.RoleName === 'Admin'
+  );
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ bgcolor: '#f8f9fa', borderBottom: '1px solid #eee' }}>
@@ -152,8 +171,13 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
               <Chip label={delivery.trangThai} color={statusColor(delivery.trangThai)} variant="outlined" size="small" />
             )}
           </Box>
-          <Typography variant="caption" color="textSecondary">HĐ: {delivery?.maHD}</Typography>
+           <Typography variant="caption" color="textSecondary">HĐ: {delivery?.maHD}</Typography>
         </Box>
+        {!canUpdate && delivery && (
+          <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
+             Bạn không có quyền cập nhật phiếu giao này (Chỉ dành cho tài xế {delivery.nguoiGiao}).
+          </Alert>
+        )}
       </DialogTitle>
       <DialogContent sx={{ p: 3 }}>
         {loading ? (
@@ -172,8 +196,8 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
               <Grid item xs={12} md={6}>
                 <Typography variant="subtitle2" color="textSecondary" sx={{ fontWeight: 'bold', mb: 1, textTransform: 'uppercase', fontSize: '0.7rem' }}>👤 Thông tin khách hàng</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Khách hàng: {delivery.tenKhachHang}</Typography>
-                <Typography variant="body2">Người nhận: {delivery.chiTiet?.[0]?.tenNguoiNhan || delivery.tenKhachHang}</Typography>
-                <Typography variant="body2">SĐT: {delivery.chiTiet?.[0]?.sdtNguoiNhan || '—'}</Typography>
+                <Typography variant="body2">Người nhận: {delivery.tenKhachHang}</Typography>
+                <Typography variant="body2">SĐT: {delivery.sdtKhachHang || '—'}</Typography>
               </Grid>
             </Grid>
 
@@ -210,7 +234,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                           <Typography variant="body2" sx={{ fontWeight: 600, color: isDone ? 'text.secondary' : 'text.primary' }}>
                             {item.tenSanPham}
                           </Typography>
-                          <Typography variant="caption" color="textSecondary">Đặt: {item.soLuongOrder || '—'}</Typography>
+                          <Typography variant="caption" color="textSecondary">Đặt: {item.soLuongOrder || 0}</Typography>
                         </TableCell>
                         <TableCell align="center">
                            <Chip 
@@ -225,7 +249,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                             select fullWidth size="small"
                             value={currentStatus}
                             onChange={(e) => handleItemUpdate(item.maCTGH, 'trangThai', e.target.value)}
-                            disabled={isDone}
+                            disabled={isDone || !canUpdate}
                             sx={{ 
                               '& .MuiSelect-select': { py: 0.5, fontSize: '0.85rem' },
                               bgcolor: isDone ? '#fff' : (statusColor(currentStatus) === 'success' ? '#f0fdf4' : 'inherit')
@@ -242,7 +266,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                             placeholder="Ghi chú SP..."
                             value={itemUpdates[item.maCTGH]?.ghiChu || ''}
                             onChange={(e) => handleItemUpdate(item.maCTGH, 'ghiChu', e.target.value)}
-                            disabled={isDone}
+                            disabled={isDone || !canUpdate}
                             sx={{ '& .MuiInputBase-input': { py: 0.5, fontSize: '0.85rem' } }}
                           />
                         </TableCell>
@@ -252,6 +276,27 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {/* Hướng dẫn thu tiền cho Tài xế */}
+            {delivery.pttt?.includes('ATM') ? (
+              <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+                <Typography variant="body2" fontWeight="bold">
+                  💳 ĐƠN HÀNG ĐÃ THANH TOÁN QUA ATM/BANKING. KHÔNG THU THÊM TIỀN MẶT.
+                </Typography>
+              </Alert>
+            ) : (
+              <Box sx={{ p: 2, mb: 2, bgcolor: '#fff4e5', borderRadius: 2, border: '1px solid #ffb74d' }}>
+                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#f57c00', display: 'flex', alignItems: 'center', gap: 1 }}>
+                   💰 HƯỚNG DẪN THU TIỀN (COD)
+                 </Typography>
+                 <Typography variant="body1" sx={{ mt: 1, fontWeight: 800, color: '#d32f2f', fontSize: '1.1rem' }}>
+                   Vui lòng thu: {formatVND(delivery.soTienPhaiThu)} cho Tài xế khi nhận hàng.
+                 </Typography>
+                 <Typography variant="caption" color="textSecondary">
+                   (Đây là số tiền {delivery.soTienPhaiThu >= delivery.tongTienOrder ? '100%' : 'Đặt cọc'} khách hàng đã chọn lúc đặt đơn)
+                 </Typography>
+              </Box>
+            )}
 
             {/* Cập nhật trạng thái chuyến hàng */}
             <Box sx={{ p: 2, mb: 2, bgcolor: '#f0f7ff', borderRadius: 2, border: '1px solid #cce3f5' }}>
@@ -266,6 +311,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                     label="Trạng Thái Giao"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
+                    disabled={!canUpdate}
                     sx={{ bgcolor: '#fff' }}
                   >
                     {statusOptions.map((opt) => (
@@ -282,8 +328,10 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                       type="number"
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(e.target.value)}
-                      sx={{ bgcolor: '#fff' }}
-                      helperText={`Nợ: ${formatVND((delivery.tongTienOrder || 0) - (delivery.daThanhToanOrder || 0))}`}
+                      disabled={!canUpdate}
+                      sx={{ bgcolor: '#fff', border: delivery.soTienPhaiThu > 0 && parseFloat(amountPaid) !== delivery.soTienPhaiThu ? '2px solid red' : 'none', borderRadius: 1 }}
+                      helperText={delivery.pttt?.includes('ATM') ? 'Đã thanh toán qua ATM' : `BẮT BUỘC THU: ${formatVND(delivery.soTienPhaiThu)}`}
+                      error={delivery.soTienPhaiThu > 0 && parseFloat(amountPaid) !== delivery.soTienPhaiThu}
                     />
                   </Grid>
                 )}
@@ -294,6 +342,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                     label="Ghi chú cập nhật"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
+                    disabled={!canUpdate}
                     sx={{ bgcolor: '#fff' }}
                     placeholder="Lý do nếu giao không thành công..."
                   />
@@ -313,6 +362,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                     label="Vị trí hiện tại (Ví dụ: Ngã tư A, Cách khách 2km...)"
                     value={currentLocation}
                     onChange={(e) => setCurrentLocation(e.target.value)}
+                    disabled={!canUpdate}
                     sx={{ bgcolor: '#fff' }}
                   />
                 </Grid>
@@ -323,7 +373,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                         color="warning" 
                         size="small"
                         onClick={getGeolocation}
-                        disabled={isGettingGPS}
+                        disabled={isGettingGPS || !canUpdate}
                         sx={{ fontWeight: 'bold' }}
                       >
                         {isGettingGPS ? <CircularProgress size={20} color="inherit" /> : '📍 LẤY GPS'}
@@ -365,7 +415,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
           variant="contained" 
           color="primary" 
           onClick={handleSaveStatus}
-          disabled={actionLoading || !delivery}
+          disabled={actionLoading || !delivery || !canUpdate}
           sx={{ px: 4, fontWeight: 'bold' }}
         >
           {actionLoading ? <CircularProgress size={24} /> : 'LƯU CẬP NHẬT'}

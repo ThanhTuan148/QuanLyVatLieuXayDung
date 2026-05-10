@@ -125,12 +125,14 @@ function OrdersPage() {
       field: 'ngayLap', 
       headerName: 'Ngày Lập', 
       width: 120,
+      type: 'date',
       valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('vi-VN') : '—'
     },
     { 
       field: 'ngayGiao', 
       headerName: 'Ngày Giao', 
       width: 120,
+      type: 'date',
       valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('vi-VN') : '—'
     },
     { 

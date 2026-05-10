@@ -60,6 +60,7 @@ builder.Services.AddSignalR();
 builder.Services.AddHttpClient(); // Required for Gemini API
 builder.Services.AddScoped<IAIService, AIService>();
 builder.Services.AddHostedService<BackupWorker>();
+builder.Services.AddHostedService<DebtWorker>();
 
 // 3. AUTH (JWT) ───────────────────────────────────────────────────
 var jwtSecretKey = builder.Configuration["Auth:JwtSecretKey"];
@@ -121,6 +122,16 @@ using (var scope = app.Services.CreateScope())
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUGIAOHANG]') AND name = 'Lat') ALTER TABLE [PHIEUGIAOHANG] ADD [Lat] DECIMAL(18, 10) NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUGIAOHANG]') AND name = 'Lng') ALTER TABLE [PHIEUGIAOHANG] ADD [Lng] DECIMAL(18, 10) NULL;");
         
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'MaNguoiDuyet') ALTER TABLE [PHIEUXUATKHO] ADD [MaNguoiDuyet] int NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'NgayDuyet') ALTER TABLE [PHIEUXUATKHO] ADD [NgayDuyet] datetime2 NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'ChuKyNguoiLap') ALTER TABLE [PHIEUXUATKHO] ADD [ChuKyNguoiLap] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'ChuKyQuanLy') ALTER TABLE [PHIEUXUATKHO] ADD [ChuKyQuanLy] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'MaNguoiXuatKho') ALTER TABLE [PHIEUXUATKHO] ADD [MaNguoiXuatKho] int NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'ChuKyNguoiXuatKho') ALTER TABLE [PHIEUXUATKHO] ADD [ChuKyNguoiXuatKho] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'MaNguoiNhan') ALTER TABLE [PHIEUXUATKHO] ADD [MaNguoiNhan] int NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'ChuKyNguoiNhan') ALTER TABLE [PHIEUXUATKHO] ADD [ChuKyNguoiNhan] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'TrangThai') ALTER TABLE [PHIEUXUATKHO] ADD [TrangThai] nvarchar(50) NULL;");
+
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUDOITRA]') AND name = 'LoiDo') ALTER TABLE [PHIEUDOITRA] ADD [LoiDo] NVARCHAR(100) NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUDOITRA]') AND name = 'PhiVanChuyenMoi') ALTER TABLE [PHIEUDOITRA] ADD [PhiVanChuyenMoi] DECIMAL(18, 2) NULL;");
 
@@ -129,6 +140,7 @@ using (var scope = app.Services.CreateScope())
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SANPHAM]') AND name = 'DonViTrongLuong') ALTER TABLE [SANPHAM] ADD [DonViTrongLuong] nvarchar(50) NULL DEFAULT 'kg';");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SANPHAM]') AND name = 'KichThuoc') ALTER TABLE [SANPHAM] ADD [KichThuoc] nvarchar(max) NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SANPHAM]') AND name = 'IsGift') ALTER TABLE [SANPHAM] ADD [IsGift] bit DEFAULT 0;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[NHANVIEN]') AND name = 'ChuKy') ALTER TABLE [NHANVIEN] ADD [ChuKy] nvarchar(max) NULL;");
 
         // Chèn dữ liệu mẫu quà tặng nếu chưa có
         context.Database.ExecuteSqlRaw(@"
@@ -212,6 +224,10 @@ using (var scope = app.Services.CreateScope())
         context.Database.ExecuteSqlRaw("UPDATE [NHANVIEN] SET [SucChuaToiDa] = '10000' WHERE [TenNV] LIKE N'%Phạm Văn Tài%' AND [SucChuaToiDa] IS NULL;");
 
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HOADON]') AND name = 'AnhBangChung') ALTER TABLE [HOADON] ADD [AnhBangChung] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[HOADON]') AND name = 'SoTienPhaiThu') ALTER TABLE [HOADON] ADD [SoTienPhaiThu] decimal(18,2) NOT NULL DEFAULT 0;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CHITETTRANO]') AND name = 'AnhBangChung') ALTER TABLE [CHITETTRANO] ADD [AnhBangChung] nvarchar(max) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONGNO]') AND name = 'NgayNhacNoEmail') ALTER TABLE [CONGNO] ADD [NgayNhacNoEmail] datetime2 NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONGNO]') AND name = 'LaiPhat') ALTER TABLE [CONGNO] ADD [LaiPhat] decimal(18,2) NOT NULL DEFAULT 0;");
 
         context.Database.ExecuteSqlRaw(@"
             IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LICHSUHOADON]') AND type in (N'U'))

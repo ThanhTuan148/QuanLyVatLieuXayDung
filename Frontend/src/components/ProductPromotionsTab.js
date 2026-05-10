@@ -409,10 +409,11 @@ export default function ProductPromotionsTab() {
       </Box>
 
       <DataTable 
-        rows={promotions}
-        columns={columns}
-        getRowId={(row) => row.maKhuyenMai}
+        rows={promotions} 
+        columns={columns} 
+        getRowId={(row) => row.maKhuyenMai} 
         loading={loading}
+        showDateFilter={false}
       />
 
       <PromotionFormDialog

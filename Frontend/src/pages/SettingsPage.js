@@ -125,6 +125,7 @@ function SettingsPage() {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} textColor="primary" indicatorColor="primary">
           <Tab icon={<LockResetIcon />} iconPosition="start" label="Bảo Mật (Đổi Mật Khẩu)" sx={{ fontWeight: 'bold' }} />
+          <Tab icon={<LockResetIcon />} iconPosition="start" label="Chữ Ký Số" sx={{ fontWeight: 'bold' }} />
           <Tab icon={<StorageIcon />} iconPosition="start" label="Sao Lưu & Phục Hồi Dữ Liệu" sx={{ fontWeight: 'bold' }} />
         </Tabs>
       </Box>
@@ -164,8 +165,11 @@ function SettingsPage() {
         </Box>
       )}
 
-      {/* ===== TAB 1: SAO LƯU & PHỤC HỒI ===== */}
-      {tabValue === 1 && (
+      {/* ===== TAB 1: CHỮ KÝ SỐ ===== */}
+      {tabValue === 1 && <SignatureTab userId={userId} />}
+
+      {/* ===== TAB 2: SAO LƯU & PHỤC HỒI ===== */}
+      {tabValue === 2 && (
         <Box sx={{ mt: 2 }}>
           <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -281,6 +285,104 @@ function SettingsPage() {
         </DialogActions>
       </Dialog>
 
+    </Box>
+  );
+}
+
+// ─── COMPONENT: CHỮ KÝ SỐ ─────────────────────────────────────
+function SignatureTab({ userId }) {
+  const [signature, setSignature] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [employee, setEmployee] = useState(null);
+  const userStr = localStorage.getItem('user');
+  const employeeId = userStr ? JSON.parse(userStr).employeeId : null;
+
+  useEffect(() => {
+    if (employeeId) {
+      api.get(`/employees/${employeeId}`).then(res => {
+        setEmployee(res.data);
+        if (res.data.chuKy) {
+          // Nếu là path tương đối, thêm baseURL
+          const fullPath = res.data.chuKy.startsWith('http') 
+            ? res.data.chuKy 
+            : `${api.defaults.baseURL.replace('/api', '')}${res.data.chuKy}`;
+          setPreview(fullPath);
+        }
+      }).catch(err => console.error("Lỗi tải thông tin NV:", err));
+    }
+  }, [employeeId]);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSignature(file);
+      setPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!signature) return alert("Vui lòng chọn ảnh chữ ký!");
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', signature);
+      const res = await api.post('/upload/signature', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const signaturePath = res.data.relativePath; // Lưu path tương đối vào DB
+
+      // Cập nhật vào DB Nhân viên
+      const updateData = { ...employee, chuKy: signaturePath };
+      await api.put(`/employees/${employeeId}`, updateData);
+      
+      alert("Đã cập nhật chữ ký số thành công!");
+    } catch (e) {
+      alert("Lỗi tải lên chữ ký: " + (e.response?.data?.message || e.message));
+    } finally {
+      setLoading(false);
+      window.location.reload(); // Reload để cập nhật
+    }
+  };
+
+  if (!employeeId) return <Alert severity="info" sx={{ mt: 2 }}>Chỉ nhân viên mới có thể quản lý chữ ký số.</Alert>;
+
+  return (
+    <Box sx={{ maxWidth: 800, mt: 2 }}>
+      <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>🖋️ Quản Lý Chữ Ký Cá Nhân</Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+          Tải lên ảnh chữ ký của bạn (nền trắng hoặc trong suốt). Chữ ký này sẽ được tự động chèn vào các văn bản, đơn đặt hàng mà bạn thực hiện.
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, p: 3, border: '2px dashed #ddd', borderRadius: 2 }}>
+          {preview ? (
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="caption" color="textSecondary">Xem trước chữ ký:</Typography>
+              <Box sx={{ mt: 1, p: 2, background: '#fff', border: '1px solid #eee', borderRadius: 1 }}>
+                <img src={preview} alt="Chữ ký" style={{ maxHeight: 150, maxWidth: '100%', objectFit: 'contain' }} />
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ py: 4, textAlign: 'center', color: '#aaa' }}>
+              <LockResetIcon sx={{ fontSize: 60, mb: 1, opacity: 0.3 }} />
+              <Typography>Chưa có chữ ký số nào được thiết lập</Typography>
+            </Box>
+          )}
+
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button variant="outlined" component="label">
+              Chọn Ảnh Chữ Ký
+              <input type="file" hidden accept="image/*" onChange={handleFileChange} />
+            </Button>
+            {signature && (
+              <Button variant="contained" color="success" onClick={handleUpload} disabled={loading}>
+                {loading ? 'Đang lưu...' : 'Xác Nhận Lưu'}
+              </Button>
+            )}
+          </Box>
+        </Box>
+      </Paper>
     </Box>
   );
 }

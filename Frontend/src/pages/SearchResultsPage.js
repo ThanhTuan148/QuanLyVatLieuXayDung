@@ -30,7 +30,7 @@ const SearchResultsPage = () => {
     const fetchSearchResults = async () => {
       try {
         setLoading(true);
-        const res = await productService.getAllProducts();
+        const res = await productService.getAllProducts(null, false);
         const prods = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
         
         // Filter products by search term

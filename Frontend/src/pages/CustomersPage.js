@@ -226,6 +226,7 @@ function CustomersPage() {
         columns={columns}
         getRowId={(row) => row.maKhachHang}
         loading={loading}
+        showDateFilter={false}
       />
 
       <CustomerForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />

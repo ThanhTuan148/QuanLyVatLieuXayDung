@@ -14,6 +14,7 @@ function DebtDetailModal({ open, onClose, debt }) {
   const [loading, setLoading] = useState(false);
   const [newAppt, setNewAppt] = useState({ date: '', amount: '', note: '' });
   const [showApptForm, setShowApptForm] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     if (open && debt?.maCongNo) {
@@ -182,6 +183,7 @@ function DebtDetailModal({ open, onClose, debt }) {
                   <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fcfcfc' }}>Ngày TT</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fcfcfc' }}>Số Tiền Trả</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fcfcfc' }}>Phương Thức</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fcfcfc' }}>Chứng từ</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fcfcfc' }}>Ghi Chú</TableCell>
                 </TableRow>
               </TableHead>
@@ -198,6 +200,18 @@ function DebtDetailModal({ open, onClose, debt }) {
                     <TableCell>
                       <Chip label={h.pttt || 'Tiền mặt'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
                     </TableCell>
+                    <TableCell>
+                      {h.anhBangChung ? (
+                        <Button 
+                          size="small" 
+                          variant="text" 
+                          onClick={() => setPreviewImage(h.anhBangChung)}
+                          sx={{ fontSize: '0.7rem', p: 0 }}
+                        >
+                          Xem ảnh
+                        </Button>
+                      ) : '—'}
+                    </TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', color: '#666' }}>{h.ghiChu || '—'}</TableCell>
                   </TableRow>
                 ))}
@@ -206,6 +220,16 @@ function DebtDetailModal({ open, onClose, debt }) {
           </TableContainer>
         )}
       </DialogContent>
+
+      <Dialog open={!!previewImage} onClose={() => setPreviewImage(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Ảnh minh chứng thanh toán
+          <IconButton onClick={() => setPreviewImage(null)} size="small"><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', pb: 3 }}>
+           {previewImage && <img src={previewImage} alt="Receipt" style={{ maxWidth: '100%', height: 'auto', borderRadius: 8 }} />}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

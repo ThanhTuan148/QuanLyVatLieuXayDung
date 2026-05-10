@@ -3,7 +3,7 @@ import {
   Box, Button, Typography, Paper, Chip, LinearProgress, Card, CardContent, Grid, 
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete,
   IconButton, Tabs, Tab, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  InputAdornment, Divider, Stack
+  InputAdornment, Divider, Stack, Collapse
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -13,6 +13,12 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import api from '../services/api';
 import inventoryService from '../services/inventoryService';
 import InventoryForm from '../components/InventoryForm';
 import DataTable from '../components/DataTable';
@@ -34,12 +40,65 @@ export default function InventoryPage() {
   const [historyRowsPerPage, setHistoryRowsPerPage] = useState(5);
   const [historyFilters, setHistoryFilters] = useState({ maPhieuNhap: '', tenNhaCungCap: '', tuNgay: '', denNgay: '' });
 
+  const [outboundHistory, setOutboundHistory] = useState([]);
+  const [outboundLoading, setOutboundLoading] = useState(false);
+  const [expandedOutbound, setExpandedOutbound] = useState(null);
+
   const [activeTab, setActiveTab] = useState(0);
+
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const roleStr = String(user?.role || user?.Role || user?.vaiTro || '').trim().toLowerCase();
+  const isQuanLy = roleStr === 'quản lý' || roleStr === 'giám đốc';
+  const userId = user?.maNhanVien || user?.id || 0;
 
   useEffect(() => { 
     fetchInventory(); 
     fetchWarehouses();
-  }, []);
+    if (activeTab === 2) fetchOutboundHistory();
+  }, [activeTab]);
+
+  const fetchOutboundHistory = async () => {
+    setOutboundLoading(true);
+    try {
+      const res = await inventoryService.getOutboundHistory();
+      setOutboundHistory(res.data || []);
+    } catch (err) { console.error('Fetch outbound err:', err); }
+    finally { setOutboundLoading(false); }
+  };
+
+  const handleConfirmExport = async (id) => {
+    if (!window.confirm('Xác nhận đã lấy hàng và ký tên vào phiếu xuất kho này?')) return;
+    try {
+      await api.post(`/inventory/${id}/confirm-export`, { managerId: userId });
+      alert('Đã xác nhận lấy hàng thành công.');
+      fetchOutboundHistory();
+    } catch (err) {
+      alert('Lỗi xác nhận: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleConfirmReceipt = async (id) => {
+    if (!window.confirm('Tài xế xác nhận đã nhận đủ hàng và chuẩn bị đi giao?')) return;
+    try {
+      await api.post(`/inventory/${id}/confirm-receipt`, { managerId: userId });
+      alert('Đã xác nhận nhận hàng thành công. Trạng thái giao hàng đã được cập nhật.');
+      fetchOutboundHistory();
+    } catch (err) {
+      alert('Lỗi xác nhận: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleApproveOutbound = async (id) => {
+    if (!window.confirm('Xác nhận phê duyệt và ký số cho phiếu xuất kho này?')) return;
+    try {
+      await api.post(`/inventory/${id}/approve`, { managerId: userId });
+      alert('Đã phê duyệt phiếu xuất kho thành công.');
+      fetchOutboundHistory();
+    } catch (err) {
+      alert('Lỗi khi phê duyệt: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
   const fetchWarehouses = async () => {
     try {
@@ -178,6 +237,7 @@ export default function InventoryPage() {
       <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
         <Tab icon={<InventoryIcon />} iconPosition="start" label="Tồn Kho Chi Tiết" />
         <Tab icon={<CardGiftcardIcon />} iconPosition="start" label="Sản Phẩm Quà Tặng" />
+        <Tab icon={<LocalShippingIcon />} iconPosition="start" label="Lịch Sử Xuất Kho" />
       </Tabs>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -193,12 +253,177 @@ export default function InventoryPage() {
         ))}
       </Grid>
 
-      <DataTable 
-        rows={currentList}
-        columns={columns}
-        getRowId={(row) => row.maCTKho}
-        loading={loading}
-      />
+      {activeTab < 2 ? (
+        <DataTable 
+          rows={currentList}
+          columns={columns}
+          getRowId={(row) => row.maCTKho}
+          loading={loading}
+          dateField="ngayNhapCuoi"
+        />
+      ) : (
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #eee' }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<HistoryIcon />} 
+              onClick={async () => {
+                if (window.confirm('Hệ thống sẽ quét các đơn hàng/phiếu giao cũ để tạo lịch sử xuất kho. Bạn có muốn tiếp tục?')) {
+                  try {
+                    setOutboundLoading(true);
+                    const res = await inventoryService.syncOldOutbound();
+                    alert(res.data.message);
+                    fetchOutboundHistory();
+                  } catch (err) {
+                    alert('Đồng bộ thất bại: ' + (err.response?.data?.message || err.message));
+                  } finally {
+                    setOutboundLoading(false);
+                  }
+                }
+              }}
+              disabled={outboundLoading}
+            >
+              Đồng Bộ Dữ Liệu Cũ
+            </Button>
+          </Box>
+          {outboundLoading && <LinearProgress />}
+          <TableContainer>
+            <Table>
+              <TableHead sx={{ bgcolor: '#f8f9fa' }}>
+                <TableRow>
+                  <TableCell style={{ width: 40 }} />
+                  <TableCell sx={{ fontWeight: 'bold' }}>Mã Phiếu XK</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Ngày Xuất</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Liên Kết</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Người Thực Hiện</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Số Lượng SP</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Trạng Thái</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Ghi Chú</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }} align="right">Thao Tác</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {outboundHistory.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>Chưa có lịch sử xuất kho.</TableCell></TableRow>
+                ) : outboundHistory.map((row) => (
+                  <React.Fragment key={row.maPhieuXK}>
+                    <TableRow hover>
+                      <TableCell>
+                        <IconButton size="small" onClick={() => setExpandedOutbound(expandedOutbound === row.maPhieuXK ? null : row.maPhieuXK)}>
+                          {expandedOutbound === row.maPhieuXK ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{row.maXK}</Typography></TableCell>
+                      <TableCell>{new Date(row.ngayXuat).toLocaleString('vi-VN')}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                           <Typography variant="caption" sx={{ fontWeight: 'bold' }}>📦 GH: {row.maGH}</Typography>
+                           <Typography variant="caption" color="textSecondary">🛒 HĐ: {row.maHD}</Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>{row.tenNhanVien || row.nguoiXuat}</TableCell>
+                      <TableCell>
+                         <Chip label={`${row.chiTiet?.length || 0} mặt hàng`} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={row.trangThai} 
+                          size="small" 
+                          color={
+                            row.trangThai?.trim() === 'Đã xuất' ? 'success' : 
+                            row.trangThai?.trim() === 'Chờ nhận' ? 'secondary' : // Purple for Driver
+                            row.trangThai?.trim() === 'Chờ xuất' ? 'warning' : 'info'
+                          } 
+                          variant="filled"
+                        />
+                      </TableCell>
+                      <TableCell>{row.ghiChu}</TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          {row.trangThai?.trim() === 'Chờ duyệt' && isQuanLy && (
+                            <Tooltip title="Quản lý phê duyệt & Ký số (Bước 1)">
+                              <IconButton size="small" color="success" onClick={() => handleApproveOutbound(row.maPhieuXK)}>
+                                <CheckCircleOutlineIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {row.trangThai?.trim() === 'Chờ xuất' && (
+                            <Tooltip title="Thủ kho xác nhận soạn hàng xong (Bước 2)">
+                              <IconButton size="small" color="primary" onClick={() => handleConfirmExport(row.maPhieuXK)}>
+                                <InventoryIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {row.trangThai?.trim() === 'Chờ nhận' && (
+                            <Tooltip title="Tài xế xác nhận nhận hàng để đi giao (Bước 3)">
+                              <IconButton size="small" sx={{ color: '#f57c00' }} onClick={() => handleConfirmReceipt(row.maPhieuXK)}>
+                                <LocalShippingIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Xuất PDF phiếu xuất kho">
+                            <IconButton 
+                              size="small" 
+                              color="error" 
+                              onClick={async () => {
+                              try {
+                                const response = await inventoryService.exportPdf(row.maPhieuXK);
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `PhieuXuatKho_${row.maXK}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                              } catch (e) {
+                                alert('Lỗi khi xuất PDF');
+                              }
+                            }}
+                          >
+                            <PictureAsPdfIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                        <Collapse in={expandedOutbound === row.maPhieuXK} timeout="auto" unmountOnExit>
+                          <Box sx={{ margin: 2, p: 2, bgcolor: '#fcfcfc', borderRadius: 2, border: '1px solid #eee' }}>
+                            <Typography variant="subtitle2" gutterBottom component="div" sx={{ fontWeight: 'bold', color: '#555' }}>
+                              Chi tiết sản phẩm đã xuất:
+                            </Typography>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold' }}>Sản Phẩm</TableCell>
+                                  <TableCell sx={{ fontWeight: 'bold' }} align="center">Số Lượng</TableCell>
+                                  <TableCell sx={{ fontWeight: 'bold' }}>Từ Kho</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {row.chiTiet?.map((ct, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell>{ct.tenSanPham}</TableCell>
+                                    <TableCell align="center"><Typography variant="body2" fontWeight="bold">{ct.soLuong}</Typography></TableCell>
+                                    <TableCell>{ct.tenKho}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Box>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
 
       <InventoryForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
 

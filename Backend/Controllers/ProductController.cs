@@ -20,7 +20,7 @@ namespace BuildingMaterialAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string? hang = null)
+        public async Task<IActionResult> GetAll([FromQuery] string? hang = null, [FromQuery] bool includeGifts = true)
         {
             var now = DateTime.Now;
 
@@ -31,12 +31,18 @@ namespace BuildingMaterialAPI.Controllers
                 .ToListAsync();
 
 
-            var products = await _ctx.SanPhams
+            var productsQuery = _ctx.SanPhams
                 .Include(p => p.LoaiSanPham)
                 .Include(p => p.NhaCungCapSanPhams).ThenInclude(n => n.NhaCungCap)
                 .Include(p => p.CTKhoHangs)
-                .Where(p => p.TrangThai == true)
-                .ToListAsync();
+                .Where(p => p.TrangThai == true);
+
+            if (!includeGifts)
+            {
+                productsQuery = productsQuery.Where(p => p.IsGift == false);
+            }
+
+            var products = await productsQuery.ToListAsync();
 
             var result = products.Select(p =>
             {

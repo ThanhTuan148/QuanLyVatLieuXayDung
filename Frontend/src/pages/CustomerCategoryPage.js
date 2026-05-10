@@ -31,7 +31,7 @@ const CustomerCategoryPage = () => {
       try {
         setLoading(true);
         const [productsRes, categoriesRes] = await Promise.all([
-          productService.getAllProducts(),
+          productService.getAllProducts(null, false),
           fetch('http://localhost:5000/api/categories').then(r => r.json()).catch(() => [])
         ]);
         

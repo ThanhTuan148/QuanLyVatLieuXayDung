@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Container, Typography, InputBase, IconButton, Badge, Divider, CssBaseline, Paper, ClickAwayListener, Menu, MenuItem, Avatar } from '@mui/material';
-import { Search as SearchIcon, FavoriteBorder as FavoriteIcon, ShoppingCartOutlined as CartIcon, Person as PersonIcon, CompareArrowsOutlined as CompareIcon, PhoneOutlined, CardGiftcardOutlined, AccountCircleOutlined, ListAltOutlined, LogoutOutlined } from '@mui/icons-material';
+import { Search as SearchIcon, FavoriteBorder as FavoriteIcon, ShoppingCartOutlined as CartIcon, Person as PersonIcon, CompareArrowsOutlined as CompareIcon, PhoneOutlined, CardGiftcardOutlined, AccountCircleOutlined, ListAltOutlined, LogoutOutlined, AccountBalanceWalletOutlined as AccountBalanceWalletIcon } from '@mui/icons-material';
 import { ThemeProvider } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import shoppingTheme from '../theme/shoppingTheme';
@@ -340,6 +340,10 @@ const ShoppingLayout = ({ children }) => {
                   <MenuItem onClick={() => { navigate('/my-orders'); setAnchorEl(null); }} sx={{ py: 1.5, gap: 1.5 }}>
                     <ListAltOutlined fontSize="small" color="action" />
                     <Typography variant="body2" fontWeight={500}>Đơn hàng của tôi</Typography>
+                  </MenuItem>
+                  <MenuItem onClick={() => { navigate('/my-debts'); setAnchorEl(null); }} sx={{ py: 1.5, gap: 1.5 }}>
+                    <AccountBalanceWalletIcon fontSize="small" color="action" />
+                    <Typography variant="body2" fontWeight={500}>Quản lý nợ</Typography>
                   </MenuItem>
                   <Divider sx={{ my: 0.5 }} />
                   <MenuItem 

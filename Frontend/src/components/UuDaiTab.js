@@ -191,6 +191,7 @@ export default function UuDaiTab() {
         columns={columns}
         getRowId={(row) => row.maKhuyenMai}
         loading={loading}
+        showDateFilter={false}
       />
 
       <Dialog open={formOpen} onClose={() => setFormOpen(false)} fullWidth maxWidth="sm">

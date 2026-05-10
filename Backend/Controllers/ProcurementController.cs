@@ -5,11 +5,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
+using BuildingMaterialAPI.Services;
+using BuildingMaterialAPI.Utilities;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using System.Drawing;
-using BuildingMaterialAPI.Services;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.IO;
 
 namespace BuildingMaterialAPI.Controllers
 {
@@ -55,7 +59,6 @@ namespace BuildingMaterialAPI.Controllers
             return Ok(ds);
         }
 
-        // GET Chi Tiết
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
@@ -68,6 +71,15 @@ namespace BuildingMaterialAPI.Controllers
             
             if (p == null) return NotFound();
 
+            // Lấy thêm các item từ các phiếu đã được tách ra từ phiếu này (đã duyệt)
+            var splitItems = await _ctx.CTPNs
+                .Include(c => c.SanPham)
+                .Include(c => c.NhaCungCap)
+                .Where(c => c.PhieuNhap.GhiChu != null && c.PhieuNhap.GhiChu.Contains($"[TáchTừPhiếu:{id}]"))
+                .ToListAsync();
+
+            var allItems = p.CTPNs.Concat(splitItems).ToList();
+
             return Ok(new
             {
                  maPhieuNhap = p.MaPhieuNhap,
@@ -78,10 +90,10 @@ namespace BuildingMaterialAPI.Controllers
                  trangThai = p.TrangThai,
                  ghiChu = p.GhiChu,
                  maNhaCungCap = p.MaNhaCungCap,
-                 tenNhaCungCap = p.CTPNs.Select(c => c.MaNhaCungCap).Distinct().Count() > 1 
+                 tenNhaCungCap = allItems.Select(c => c.MaNhaCungCap).Distinct().Count() > 1 
                     ? "Đa NCC" 
                     : (p.NhaCungCap != null ? p.NhaCungCap.TenNCC : "Chưa xác định"),
-                 chiTiet = p.CTPNs.Select(c => {
+                 chiTiet = allItems.Select(c => {
                      return new {
                          maCTPN = c.MaCTPN,
                          maSanPham = c.MaSanPham,
@@ -91,8 +103,10 @@ namespace BuildingMaterialAPI.Controllers
                          soLuongDaNhan = c.SoLuongDaNhan,
                          thanhTien = c.ThanhTien,
                          trangThai = c.TrangThai,
+                         ghiChu = c.GhiChu,
                          maNhaCungCap = c.MaNhaCungCap,
-                         tenNhaCungCap = c.NhaCungCap?.TenNCC
+                         tenNhaCungCap = c.NhaCungCap?.TenNCC,
+                         maPhieuHienTai = c.MaPhieuNhap
                      };
                  }).ToList()
             });
@@ -141,7 +155,8 @@ namespace BuildingMaterialAPI.Controllers
                         MaKhoHang = ct.MaKhoHang, 
                         MaNhaCungCap = ct.MaNhaCungCap,
                         NgayTao = DateTime.UtcNow,
-                        TrangThai = "Chờ Duyệt"
+                        TrangThai = "Đề Xuất",
+                        GhiChu = ct.GhiChu
                     });
                 }
 
@@ -198,7 +213,7 @@ namespace BuildingMaterialAPI.Controllers
                 }
                 else if (p.TrangThai == "Yêu Cầu Sửa")
                 {
-                    p.TrangThai = "Chờ Duyệt";
+                    p.TrangThai = "Đề Xuất";
                 }
 
                 // Xóa chi tiết cũ và thêm mới (hoặc cập nhật thông minh hơn)
@@ -209,6 +224,9 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     var tt = ct.SoLuong * ct.DonGia;
                     tong += tt;
+                    var nextTrangThai = (string.Equals(ct.TrangThai, "Từ Chối", StringComparison.OrdinalIgnoreCase)) ? "Từ Chối" : "Đề Xuất";
+                    Console.WriteLine($"Item {ct.MaSanPham} TrangThai: '{ct.TrangThai}' -> Saving as: {nextTrangThai}");
+                    
                     _ctx.CTPNs.Add(new CTPN
                     {
                         MaPhieuNhap = p.MaPhieuNhap,
@@ -220,7 +238,8 @@ namespace BuildingMaterialAPI.Controllers
                         MaKhoHang = ct.MaKhoHang ?? 1,
                         MaNhaCungCap = ct.MaNhaCungCap,
                         NgayTao = DateTime.UtcNow,
-                        TrangThai = "Chờ Duyệt"
+                        TrangThai = nextTrangThai,
+                        GhiChu = ct.GhiChu
                     });
                 }
 
@@ -255,8 +274,8 @@ namespace BuildingMaterialAPI.Controllers
             {
                 var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
                 if (p == null) return NotFound();
-                if (p.TrangThai != "Đề Xuất" && p.TrangThai != "Đề Xuất (Nhập Bù)" && p.TrangThai != "Đang xử lý" && p.TrangThai != "Chờ Duyệt") 
-                    return BadRequest("Phiếu này không ở trạng thái chờ duyệt (hoặc Đề xuất).");
+                if (p.TrangThai != "Đề Xuất" && p.TrangThai != "Đề Xuất (Nhập Bù)" && p.TrangThai != "Đang xử lý" && p.TrangThai != "Chờ Duyệt" && p.TrangThai != "Yêu Cầu Sửa") 
+                    return BadRequest("Phiếu này không ở trạng thái cho phép duyệt.");
 
                 // Nhóm chi tiết theo Nhà cung cấp thực tế của sản phẩm
                 // Note: MaNhaCungCap trong CTPN (dto) không lưu vào DB, nhưng ta có thể lấy từ bảng NHACUNGCAP_SANPHAM 
@@ -560,6 +579,36 @@ namespace BuildingMaterialAPI.Controllers
                 var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
                 if (p == null) return NotFound();
 
+                // 1. Thu hồi lại các item đã tách trước đó từ phiếu này (nếu đang xử lý lại)
+                var splitSlips = await _ctx.PhieuNhaps.Include(x => x.CTPNs)
+                    .Where(x => x.GhiChu != null && x.GhiChu.Contains($"[TáchTừPhiếu:{id}]"))
+                    .ToListAsync();
+
+                foreach (var s in splitSlips)
+                {
+                    // Chỉ thu hồi nếu chưa có hàng nào được nhập thực tế
+                    if (s.CTPNs != null && !s.CTPNs.Any(c => c.SoLuongDaNhan > 0))
+                    {
+                        foreach (var item in s.CTPNs.ToList())
+                        {
+                            item.MaPhieuNhap = id; // Trả về phiếu gốc
+                            item.TrangThai = "Đề Xuất"; 
+                        }
+
+                        // Xóa lịch sử phiếu con trước để tránh lỗi FK constraint
+                        var lichSuConPhieu = await _ctx.LichSuPhieuNhaps
+                            .Where(ls => ls.MaPhieuNhap == s.MaPhieuNhap)
+                            .ToListAsync();
+                        _ctx.LichSuPhieuNhaps.RemoveRange(lichSuConPhieu);
+
+                        _ctx.PhieuNhaps.Remove(s);
+                    }
+                }
+                await _ctx.SaveChangesAsync();
+                
+                // Load lại danh sách item của phiếu sau khi đã thu hồi
+                await _ctx.Entry(p).Collection(x => x.CTPNs).LoadAsync();
+
                 var approvedItems = p.CTPNs.Where(c => dto.MacTPNDuyet.Contains(c.MaCTPN)).ToList();
                 var revisionItems = p.CTPNs.Where(c => dto.MacTPNSua.Contains(c.MaCTPN)).ToList();
                 var rejectedItems = p.CTPNs.Where(c => dto.MacTPNTuChoi.Contains(c.MaCTPN)).ToList();
@@ -580,6 +629,7 @@ namespace BuildingMaterialAPI.Controllers
                             item.ThanhTien = upd.SoLuong * upd.DonGia;
                             item.MaNhaCungCap = (upd.MaNhaCungCap > 0) ? upd.MaNhaCungCap : item.MaNhaCungCap;
                             item.MaKhoHang = upd.MaKhoHang ?? item.MaKhoHang;
+                            item.GhiChu = upd.GhiChu;
                         }
                     }
                 }
@@ -587,48 +637,64 @@ namespace BuildingMaterialAPI.Controllers
                 if (approvedItems.Any())
                 {
                     // Tách các mục được duyệt theo NCC
-                    var productIds = approvedItems.Select(i => i.MaSanPham).ToList();
-                    var supplierQuotes = await _ctx.NhaCungCapSanPhams
-                        .Where(x => productIds.Contains(x.MaSanPham))
-                        .ToListAsync();
+                    var approvedWithSupplier = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).ToList();
 
-                    var approvedWithSupplier = approvedItems.Select(item => {
-                        var quote = supplierQuotes.FirstOrDefault(q => q.MaSanPham == item.MaSanPham && q.GiaCungCap == item.DonGia);
-                        if (quote == null) quote = supplierQuotes.FirstOrDefault(q => q.MaSanPham == item.MaSanPham);
-                        return new { Item = item, MaNCC = quote?.MaNCC ?? item.MaNhaCungCap ?? p.MaNhaCungCap };
-                    }).GroupBy(x => x.MaNCC).ToList();
-
-                    foreach (var group in approvedWithSupplier)
+                    // TRƯỜNG HỢP ĐẶC BIỆT: Nếu chỉ duyệt cho 1 NCC duy nhất VÀ tất cả sản phẩm trong phiếu đều được duyệt (không có rejected/revision)
+                    // Thì cập nhật trực tiếp trên phiếu gốc, không cần tách.
+                    if (approvedWithSupplier.Count == 1 && approvedItems.Count == p.CTPNs.Count)
                     {
-                        var maNCC = group.Key;
-                        // Tạo phiếu mới cho mỗi nhóm NCC đã duyệt
-                        var newApprovedPhieu = new PhieuNhap
+                        var maNCC = approvedWithSupplier[0].Key;
+                        p.TrangThai = "Đã Duyệt";
+                        p.MaNhaCungCap = maNCC;
+                        p.TongTien = approvedItems.Sum(x => x.ThanhTien ?? 0);
+                        
+                        foreach (var item in approvedItems)
                         {
-                            NgayNhap = p.NgayNhap,
-                            TrangThai = "Đã Duyệt",
-                            GhiChu = p.GhiChu + $" (Duyệt một phần từ {p.MaPN})",
-                            MaNhaCungCap = maNCC,
-                            MaNhanVien = p.MaNhanVien,
-                            NgayTao = DateTime.UtcNow,
-                            NgayCapNhat = DateTime.UtcNow,
-                            TongTien = group.Sum(x => x.Item.ThanhTien ?? 0),
-                            ThanhToan = 0
-                        };
-                        _ctx.PhieuNhaps.Add(newApprovedPhieu);
-                        await _ctx.SaveChangesAsync();
-
-                        foreach (var x in group)
-                        {
-                            x.Item.MaPhieuNhap = newApprovedPhieu.MaPhieuNhap;
-                            x.Item.TrangThai = "Đã Duyệt";
+                            item.TrangThai = "Đã Duyệt";
                         }
 
                         _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
-                            MaPhieuNhap = newApprovedPhieu.MaPhieuNhap,
+                            MaPhieuNhap = id,
                             TrangThaiMoi = "Đã Duyệt",
-                            NoiDungThayDoi = $"Phiếu được duyệt một phần và tách từ {p.MaPN}.",
+                            NoiDungThayDoi = "Phiếu được duyệt trực tiếp (toàn bộ sản phẩm cùng 1 NCC).",
                             MaNguoiThucHien = dto.UserId
                         });
+                    }
+                    else
+                    {
+                        // Logic tách phiếu như cũ
+                        foreach (var group in approvedWithSupplier)
+                        {
+                            var maNCC = group.Key;
+                            // Tạo phiếu mới cho mỗi nhóm NCC đã duyệt
+                            var newApprovedPhieu = new PhieuNhap
+                            {
+                                NgayNhap = p.NgayNhap,
+                                TrangThai = "Đã Duyệt",
+                                GhiChu = $"[TáchTừPhiếu:{id}] " + p.GhiChu,
+                                MaNhaCungCap = maNCC,
+                                MaNhanVien = p.MaNhanVien,
+                                NgayTao = DateTime.UtcNow,
+                                NgayCapNhat = DateTime.UtcNow,
+                                TongTien = group.Sum(x => x.ThanhTien ?? 0),
+                                ThanhToan = 0
+                            };
+                            _ctx.PhieuNhaps.Add(newApprovedPhieu);
+                            await _ctx.SaveChangesAsync();
+
+                            foreach (var item in group)
+                            {
+                                item.MaPhieuNhap = newApprovedPhieu.MaPhieuNhap;
+                                item.TrangThai = "Đã Duyệt";
+                            }
+
+                            _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                                MaPhieuNhap = newApprovedPhieu.MaPhieuNhap,
+                                TrangThaiMoi = "Đã Duyệt",
+                                NoiDungThayDoi = $"Phiếu được duyệt và tách từ {p.MaPN} theo nhà cung cấp.",
+                                MaNguoiThucHien = dto.UserId
+                            });
+                        }
                     }
                 }
 
@@ -638,55 +704,54 @@ namespace BuildingMaterialAPI.Controllers
                     {
                         item.TrangThai = "Từ Chối";
                     }
-                    _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
-                    {
-                        MaPhieuNhap = id,
-                        TrangThaiMoi = "Một phần từ chối",
-                        NoiDungThayDoi = $"Quản lý từ chối {rejectedItems.Count} sản phẩm.",
-                        MaNguoiThucHien = dto.UserId
-                    });
                 }
 
                 if (revisionItems.Any())
                 {
-                    p.TrangThai = "Yêu Cầu Sửa";
-                    p.GhiChu = dto.GhiChuChung;
-                    p.NgayCapNhat = DateTime.UtcNow;
+                    foreach (var item in revisionItems)
+                    {
+                        item.TrangThai = "Yêu Cầu Sửa";
+                    }
+                }
 
-                    foreach (var item in revisionItems) item.TrangThai = "Yêu Cầu Sửa";
+                // Cập nhật trạng thái tổng quát cho phiếu gốc
+                if (revisionItems.Any()) p.TrangThai = "Yêu Cầu Sửa";
+                else if (approvedItems.Any()) p.TrangThai = "Đã Duyệt"; // Đã tách hết các món duyệt
+                else if (rejectedItems.Count == p.CTPNs.Count) p.TrangThai = "Từ Chối";
 
+                p.NgayCapNhat = DateTime.UtcNow;
+
+                p.NgayCapNhat = DateTime.UtcNow;
+
+                // Log lịch sử cho phiếu gốc (nếu không phải trường hợp đã log ở trên)
+                var hasGeneralHistory = _ctx.ChangeTracker.Entries<LichSuPhieuNhap>()
+                    .Any(e => e.Entity.MaPhieuNhap == id && e.State == EntityState.Added);
+
+                if (!hasGeneralHistory)
+                {
+                    var supplierCount = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).Count();
+                    var isSplitMsg = (supplierCount > 1 || (approvedItems.Any() && approvedItems.Count != p.CTPNs.Count)) ? "(Đã tách)" : "";
+                    
                     _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
                     {
                         MaPhieuNhap = id,
-                        TrangThaiMoi = "Yêu Cầu Sửa",
-                        NoiDungThayDoi = $"Quản lý yêu cầu sửa một số mục: {dto.LyDoSua ?? dto.GhiChuChung}",
+                        TrangThaiMoi = p.TrangThai,
+                        NoiDungThayDoi = $"Xử lý chi tiết: Duyệt {approvedItems.Count} {isSplitMsg}, Sửa {revisionItems.Count}, Từ chối {rejectedItems.Count}.",
                         MaNguoiThucHien = dto.UserId
                     });
-                }
-                else if (rejectedItems.Any() && !p.CTPNs.Any(c => c.TrangThai != "Từ Chối"))
-                {
-                    // Nếu không có mục yêu cầu sửa, và tất cả các mục còn lại đều bị từ chối
-                    p.TrangThai = "Từ Chối";
-                    p.NgayCapNhat = DateTime.UtcNow;
-                }
-
-                // Cập nhật lại tổng tiền cho phiếu cũ (chỉ còn các item chưa được duyệt/tách, loại bỏ hàng bị từ chối)
-                p.TongTien = p.CTPNs.Where(c => c.TrangThai != "Từ Chối").Sum(c => c.ThanhTien ?? 0);
-
-                if (!p.CTPNs.Any())
-                {
-                    p.TrangThai = "Đã Duyệt (Đã tách hết)";
                 }
 
                 await _ctx.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return Ok(new { message = "Đã xử lý duyệt và tách phiếu theo yêu cầu!" });
+                return Ok(new { message = "Đã xử lý duyệt phiếu thành công!" });
             }
             catch (Exception ex)
             {
+                Console.WriteLine("APPROVE ITEMS EXCEPTION: " + ex.ToString());
                 await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Lỗi xử lý duyệt một phần.", error = ex.Message });
+                var innerMsg = ex.InnerException != null ? ex.InnerException.Message : "";
+                return StatusCode(500, new { message = "Lỗi xử lý duyệt một phần.", error = ex.Message + " | Inner: " + innerMsg });
             }
         }
 
@@ -696,56 +761,120 @@ namespace BuildingMaterialAPI.Controllers
         {
             var p = await _ctx.PhieuNhaps
                 .Include(x => x.NhaCungCap)
+                .Include(x => x.NhanVien)
                 .Include(x => x.CTPNs).ThenInclude(c => c.SanPham)
                 .FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
             
             if (p == null) return NotFound();
 
+            var manager = await _ctx.NhanViens
+                .Include(n => n.TaiKhoan).ThenInclude(tk => tk.VaiTro)
+                .FirstOrDefaultAsync(n => n.TaiKhoan.VaiTro.TenVT.Contains("Quản lý") || n.TaiKhoan.VaiTro.TenVT.Contains("Giám đốc"));
+
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add(p.MaPN);
 
-            // Style Header
-            ws.Cells["A1:E1"].Merge = true;
-            ws.Cells["A1"].Value = "ĐƠN ĐẶT HÀNG / ĐỀ XUẤT NHẬP HÀNG";
+            // 1. Store Info
+            ws.Cells["A1"].Value = "CỬA HÀNG VẬT LIỆU XÂY DỰNG THÀNH ĐẠT";
             ws.Cells["A1"].Style.Font.Bold = true;
-            ws.Cells["A1"].Style.Font.Size = 16;
-            ws.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            ws.Cells["A1"].Style.Font.Size = 14;
+            ws.Cells["A1"].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(255, 165, 0)); // Orange
+            
+            ws.Cells["A2"].Value = "Địa chỉ: 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, Tp. Hồ Chí Minh";
+            ws.Cells["A2"].Style.Font.Italic = true;
 
-            ws.Cells["A2"].Value = "Mã phiếu:"; ws.Cells["B2"].Value = p.MaPN;
-            ws.Cells["A3"].Value = "Ngày tạo:"; ws.Cells["B3"].Value = p.NgayTao.ToString("dd/MM/yyyy HH:mm");
-            ws.Cells["A4"].Value = "Nhà cung cấp:"; ws.Cells["B4"].Value = p.NhaCungCap?.TenNCC;
-            ws.Cells["A5"].Value = "Địa chỉ NCC:"; ws.Cells["B5"].Value = p.NhaCungCap?.DiaChi;
-            ws.Cells["A6"].Value = "Trạng thái:"; ws.Cells["B6"].Value = p.TrangThai;
+            // 2. Title
+            ws.Cells["A4:F4"].Merge = true;
+            ws.Cells["A4"].Value = "ĐƠN ĐẶT HÀNG";
+            ws.Cells["A4"].Style.Font.Bold = true;
+            ws.Cells["A4"].Style.Font.Size = 20;
+            ws.Cells["A4"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
-            // Table Header
-            ws.Cells["A8"].Value = "STT";
-            ws.Cells["B8"].Value = "Sản phẩm";
-            ws.Cells["C8"].Value = "Số lượng";
-            ws.Cells["D8"].Value = "Đơn giá";
-            ws.Cells["E8"].Value = "Thành tiền";
-            ws.Cells["A8:E8"].Style.Font.Bold = true;
-            ws.Cells["A8:E8"].Style.Fill.PatternType = ExcelFillStyle.Solid;
-            ws.Cells["A8:E8"].Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGray);
+            // 3. Info
+            ws.Cells["A6"].Value = "Mã đơn hàng:"; ws.Cells["B6"].Value = p.MaPN;
+            ws.Cells["D6"].Value = "Ngày đặt:"; ws.Cells["E6"].Value = p.NgayTao.ToString("dd/MM/yyyy HH:mm");
+            
+            ws.Cells["A7"].Value = "Nhà cung cấp:"; ws.Cells["B7"].Value = p.NhaCungCap?.TenNCC;
+            ws.Cells["A8"].Value = "Địa chỉ NCC:"; ws.Cells["B8"].Value = p.NhaCungCap?.DiaChi;
+            ws.Cells["A9"].Value = "Điện thoại:"; ws.Cells["B9"].Value = p.NhaCungCap?.Sdt;
 
-            int row = 9;
+            // 4. Table Header
+            int startRow = 11;
+            string[] headers = { "STT", "Tên sản phẩm", "ĐVT", "SL", "Đơn giá", "Thành tiền" };
+            for (int i = 0; i < headers.Length; i++)
+            {
+                var cell = ws.Cells[startRow, i + 1];
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                cell.Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGray);
+            }
+
+            // 5. Data
+            int row = startRow + 1;
             int stt = 1;
+            decimal total = 0;
             foreach (var item in p.CTPNs)
             {
                 ws.Cells[row, 1].Value = stt++;
                 ws.Cells[row, 2].Value = item.SanPham?.TenSP;
-                ws.Cells[row, 3].Value = item.SoLuong;
-                ws.Cells[row, 4].Value = item.DonGia;
-                ws.Cells[row, 5].Formula = $"C{row}*D{row}";
+                ws.Cells[row, 3].Value = item.SanPham?.DonViTinh;
+                ws.Cells[row, 4].Value = item.SoLuong;
+                ws.Cells[row, 5].Value = item.DonGia;
+                
+                decimal tt = item.SoLuong * item.DonGia;
+                ws.Cells[row, 6].Value = tt;
+                total += tt;
+
+                // Format numbers
+                ws.Cells[row, 5, row, 6].Style.Numberformat.Format = "#,##0";
+                
+                // Borders
+                for (int i = 1; i <= 6; i++) ws.Cells[row, i].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+                
                 row++;
             }
 
-            ws.Cells[row, 4].Value = "Tổng cộng:";
-            ws.Cells[row, 5].Value = p.TongTien;
-            ws.Cells[row, 4, row, 5].Style.Font.Bold = true;
+            // 6. Totals
+            ws.Cells[row, 5].Value = "Tổng cộng:";
+            ws.Cells[row, 6].Value = total;
+            ws.Cells[row, 5, row, 6].Style.Font.Bold = true;
+            ws.Cells[row, 6].Style.Numberformat.Format = "#,##0";
+            ws.Cells[row, 5, row, 6].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+
+            row++;
+            ws.Cells[row, 1, row, 6].Merge = true;
+            ws.Cells[row, 1].Value = "Số tiền viết bằng chữ: " + NumberToText.Convert(total);
+            ws.Cells[row, 1].Style.Font.Italic = true;
+
+            // 7. Signatures
+            row += 2;
+            ws.Cells[row, 2].Value = "Người lập";
+            ws.Cells[row, 2].Style.Font.Bold = true;
+            ws.Cells[row, 5].Value = "Người Đại diện cửa hàng";
+            ws.Cells[row, 5].Style.Font.Bold = true;
+            
+            ws.Cells[row, 2, row, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            
+            row++;
+            ws.Cells[row, 2].Value = "(Ký, họ tên)";
+            ws.Cells[row, 5].Value = "(Ký, họ tên, đóng dấu)";
+            ws.Cells[row, 2, row, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            ws.Cells[row, 2, row, 5].Style.Font.Size = 9;
+
+            row += 4;
+            ws.Cells[row, 2].Value = p.NhanVien?.TenNV;
+            ws.Cells[row, 5].Value = manager?.TenNV ?? "Phạm Văn Tài";
+            ws.Cells[row, 2, row, 5].Style.Font.Bold = true;
+            ws.Cells[row, 2, row, 5].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
 
             ws.Cells.AutoFitColumns();
+            ws.Column(2).Width = 40; // Tên SP rộng hơn
+
             var fileBytes = await package.GetAsByteArrayAsync();
-            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"DonNhapHang_{p.MaPN}.xlsx");
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"DonDatHang_{p.MaPN}.xlsx");
         }
 
         // 6. Xuất PDF Đơn Nhập Hàng
@@ -760,96 +889,156 @@ namespace BuildingMaterialAPI.Controllers
 
             if (p == null) return NotFound();
 
-            var pdf = Document.Create(container =>
+            var manager = await _ctx.NhanViens
+                .Include(n => n.TaiKhoan).ThenInclude(tk => tk.VaiTro)
+                .FirstOrDefaultAsync(n => n.TaiKhoan.VaiTro.TenVT.Contains("Quản lý") || n.TaiKhoan.VaiTro.TenVT.Contains("Giám đốc"));
+
+            var pdf = GenerateProcurementDocument(p, manager);
+
+            var stream = new MemoryStream();
+            pdf.GeneratePdf(stream);
+            stream.Position = 0;
+            return File(stream, "application/pdf", $"DonMuaHang_{p.MaPN}.pdf");
+        }
+
+        private IDocument GenerateProcurementDocument(PhieuNhap p, NhanVien? manager)
+        {
+            return Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.Margin(1, Unit.Centimetre);
+                    page.Margin(1.5f, Unit.Centimetre);
                     page.PageColor(QuestPDF.Helpers.Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(12).FontFamily(Fonts.Arial));
+                    page.DefaultTextStyle(x => x.FontSize(11).FontFamily(Fonts.Arial));
 
-                    page.Header().Row(row =>
+                    // 1. Header
+                    page.Header().Column(col =>
                     {
-                        row.RelativeItem().Column(col =>
-                        {
-                            col.Item().Text("CỬA HÀNG VẬT LIỆU XÂY DỰNG").FontSize(16).SemiBold().FontColor(QuestPDF.Helpers.Colors.Blue.Medium);
-                            col.Item().Text("Địa chỉ: 123 Đường Chính, TP. Hồ Chí Minh");
-                            col.Item().Text("SĐT: 0123 456 789");
-                        });
-
-                        row.RelativeItem().AlignRight().Column(col =>
-                        {
-                            col.Item().Text("PHIẾU NHẬP HÀNG").FontSize(20).ExtraBold().FontColor(QuestPDF.Helpers.Colors.Grey.Darken3);
-                            col.Item().Text($"Số phiếu: {p.MaPN}").Bold();
-                            col.Item().Text($"Ngày: {p.NgayTao:dd/MM/yyyy}");
-                        });
+                        col.Item().Text("CỬA HÀNG VẬT LIỆU XÂY DỰNG THÀNH ĐẠT").FontSize(16).Bold().FontColor(QuestPDF.Helpers.Colors.Orange.Medium);
+                        col.Item().Text("Địa chỉ: 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, Tp. Hồ Chí Minh");
+                        col.Item().PaddingTop(15).AlignCenter().Text("ĐƠN ĐẶT HÀNG").FontSize(20).ExtraBold();
                     });
 
-                    page.Content().PaddingVertical(20).Column(col =>
+                    // 2. Info Section
+                    page.Content().PaddingVertical(10).Column(col =>
                     {
-                        col.Item().Row(r => {
-                            r.RelativeItem().Column(c => {
-                                c.Item().Text("NHÀ CUNG CẤP").Bold();
-                                c.Item().Text(p.NhaCungCap?.TenNCC ?? "N/A");
-                                c.Item().Text(p.NhaCungCap?.DiaChi ?? "N/A");
-                                c.Item().Text($"SĐT: {p.NhaCungCap?.Sdt}");
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text(t => { t.Span("Tên nhà cung cấp: ").Bold(); t.Span(p.NhaCungCap?.TenNCC ?? "N/A"); });
+                                c.Item().Text(t => { t.Span("Địa chỉ: ").Bold(); t.Span(p.NhaCungCap?.DiaChi ?? "N/A"); });
+                                c.Item().Text(t => { t.Span("Điện thoại: ").Bold(); t.Span(p.NhaCungCap?.Sdt ?? "N/A"); });
                             });
-                            r.RelativeItem().AlignRight().Column(c => {
-                                c.Item().Text("TRẠNG THÁI").Bold();
-                                c.Item().Text(p.TrangThai).FontColor(p.TrangThai == "Hoàn Thành" ? QuestPDF.Helpers.Colors.Green.Medium : QuestPDF.Helpers.Colors.Orange.Medium);
-                                c.Item().Text($"NV tạo: {p.NhanVien?.TenNV}");
+
+                            row.ConstantItem(150).Column(c =>
+                            {
+                                c.Item().Text(t => { t.Span("Ngày: ").Bold(); t.Span(p.NgayTao.ToString("dd/MM/yyyy")); });
+                                c.Item().Text(t => { t.Span("Số: ").Bold(); t.Span(p.MaPN); });
+                                c.Item().Text(t => { t.Span("Loại tiền: ").Bold(); t.Span("VND"); });
                             });
                         });
 
-                        col.Item().PaddingTop(15).Table(table =>
+                        // 3. Table
+                        decimal subtotal = 0;
+                        col.Item().PaddingTop(10).Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(40);
-                                columns.RelativeColumn();
-                                columns.ConstantColumn(80);
-                                columns.ConstantColumn(100);
-                                columns.ConstantColumn(100);
+                                columns.ConstantColumn(25);  // STT
+                                columns.ConstantColumn(80);  // Quy cách
+                                columns.RelativeColumn();    // Tên sản phẩm (Give more space)
+                                columns.ConstantColumn(45);  // Đơn vị
+                                columns.ConstantColumn(55);  // Số lượng
+                                columns.ConstantColumn(85);  // Đơn giá
+                                columns.ConstantColumn(95);  // Thành tiền
                             });
 
                             table.Header(header =>
                             {
                                 header.Cell().Element(HeaderStyle).Text("STT");
-                                header.Cell().Element(HeaderStyle).Text("Sản phẩm");
-                                header.Cell().Element(HeaderStyle).AlignRight().Text("Số lượng");
+                                header.Cell().Element(HeaderStyle).Text("Quy cách");
+                                header.Cell().Element(HeaderStyle).Text("Tên sản phẩm");
+                                header.Cell().Element(HeaderStyle).Text("Đơn vị");
+                                header.Cell().Element(HeaderStyle).AlignRight().Text("SL");
                                 header.Cell().Element(HeaderStyle).AlignRight().Text("Đơn giá");
                                 header.Cell().Element(HeaderStyle).AlignRight().Text("Thành tiền");
 
-                                static IContainer HeaderStyle(IContainer container) => container.DefaultTextStyle(x => x.SemiBold()).PaddingVertical(5).BorderBottom(1).BorderColor(QuestPDF.Helpers.Colors.Black);
+                                static IContainer HeaderStyle(IContainer container) => container.Border(1).Background(QuestPDF.Helpers.Colors.Grey.Lighten4).PaddingVertical(5).AlignCenter().AlignMiddle().DefaultTextStyle(x => x.Bold().FontSize(10));
                             });
 
                             int i = 1;
                             foreach (var item in p.CTPNs)
                             {
-                                table.Cell().Element(CellStyle).Text(i++.ToString());
+                                decimal tt = item.ThanhTien ?? 0m;
+                                subtotal += tt;
+
+                                table.Cell().Element(CellStyle).AlignCenter().Text(i++.ToString());
+                                table.Cell().Element(CellStyle).AlignCenter().Text(item.SanPham?.KichThuoc ?? ""); 
                                 table.Cell().Element(CellStyle).Text(item.SanPham?.TenSP ?? "N/A");
-                                table.Cell().Element(CellStyle).AlignRight().Text(item.SoLuong.ToString());
-                                table.Cell().Element(CellStyle).AlignRight().Text(string.Format("{0:N0} đ", item.DonGia));
-                                table.Cell().Element(CellStyle).AlignRight().Text(string.Format("{0:N0} đ", item.ThanhTien));
+                                table.Cell().Element(CellStyle).AlignCenter().Text(item.SanPham?.DonViTinh ?? "");
+                                table.Cell().Element(CellStyle).AlignRight().Text(item.SoLuong.ToString("N0"));
+                                table.Cell().Element(CellStyle).AlignRight().Text(item.DonGia.ToString("N0"));
+                                table.Cell().Element(CellStyle).AlignRight().Text(tt.ToString("N0"));
 
-                                static IContainer CellStyle(IContainer container) => container.PaddingVertical(5).BorderBottom(1).BorderColor(QuestPDF.Helpers.Colors.Grey.Lighten2);
+                                static IContainer CellStyle(IContainer container) => container.Border(1).PaddingHorizontal(5).PaddingVertical(3).AlignMiddle().DefaultTextStyle(x => x.FontSize(10));
                             }
+
+                            // Footer Table Rows
+                            table.Cell().ColumnSpan(6).Element(FooterLabelStyle).Text("Tổng tiền thanh toán:");
+                            table.Cell().Element(FooterValueStyle).Text(subtotal.ToString("N0")).Bold();
+
+                            static IContainer FooterLabelStyle(IContainer container) => container.Border(1).PaddingHorizontal(5).PaddingVertical(4).AlignRight().AlignMiddle().DefaultTextStyle(x => x.FontSize(10));
+                            static IContainer FooterValueStyle(IContainer container) => container.Border(1).PaddingHorizontal(5).PaddingVertical(4).AlignRight().AlignMiddle().DefaultTextStyle(x => x.FontSize(10));
                         });
 
-                        col.Item().AlignRight().PaddingTop(10).Text(x =>
-                        {
-                            x.Span("TỔNG CỘNG: ").FontSize(14).Bold();
-                            x.Span(string.Format("{0:N0} VNĐ", p.TongTien)).FontSize(14).Bold().FontColor(QuestPDF.Helpers.Colors.Red.Medium);
+                        col.Item().PaddingTop(10).Text(t => { 
+                            t.Span("Số tiền viết bằng chữ: ").Bold().Italic(); 
+                            t.Span(NumberToText.Convert(subtotal)).Italic(); 
                         });
 
-                        if (!string.IsNullOrEmpty(p.GhiChu))
+                        // 4. Signatures (Push to bottom)
+                        col.Item().PaddingTop(50).AlignBottom().Row(row =>
                         {
-                            col.Item().PaddingTop(20).Column(c => {
-                                c.Item().Text("Ghi chú:").Italic();
-                                c.Item().Text(p.GhiChu).FontSize(10);
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().AlignCenter().Text("Người lập").Bold();
+                                c.Item().AlignCenter().Text("(Ký, họ tên)");
+                                
+                                if (!string.IsNullOrEmpty(p.NhanVien?.ChuKy))
+                                {
+                                    try {
+                                        var sigPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", p.NhanVien.ChuKy.TrimStart('/'));
+                                        if (System.IO.File.Exists(sigPath))
+                                        {
+                                            c.Item().PaddingTop(5).AlignCenter().Height(60).Image(sigPath);
+                                        }
+                                    } catch { /* ignore signature load error */ }
+                                }
+
+                                c.Item().PaddingTop(p.NhanVien?.ChuKy != null ? 5 : 50).AlignCenter().Text(p.NhanVien?.TenNV ?? "").Bold();
                             });
-                        }
+
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().AlignCenter().Text("Người Đại diện cửa hàng").Bold();
+                                c.Item().AlignCenter().Text("(Ký, họ tên, đóng dấu)");
+                                
+                                if (!string.IsNullOrEmpty(manager?.ChuKy))
+                                {
+                                    try {
+                                        var sigPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", manager.ChuKy.TrimStart('/'));
+                                        if (System.IO.File.Exists(sigPath))
+                                        {
+                                            c.Item().PaddingTop(5).AlignCenter().Height(60).Image(sigPath);
+                                        }
+                                    } catch { /* ignore signature load error */ }
+                                }
+                                
+                                c.Item().PaddingTop(manager?.ChuKy != null ? 5 : 50).AlignCenter().Text(manager?.TenNV ?? "Phạm Văn Tài").Bold();
+                            });
+                        });
                     });
 
                     page.Footer().AlignRight().Text(x =>
@@ -859,11 +1048,6 @@ namespace BuildingMaterialAPI.Controllers
                     });
                 });
             });
-
-            var stream = new MemoryStream();
-            pdf.GeneratePdf(stream);
-            stream.Position = 0;
-            return File(stream, "application/pdf", $"DonNhapHang_{p.MaPN}.pdf");
         }
 
         // 7. Gửi Email Đơn Nhập Hàng cho Nhà Cung Cấp
@@ -885,69 +1069,11 @@ namespace BuildingMaterialAPI.Controllers
 
             if (p == null || string.IsNullOrEmpty(p.NhaCungCap?.Email)) return false;
 
-            var pdf = Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    page.Size(PageSizes.A4);
-                    page.Margin(1, Unit.Centimetre);
-                    page.PageColor(QuestPDF.Helpers.Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(12).FontFamily(Fonts.Arial));
+            var manager = await _ctx.NhanViens
+                .Include(n => n.TaiKhoan).ThenInclude(tk => tk.VaiTro)
+                .FirstOrDefaultAsync(n => n.TaiKhoan.VaiTro.TenVT.Contains("Quản lý") || n.TaiKhoan.VaiTro.TenVT.Contains("Giám đốc"));
 
-                    page.Header().Row(row =>
-                    {
-                        row.RelativeItem().Column(col =>
-                        {
-                            col.Item().Text("CỬA HÀNG VẬT LIỆU XÂY DỰNG").FontSize(16).SemiBold().FontColor(QuestPDF.Helpers.Colors.Blue.Medium);
-                        });
-                        row.RelativeItem().AlignRight().Column(col =>
-                        {
-                            col.Item().Text("ĐƠN ĐẶT HÀNG").FontSize(20).ExtraBold();
-                            col.Item().Text($"Mã phiếu: {p.MaPN}");
-                        });
-                    });
-
-                    page.Content().PaddingVertical(20).Column(col =>
-                    {
-                        col.Item().Text($"Kính gửi: {p.NhaCungCap?.TenNCC}");
-                        col.Item().Text($"Địa chỉ: {p.NhaCungCap?.DiaChi}");
-
-                        col.Item().PaddingTop(15).Table(table =>
-                        {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.ConstantColumn(40);
-                                columns.RelativeColumn();
-                                columns.ConstantColumn(80);
-                                columns.ConstantColumn(100);
-                            });
-
-                            table.Header(header =>
-                            {
-                                header.Cell().Text("STT");
-                                header.Cell().Text("Sản phẩm");
-                                header.Cell().AlignRight().Text("Số lượng");
-                                header.Cell().AlignRight().Text("Thành tiền");
-                            });
-
-                            int i = 1;
-                            foreach (var item in p.CTPNs)
-                            {
-                                table.Cell().Text(i++.ToString());
-                                table.Cell().Text(item.SanPham?.TenSP ?? "");
-                                table.Cell().AlignRight().Text(item.SoLuong.ToString());
-                                table.Cell().AlignRight().Text(string.Format("{0:N0} đ", item.ThanhTien));
-                            }
-                        });
-
-                        col.Item().AlignRight().PaddingTop(10).Text(x =>
-                        {
-                            x.Span("TỔNG CỘNG: ").Bold();
-                            x.Span(string.Format("{0:N0} VNĐ", p.TongTien)).Bold().FontColor(QuestPDF.Helpers.Colors.Red.Medium);
-                        });
-                    });
-                });
-            });
+            var pdf = GenerateProcurementDocument(p, manager);
 
             var stream = new MemoryStream();
             pdf.GeneratePdf(stream);
@@ -1037,7 +1163,7 @@ namespace BuildingMaterialAPI.Controllers
                     SoLuongDaNhan = 0,
                     MaKhoHang = ct.MaKhoHang,
                     NgayTao = DateTime.UtcNow,
-                    TrangThai = "Chờ Duyệt"
+                    TrangThai = (string.Equals(ct.TrangThai, "Từ Chối", StringComparison.OrdinalIgnoreCase)) ? "Từ Chối" : "Đề Xuất"
                 });
             }
             p.TongTien = tong;
@@ -1076,6 +1202,8 @@ namespace BuildingMaterialAPI.Controllers
         public decimal DonGia { get; set; }
         public int? MaNhaCungCap { get; set; }
         public int? MaKhoHang { get; set; }
+        public string? GhiChu { get; set; }
+        public string? TrangThai { get; set; }
     }
 
     public class HistoryActionDto { public int UserId { get; set; } }

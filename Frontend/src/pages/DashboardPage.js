@@ -1,13 +1,15 @@
 // src/pages/DashboardPage.js
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Grid, Paper, Typography, Card, CardContent, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Button, Chip, LinearProgress, TablePagination
+  TableCell, TableContainer, TableHead, TableRow, Button, Chip, LinearProgress, TablePagination,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import { TrendingUp, Warning, Inventory } from '@mui/icons-material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
 import api from '../services/api';
 
@@ -27,10 +29,14 @@ function DashboardPage() {
   const [inventoryAlerts, setInventoryAlerts] = useState([]);
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   
   // Pagination for inventory alerts
   const [alertPage, setAlertPage] = useState(0);
   const [alertRowsPerPage, setAlertRowsPerPage] = useState(5);
+  
+  const [topProductsChart, setTopProductsChart] = useState('bar'); // bar, line, area
+  const [salesRatioChart, setSalesRatioChart] = useState('pie'); // pie, bar
 
   const handleChangeAlertPage = (event, newPage) => setAlertPage(newPage);
   const handleChangeAlertRowsPerPage = (event) => {
@@ -65,14 +71,14 @@ function DashboardPage() {
   if (loading) return <Box sx={{ p: 4 }}><LinearProgress /><Typography sx={{ mt: 2, textAlign: 'center' }}>Đang tải dữ liệu...</Typography></Box>;
 
   const statCards = [
-    { title: '📦 Tổng Sản Phẩm', value: stats?.tongSanPham || 0, bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', icon: '📦' },
-    { title: '🛒 Tổng Đơn Hàng', value: stats?.tongDonHang || 0, bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', icon: '🛒' },
-    { title: '👥 Khách Hàng', value: stats?.tongKhachHang || 0, bgColor: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', icon: '👥' },
-    { title: '💰 Doanh Thu', value: formatVND(stats?.doanhThu), bgColor: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', icon: '💰' },
-    { title: '🏭 Nhà Cung Cấp', value: stats?.tongNhaCungCap || 0, bgColor: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', icon: '🏭' },
-    { title: '👷 Nhân Viên', value: stats?.tongNhanVien || 0, bgColor: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', icon: '👷' },
-    { title: '📋 Phiếu Nhập', value: stats?.tongPhieuNhap || 0, bgColor: 'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)', icon: '📋' },
-    { title: '💳 Công Nợ', value: formatVND(stats?.tongCongNo), bgColor: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', icon: '💳' },
+    { title: '📦 Tổng Sản Phẩm', value: stats?.tongSanPham || 0, bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', icon: '📦', path: '/products' },
+    { title: '🛒 Tổng Đơn Hàng', value: stats?.tongDonHang || 0, bgColor: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', icon: '🛒', path: '/orders' },
+    { title: '👥 Khách Hàng', value: stats?.tongKhachHang || 0, bgColor: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', icon: '👥', path: '/customers' },
+    { title: '💰 Doanh Thu', value: formatVND(stats?.doanhThu), bgColor: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', icon: '💰', path: '/reports' },
+    { title: '🏭 Nhà Cung Cấp', value: stats?.tongNhaCungCap || 0, bgColor: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', icon: '🏭', path: '/suppliers' },
+    { title: '👷 Nhân Viên', value: stats?.tongNhanVien || 0, bgColor: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', icon: '👷', path: '/employees' },
+    { title: '📋 Phiếu Nhập', value: stats?.tongPhieuNhap || 0, bgColor: 'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)', icon: '📋', path: '/procurement' },
+    { title: '💳 Công Nợ', value: formatVND(stats?.tongCongNo), bgColor: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', icon: '💳', path: '/debts' },
   ];
 
   // Pie data from top products
@@ -97,8 +103,10 @@ function DashboardPage() {
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {statCards.map((stat, index) => (
           <Grid item xs={12} sm={6} md={3} key={index}>
-            <Card sx={{
-              background: stat.bgColor, color: 'white', borderRadius: 2,
+            <Card 
+              onClick={() => navigate(stat.path)}
+              sx={{
+                background: stat.bgColor, color: 'white', borderRadius: 2,
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               transition: 'transform 0.3s ease, box-shadow 0.3s ease',
               '&:hover': { transform: 'translateY(-6px)', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' },
@@ -124,19 +132,53 @@ function DashboardPage() {
         <Grid item xs={12} md={8}>
           <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>📈 Sản Phẩm Bán Chạy</Typography>
-              <Box sx={{ height: 300 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>📈 Sản Phẩm Bán Chạy</Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  value={topProductsChart}
+                  exclusive
+                  onChange={(e, v) => v && setTopProductsChart(v)}
+                >
+                  <ToggleButton value="bar">Cột</ToggleButton>
+                  <ToggleButton value="line">Đường</ToggleButton>
+                  <ToggleButton value="area">Vùng</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              <Box sx={{ height: 350 }}>
                 {barData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis />
-                      <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
-                      <Legend />
-                      <Bar dataKey="soLuong" fill="#667eea" name="Số lượng bán" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="doanhThu" fill="#f093fb" name="Doanh thu (K)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                    {topProductsChart === 'bar' ? (
+                      <BarChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis />
+                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Legend />
+                        <Bar dataKey="soLuong" fill="#667eea" name="Số lượng bán" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="doanhThu" fill="#f093fb" name="Doanh thu (K)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    ) : topProductsChart === 'line' ? (
+                      <LineChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis />
+                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Legend />
+                        <Line type="monotone" dataKey="soLuong" stroke="#667eea" strokeWidth={3} name="Số lượng bán" dot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="doanhThu" stroke="#f093fb" strokeWidth={3} name="Doanh thu (K)" dot={{ r: 6 }} />
+                      </LineChart>
+                    ) : (
+                      <AreaChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis />
+                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Legend />
+                        <Area type="monotone" dataKey="soLuong" fill="#667eea" stroke="#667eea" fillOpacity={0.2} name="Số lượng bán" />
+                        <Area type="monotone" dataKey="doanhThu" fill="#f093fb" stroke="#f093fb" fillOpacity={0.2} name="Doanh thu (K)" />
+                      </AreaChart>
+                    )}
                   </ResponsiveContainer>
                 ) : <Typography sx={{ textAlign: 'center', py: 5 }}>Chưa có dữ liệu bán hàng</Typography>}
               </Box>
@@ -148,20 +190,62 @@ function DashboardPage() {
         <Grid item xs={12} md={4}>
           <Card sx={{ borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>🍰 Tỷ lệ bán hàng</Typography>
-              <Box sx={{ height: 300, display: 'flex', justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>🍰 Tỷ lệ bán hàng</Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  value={salesRatioChart}
+                  exclusive
+                  onChange={(e, v) => v && setSalesRatioChart(v)}
+                >
+                  <ToggleButton value="pie">Tròn</ToggleButton>
+                  <ToggleButton value="bar">Cột</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              <Box sx={{ height: 350, display: 'flex', justifyContent: 'center' }}>
                 {pieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" labelLine={false}
-                        label={({ name, value }) => `${name?.substring(0, 10)}: ${value}`}
-                        outerRadius={80} fill="#8884d8" dataKey="value">
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
+                    {salesRatioChart === 'pie' ? (
+                      <PieChart>
+                        <Pie 
+                          data={pieData} 
+                          cx="50%" 
+                          cy="50%" 
+                          labelLine={false}
+                          outerRadius={100} 
+                          innerRadius={60}
+                          paddingAngle={3}
+                          fill="#8884d8" 
+                          dataKey="value"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value, name) => [value, `Số lượng (${name})`]} />
+                        <Legend 
+                          verticalAlign="bottom" 
+                          formatter={(value, entry) => {
+                            const total = pieData.reduce((sum, item) => sum + item.value, 0);
+                            const item = pieData.find(d => d.name === value);
+                            const percent = item ? ((item.value / total) * 100).toFixed(0) : 0;
+                            return <span style={{ color: '#333', fontSize: '0.85rem' }}>{value} ({percent}%)</span>;
+                          }}
+                        />
+                      </PieChart>
+                    ) : (
+                      <BarChart data={pieData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={80} />
+                        <Tooltip />
+                        <Bar dataKey="value" name="Số lượng" radius={[0, 4, 4, 0]}>
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    )}
                   </ResponsiveContainer>
                 ) : <Typography sx={{ textAlign: 'center', py: 5 }}>Chưa có dữ liệu</Typography>}
               </Box>

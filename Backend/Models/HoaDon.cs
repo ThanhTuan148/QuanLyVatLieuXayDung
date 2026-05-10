@@ -53,6 +53,8 @@ namespace BuildingMaterialAPI.Models
         [Column("VatCompanyAddress")] public string? VatCompanyAddress { get; set; }
         [Column("VatTaxId")] public string? VatTaxId { get; set; }
         [Column("VatBudgetCode")] public string? VatBudgetCode { get; set; }
+        [Column("AnhBangChung")] public string? AnhBangChung { get; set; }
+        [Column("SoTienPhaiThu")] public decimal SoTienPhaiThu { get; set; }
 
         [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; }
         [ForeignKey("MaKhachHang")] public virtual KhachHang KhachHang { get; set; }

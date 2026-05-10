@@ -160,6 +160,7 @@ function CategoriesTab() {
         columns={columns}
         getRowId={(row) => row.maLoai}
         loading={loading}
+        showDateFilter={false}
       />
 
       <CategoryForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />

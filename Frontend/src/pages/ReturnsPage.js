@@ -46,6 +46,7 @@ export default function ReturnsPage() {
 
   const [previewImg, setPreviewImg] = useState(null);
   const [viewingItems, setViewingItems] = useState(null);
+  const [selectedCTDTs, setSelectedCTDTs] = useState(new Set());
 
   useEffect(() => { loadData(); }, [tabValue]);
 
@@ -266,7 +267,7 @@ export default function ReturnsPage() {
         headerName: 'Chi Tiết',
         width: 110,
         renderCell: (params) => (
-            <Button size="small" variant="outlined" onClick={() => setViewingItems(params.row)}>
+            <Button size="small" variant="outlined" onClick={() => { setViewingItems(params.row); setSelectedCTDTs(new Set()); }}>
                 {params.row.items?.length || 0} mục
             </Button>
         )
@@ -295,7 +296,7 @@ export default function ReturnsPage() {
              {isQuanLy && (p.trangThai === 'Chờ Xử Lý' || p.trangThai.includes('Duyệt một phần')) && (
                <Button size="small" variant="contained" onClick={() => handleApproveCust(p)}>Duyệt Hết</Button>
              )}
-             {isNhanVien && (p.trangThai.includes('Đã Duyệt') || p.trangThai.includes('một phần')) && p.trangThaiNhapKho !== 'Đã nhập kho' && p.loai === 'Trả hàng' && (
+             {isNhanVien && (p.trangThai.includes('Đã Duyệt') || p.trangThai.includes('một phần')) && p.trangThaiNhapKho !== 'Đã nhập kho' && (p.loai === 'Trả hàng' || p.loai === 'Hỗn hợp') && (
                <Button size="small" variant="contained" color="success" onClick={() => handleReceiveCust(p.maPhieuDT)}>Nhập Kho</Button>
              )}
           </Box>
@@ -431,20 +432,91 @@ export default function ReturnsPage() {
       </Dialog>
 
       <Dialog open={Boolean(viewingItems)} onClose={() => setViewingItems(null)} maxWidth="md" fullWidth>
-        <DialogTitle>📦 Chi tiết mặt hàng trả: {viewingItems?.maDT}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" fontWeight="bold">📦 Chi tiết mặt hàng trả: {viewingItems?.maDT}</Typography>
+            {isQuanLy && selectedCTDTs.size > 0 && (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                        variant="contained" color="success" size="small"
+                        onClick={() => handleApproveItems(Array.from(selectedCTDTs), 'Đã Duyệt')}
+                    >
+                        Duyệt {selectedCTDTs.size} mục
+                    </Button>
+                    <Button 
+                        variant="outlined" color="error" size="small"
+                        onClick={() => handleApproveItems(Array.from(selectedCTDTs), 'Từ chối')}
+                    >
+                        Từ chối {selectedCTDTs.size} mục
+                    </Button>
+                </Box>
+            )}
+        </DialogTitle>
         <DialogContent dividers>
             <Table size="small">
-                <TableHead><TableRow><TableCell>Sản phẩm</TableCell><TableCell>S.Lượng</TableCell><TableCell>Trạng Thái</TableCell><TableCell align="right">Thao Tác</TableCell></TableRow></TableHead>
+                <TableHead>
+                    <TableRow>
+                        <TableCell padding="checkbox">
+                            <input 
+                                type="checkbox"
+                                checked={viewingItems?.items?.filter(it => it.trangThai === 'Chờ duyệt').length > 0 && selectedCTDTs.size === viewingItems?.items?.filter(it => it.trangThai === 'Chờ duyệt').length}
+                                onChange={(e) => {
+                                    if (e.target.checked) {
+                                        const pending = viewingItems.items.filter(it => it.trangThai === 'Chờ duyệt').map(it => it.maCTDT);
+                                        setSelectedCTDTs(new Set(pending));
+                                    } else {
+                                        setSelectedCTDTs(new Set());
+                                    }
+                                }}
+                            />
+                        </TableCell>
+                        <TableCell>Sản phẩm</TableCell>
+                        <TableCell>S.Lượng</TableCell>
+                        <TableCell>Trạng Thái</TableCell>
+                        <TableCell align="right">Hành động</TableCell>
+                    </TableRow>
+                </TableHead>
                 <TableBody>
                     {viewingItems?.items?.map(it => (
-                        <TableRow key={it.maCTDT}>
-                            <TableCell>{it.tenSanPham}</TableCell><TableCell>{it.soLuong}</TableCell>
-                            <TableCell><Chip label={it.trangThai || 'Chờ duyệt'} size="small" color={it.trangThai === 'Đã Duyệt' ? 'success' : 'default'} /></TableCell>
+                        <TableRow key={it.maCTDT} hover>
+                            <TableCell padding="checkbox">
+                                <input 
+                                    type="checkbox"
+                                    disabled={it.trangThai !== 'Chờ duyệt'}
+                                    checked={selectedCTDTs.has(it.maCTDT)}
+                                    onChange={(e) => {
+                                        setSelectedCTDTs(prev => {
+                                            const next = new Set(prev);
+                                            if (e.target.checked) next.add(it.maCTDT);
+                                            else next.delete(it.maCTDT);
+                                            return next;
+                                        });
+                                    }}
+                                />
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>{it.tenSanPham}</TableCell>
+                            <TableCell>{it.soLuong}</TableCell>
+                            <TableCell>
+                                <Chip 
+                                    label={it.trangThai || 'Chờ duyệt'} 
+                                    size="small" 
+                                    color={it.trangThai === 'Đã Duyệt' ? 'success' : it.trangThai === 'Từ chối' ? 'error' : 'default'} 
+                                />
+                            </TableCell>
                             <TableCell align="right">
                                 {isQuanLy && it.trangThai === 'Chờ duyệt' && (
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                                        <Button size="small" variant="contained" onClick={() => handleApproveItems([it.maCTDT], 'Đã Duyệt')}>Duyệt</Button>
-                                        <Button size="small" variant="outlined" color="error" onClick={() => handleApproveItems([it.maCTDT], 'Từ chối')}>Từ chối</Button>
+                                        <Button 
+                                            size="small" variant="text" color="primary" sx={{ fontWeight: 'bold' }}
+                                            onClick={() => handleApproveItems([it.maCTDT], 'Đã Duyệt')}
+                                        >
+                                            DUYỆT
+                                        </Button>
+                                        <Button 
+                                            size="small" variant="text" color="error" sx={{ fontWeight: 'bold' }}
+                                            onClick={() => handleApproveItems([it.maCTDT], 'Từ chối')}
+                                        >
+                                            TỪ CHỐI
+                                        </Button>
                                     </Box>
                                 )}
                             </TableCell>

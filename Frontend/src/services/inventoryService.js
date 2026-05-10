@@ -12,6 +12,9 @@ const inventoryService = {
   updateWarehouse: (id, payload) => api.put(`/inventory/warehouses/${id}`, payload),
 
   getImportHistory: (productId) => api.get(`/inventory/${productId}/import-history`),
+  getOutboundHistory: () => api.get('/inventory/outbound'),
+  syncOldOutbound: () => api.post('/inventory/sync-old-outbound'),
+  exportPdf: (id) => api.get(`/inventory/export/${id}/pdf`, { responseType: 'blob' }),
 };
 
 export default inventoryService;

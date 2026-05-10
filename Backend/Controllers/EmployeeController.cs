@@ -52,7 +52,8 @@ namespace BuildingMaterialAPI.Controllers
             {
                 TenNV = dto.TenNV, Sdt = dto.Sdt, Email = dto.Email, DiaChi = dto.DiaChi,
                 TrangThai = dto.TrangThai, NgayTao = DateTime.UtcNow, NgayCapNhat = DateTime.UtcNow,
-                SucChuaToiDa = dto.SucChuaToiDa
+                SucChuaToiDa = dto.SucChuaToiDa,
+                ChuKy = dto.ChuKy
             };
             _ctx.NhanViens.Add(nv);
             try { await _ctx.SaveChangesAsync(); return Ok(new { maNhanVien = nv.MaNhanVien }); }
@@ -69,6 +70,7 @@ namespace BuildingMaterialAPI.Controllers
             nv.Sdt = dto.Sdt; nv.Email = dto.Email; nv.DiaChi = dto.DiaChi;
             nv.TrangThai = dto.TrangThai; nv.NgayCapNhat = DateTime.UtcNow;
             nv.SucChuaToiDa = dto.SucChuaToiDa;
+            nv.ChuKy = dto.ChuKy ?? nv.ChuKy;
             try { await _ctx.SaveChangesAsync(); return Ok(nv); }
             catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
         }
@@ -323,6 +325,7 @@ namespace BuildingMaterialAPI.Controllers
         public string? DiaChi { get; set; }
         public bool TrangThai { get; set; } = true;
         public string? SucChuaToiDa { get; set; }
+        public string? ChuKy { get; set; }
     }
 
     public class ChangeRoleDto { public int MaVaiTro { get; set; } }

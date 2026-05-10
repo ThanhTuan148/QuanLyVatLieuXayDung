@@ -31,8 +31,16 @@ function Layout({ children }) {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const { permissions, loading } = usePermissions();
+  const [user, setUser] = useState(authService.getUser() || {});
 
-  const user = authService.getUser() || {};
+  // Lắng nghe sự kiện cập nhật thông tin người dùng
+  React.useEffect(() => {
+    const handleUserUpdate = () => {
+      setUser(authService.getUser() || {});
+    };
+    window.addEventListener('userUpdated', handleUserUpdate);
+    return () => window.removeEventListener('userUpdated', handleUserUpdate);
+  }, []);
 
   const menuItems = [
     { text: '📊 Tổng quan', icon: <DashboardIcon />, path: '/dashboard', moduleKey: 'dashboard' },
@@ -47,7 +55,8 @@ function Layout({ children }) {
     { text: '📊 Kho Hàng', icon: <StorageIcon />, path: '/inventory', moduleKey: 'inventory' },
     { text: '📈 Lịch Sử Giá', icon: <StorageIcon />, path: '/price-history', moduleKey: 'inventory' },
     { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'orders' },
-    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' }, // Using dashboard as fallback key or define new key
+    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' }, 
+    { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'dashboard' },
 
     { text: '👨‍💼 Nhân Viên', icon: <ManageAccountsIcon />, path: '/employees', moduleKey: 'employees' },
     { text: '⚙️ Cài Đặt', icon: <SettingsIcon />, path: '/settings', moduleKey: 'settings' },
@@ -69,7 +78,7 @@ function Layout({ children }) {
       return ['/dashboard', '/deliveries', '/settings'].includes(item.path);
     }
 
-    if (['/dashboard', '/settings'].includes(item.path)) return true;
+    if (['/dashboard', '/settings', '/reports'].includes(item.path)) return true;
     
     if (!permissions) return false;
 

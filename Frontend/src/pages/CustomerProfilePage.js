@@ -189,6 +189,22 @@ const CustomerProfilePage = () => {
         MaSoThue: user.maSoThue
       };
       await customerService.updateCustomer(id, payload);
+      
+      // Cập nhật lại localStorage để Header và các trang khác thấy thay đổi
+      const currentUser = authService.getUser();
+      const updatedUser = { 
+        ...currentUser, 
+        FullName: formData.hoTen, 
+        tenKH: formData.hoTen,
+        sdt: formData.soDienThoai,
+        diaChi: formData.diaChi,
+        anhDaiDien: formData.anhDaiDien
+      };
+      authService.setUser(updatedUser);
+      
+      // Phát sự kiện để Layout.js nhận biết và cập nhật UI
+      window.dispatchEvent(new Event('userUpdated'));
+      
       setSnackbar({ open: true, message: 'Cập nhật thông tin thành công!', severity: 'success' });
     } catch (err) {
       setSnackbar({ open: true, message: 'Lỗi cập nhật thông tin!', severity: 'error' });

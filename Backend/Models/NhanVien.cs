@@ -42,6 +42,9 @@ namespace BuildingMaterialAPI.Models
         [Column("SucChuaToiDa")]
         public string? SucChuaToiDa { get; set; }
 
+        [Column("ChuKy")]
+        public string? ChuKy { get; set; }
+
         [ForeignKey("MaTaiKhoan")]
         public virtual TaiKhoan TaiKhoan { get; set; }
 

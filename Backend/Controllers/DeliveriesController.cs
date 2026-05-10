@@ -80,10 +80,28 @@ namespace BuildingMaterialAPI.Controllers
                 _context.PhieuGiaoHangs.Add(pgh);
                 await _context.SaveChangesAsync();
 
+                // 1. Tạo Phiếu Xuất Kho để theo dõi lịch sử
+                var creator = await _context.NhanViens.FindAsync(dto.MaNhanVien);
+                var pxk = new PhieuXuatKho
+                {
+                    MaPhieuGH = pgh.MaPhieuGH,
+                    MaHoaDon = pgh.MaHoaDon,
+                    MaNhanVien = pgh.MaNhanVien,
+                    NgayXuat = DateTime.UtcNow,
+                    NgayTao = DateTime.UtcNow,
+                    NguoiXuat = creator?.TenNV ?? "Hệ thống",
+                    GhiChu = $"Xuất kho cho phiếu giao {pgh.MaGH}",
+                    ChuKyNguoiLap = creator?.ChuKy,
+                    TrangThai = "Chờ xuất"
+                };
+                _context.PhieuXuatKhos.Add(pxk);
+                await _context.SaveChangesAsync();
+
                 if (dto.Items != null && dto.Items.Any())
                 {
                     foreach (var item in dto.Items)
                     {
+                        // 2. Tạo chi tiết Phiếu giao
                         _context.CTPhieuGiaoHangs.Add(new CTPhieuGiaoHang
                         {
                             MaPhieuGH = pgh.MaPhieuGH,
@@ -93,6 +111,30 @@ namespace BuildingMaterialAPI.Controllers
                             GhiChu = item.GhiChu,
                             TrangThai = item.TrangThai ?? "Đang giao",
                             NgayTao = DateTime.UtcNow
+                        });
+
+                        // 3. Trừ kho và tạo chi tiết Xuất kho
+                        var khoHang = await _context.CTKhoHangs
+                            .Include(k => k.SanPham)
+                            .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuong >= item.SoLuongGiao)
+                            .OrderByDescending(k => k.SoLuong)
+                            .FirstOrDefaultAsync();
+
+                        if (khoHang == null)
+                        {
+                            throw new Exception($"Sản phẩm mã {item.MaSanPham} không đủ tồn kho để xuất!");
+                        }
+
+                        khoHang.SoLuong -= item.SoLuongGiao;
+                        khoHang.NgayCapNhat = DateTime.UtcNow;
+
+                        _context.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                        {
+                            MaPhieuXK = pxk.MaPhieuXK,
+                            MaSanPham = item.MaSanPham,
+                            SoLuong = item.SoLuongGiao,
+                            MaKho = khoHang.MaKhoHang,
+                            DonGiaVon = khoHang.SanPham?.GiaNhap ?? 0
                         });
                     }
                     await _context.SaveChangesAsync();
@@ -346,6 +388,7 @@ namespace BuildingMaterialAPI.Controllers
                 .AsNoTracking()
                 .Include(p => p.NhanVien)
                 .Include(p => p.HoaDon).ThenInclude(h => h.KhachHang)
+                .Include(p => p.HoaDon).ThenInclude(h => h.CTHDs)
                 .Include(p => p.CTPhieuGiaoHangs).ThenInclude(ct => ct.SanPham)
                 .FirstOrDefaultAsync(p => p.MaPhieuGH == id);
 
@@ -364,16 +407,27 @@ namespace BuildingMaterialAPI.Controllers
                 ghiChu = p.GhiChu ?? "",
                 maHD = p.HoaDon?.MaHD ?? "N/A",
                 maHoaDon = p.MaHoaDon,
+                maNhanVien = p.MaNhanVien,
                 tenNhanVien = p.NhanVien?.TenNV ?? "N/A",
                 tenKhachHang = p.HoaDon?.KhachHang?.TenKH ?? "Khách vãng lai",
-                chiTiet = p.CTPhieuGiaoHangs?.Select(ct => new
-                {
-                    maCTGH = ct.MaCTGH,
-                    maSanPham = ct.MaSanPham,
-                    tenSanPham = ct.SanPham?.TenSP ?? "N/A",
-                    soLuongGiao = ct.SoLuongGiao,
-                    trangThai = ct.TrangThai ?? "Đang giao",
-                    ghiChu = ct.GhiChu
+                sdtKhachHang = p.HoaDon?.KhachHang?.Sdt ?? p.HoaDon?.SdtNguoiNhan ?? "N/A",
+                pttt = p.HoaDon?.PTTT ?? "N/A",
+                tongTienOrder = p.HoaDon?.TongTien ?? 0,
+                daThanhToanOrder = p.HoaDon?.ThanhToan ?? 0,
+                soTienPhaiThu = p.HoaDon?.SoTienPhaiThu ?? 0,
+                chiTiet = p.CTPhieuGiaoHangs?.Select(ct => {
+                    // Lấy số lượng đặt từ CTHD liên quan
+                    var cthd = p.HoaDon?.CTHDs?.FirstOrDefault(x => x.MaCTHD == ct.MaCTHD || (x.MaSanPham == ct.MaSanPham && ct.MaCTHD == null));
+                    return new
+                    {
+                        maCTGH = ct.MaCTGH,
+                        maSanPham = ct.MaSanPham,
+                        tenSanPham = ct.SanPham?.TenSP ?? "N/A",
+                        soLuongGiao = ct.SoLuongGiao,
+                        soLuongOrder = cthd?.SoLuong ?? 0,
+                        trangThai = ct.TrangThai ?? "Đang giao",
+                        ghiChu = ct.GhiChu
+                    };
                 }).ToList()
             });
         }

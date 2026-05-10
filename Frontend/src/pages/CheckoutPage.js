@@ -17,11 +17,18 @@ import {
   MenuItem,
   Alert,
   Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CancelIcon from '@mui/icons-material/Cancel';
 import orderService from '../services/orderService';
 import cartService from '../services/cartService';
+import customerService from '../services/customerService';
 
 const formatVND = (amount) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -51,13 +58,104 @@ const CheckoutPage = () => {
     districtCode: '',
     wardCode: '',
   });
+  // Check login status
+  const isLoggedIn = !!localStorage.getItem('token');
+
+  // Delivery Groups for multi-address
+  const [deliveryGroups, setDeliveryGroups] = useState([
+    {
+      id: Date.now(),
+      fullName: '',
+      email: '',
+      phone: '',
+      province: '',
+      district: '',
+      ward: '',
+      address: '',
+      provinceCode: '',
+      districtCode: '',
+      wardCode: '',
+      districts: [],
+      wards: [],
+      selectedItemIds: [], // Cart IDs of regular items
+      includeGifts: false // Whether to ship ALL gifts to this address
+    }
+  ]);
 
   // Fetch provinces on mount
   useEffect(() => {
     axios.get('https://provinces.open-api.vn/api/p/')
       .then(res => setProvinces(res.data))
       .catch(console.error);
-  }, []);
+    
+    // Fetch customer info to auto-fill
+    const fetchCustomerInfo = async () => {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          const customerId = user.maKhachHang || user.MaKhachHang;
+          if (customerId) {
+            const res = await customerService.getCustomerById(customerId);
+            const customer = res.data || res;
+            
+            setAddressForm(prev => ({
+              ...prev,
+              fullName: customer.tenKH || prev.fullName,
+              email: customer.email || prev.email,
+              phone: customer.sdt || prev.phone,
+            }));
+
+            setDeliveryGroups(prevGroups => {
+              if (prevGroups.length > 0) {
+                const newGroups = [...prevGroups];
+                newGroups[0] = {
+                  ...newGroups[0],
+                  fullName: customer.tenKH || newGroups[0].fullName,
+                  email: customer.email || newGroups[0].email,
+                  phone: customer.sdt || newGroups[0].phone,
+                };
+                return newGroups;
+              }
+              return prevGroups;
+            });
+          }
+        } catch (error) {
+          console.error("Failed to auto-fill customer info:", error);
+        }
+      }
+    };
+    
+    if (isLoggedIn) {
+      fetchCustomerInfo();
+      fetchDebtStatus();
+    }
+  }, [isLoggedIn]);
+
+  const fetchDebtStatus = async () => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return;
+    try {
+      const user = JSON.parse(userStr);
+      const customerId = user.maKhachHang || user.MaKhachHang;
+      if (!customerId) return;
+      
+      // Get current debt
+      const debtRes = await customerService.getCustomerById(customerId);
+      const customer = debtRes.data || debtRes;
+      
+      const res = await axios.get(`http://localhost:5000/api/debts/customer/${customerId}`);
+      const debts = res.data || [];
+      const total = debts.reduce((sum, d) => sum + (d.soTienConLai || 0), 0);
+      
+      const rank = customer.hangThanhVien || 'Đồng';
+      const limit = rank === 'Bạc' ? 50000000 : rank === 'Vàng' ? 70000000 : rank === 'Kim cương' ? 100000000 : 20000000;
+      
+      setCustomerDebtInfo({ currentDebt: total, limit, rank });
+    } catch (err) {
+      console.error("Failed to fetch debt status:", err);
+    }
+  };
 
   const handleProvinceChange = (e) => {
     const code = e.target.value;
@@ -119,27 +217,12 @@ const CheckoutPage = () => {
   const [receiptImage, setReceiptImage] = useState(null); // Base64 receipt image
 
   const [splitShipping, setSplitShipping] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0); // 0: Input, 1: Review
   
-  // Delivery Groups for multi-address
-  const [deliveryGroups, setDeliveryGroups] = useState([
-    {
-      id: Date.now(),
-      fullName: '',
-      email: '',
-      phone: '',
-      province: '',
-      district: '',
-      ward: '',
-      address: '',
-      provinceCode: '',
-      districtCode: '',
-      wardCode: '',
-      districts: [],
-      wards: [],
-      selectedItemIds: [], // Cart IDs of regular items
-      includeGifts: false // Whether to ship ALL gifts to this address
-    }
-  ]);
+  const [customerDebtInfo, setCustomerDebtInfo] = useState({ currentDebt: 0, limit: 20000000, rank: 'Đồng' });
+
+  
+
 
   const [itemAddresses, setItemAddresses] = useState({}); // Legacy - will be derived from deliveryGroups if needed
 
@@ -184,8 +267,7 @@ const CheckoutPage = () => {
     }
   };
 
-  // Check login status
-  const isLoggedIn = !!localStorage.getItem('token');
+
 
   const {
     selectedItems: stateItems = [],
@@ -425,8 +507,15 @@ const CheckoutPage = () => {
       navigate('/auth', { state: { returnUrl: '/checkout', ...location.state } });
       return;
     }
+    
+    // 0. Stock Validation (Always check before any step transition or final submit)
+    const outOfStockItems = selectedItems.filter(item => item.quantity > item.soLuongTon);
+    if (outOfStockItems.length > 0) {
+      const names = outOfStockItems.map(i => i.productName).join(', ');
+      alert(`⚠️ Một số sản phẩm trong đơn hàng hiện không đủ tồn kho: ${names}. Vui lòng kiểm tra lại.`);
+      return;
+    }
 
-    // Vietnamese Standard Regex
     // Vietnamese Standard Regex
     const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
     const cleanPhone = addressForm.phone.replace(/[\s.-]/g, '');
@@ -528,6 +617,12 @@ const CheckoutPage = () => {
       } else {
         alert('Vui lòng kiểm tra lại thông tin giao hàng.');
       }
+      return;
+    }
+
+    if (currentStep < 2) {
+      setCurrentStep(currentStep + 1);
+      window.scrollTo(0, 0);
       return;
     }
 
@@ -659,10 +754,33 @@ const CheckoutPage = () => {
         )}
 
         <Grid container spacing={3}>
+          {/* Progress Header */}
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4, gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: currentStep === 0 ? '#c92127' : '#4caf50', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>1</Box>
+                <Typography variant="body2" sx={{ fontWeight: currentStep === 0 ? 'bold' : 'normal' }}>Thông tin giao hàng</Typography>
+              </Box>
+              <Box sx={{ width: 50, height: 1, bgcolor: '#ddd', alignSelf: 'center' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: currentStep === 1 ? '#c92127' : (currentStep > 1 ? '#4caf50' : '#ddd'), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>2</Box>
+                <Typography variant="body2" sx={{ fontWeight: currentStep === 1 ? 'bold' : 'normal' }}>Kiểm tra hàng</Typography>
+              </Box>
+              <Box sx={{ width: 50, height: 1, bgcolor: '#ddd', alignSelf: 'center' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: currentStep === 2 ? '#c92127' : '#ddd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>3</Box>
+                <Typography variant="body2" sx={{ fontWeight: currentStep === 2 ? 'bold' : 'normal' }}>Thanh toán</Typography>
+              </Box>
+            </Box>
+          </Grid>
+
           {/* Main content column */}
           <Grid item xs={12}>
             
-            {/* ĐỊA CHỈ GIAO HÀNG */}
+            {currentStep === 0 ? (
+              <>
+                {/* STEP 0: INPUT FORM */}
+                {/* ĐỊA CHỈ GIAO HÀNG */}
             <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="subtitle1" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>
@@ -857,133 +975,7 @@ const CheckoutPage = () => {
             </Paper>
 
 
-            {/* PHƯƠNG THỨC THANH TOÁN */}
-            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
-              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
-                Phương thức thanh toán
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <RadioGroup value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
 
-                <FormControlLabel value="atm" control={<Radio size="small" />} label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2">ATM / Internet Banking (Chuyển khoản VietQR)</Typography>
-                    <Box component="span" sx={{ bgcolor: '#e8f5e9', color: '#2e7d32', fontSize: '10px', px: 1, borderRadius: '10px', fontWeight: 'bold' }}>Khuyên dùng</Box>
-                  </Box>
-                } sx={{ mb: 1 }}/>
-                
-                {paymentMethod === 'atm' && (
-                  <Box sx={{ ml: 4, p: 2, bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', mb: 2, textAlign: 'center' }}>
-                    <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Quét mã VietQR để thanh toán</Typography>
-                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-                      <Box 
-                        component="img" 
-                        src={`https://img.vietqr.io/image/vcb-1031657749-compact2.png?amount=${paymentType === 'deposit' ? depositAmount : grandTotal}&addInfo=THANH TOAN DON HANG VLXD&accountName=TRUONG THANH TUAN`}
-                        alt="VietQR Payment"
-                        sx={{ width: 200, height: 200, border: '1px solid #eee', p: 1, bgcolor: '#fff' }}
-                      />
-                      <Box sx={{ textAlign: 'left' }}>
-                        <Typography variant="body2"><strong>Ngân hàng:</strong> Vietcombank</Typography>
-                        <Typography variant="body2"><strong>Số TK:</strong> 1031657749</Typography>
-                        <Typography variant="body2"><strong>Chủ TK:</strong> TRƯƠNG THANH TUẤN</Typography>
-                        <Typography variant="body2"><strong>Số tiền:</strong> <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>{formatVND(paymentType === 'deposit' ? depositAmount : grandTotal)}</span></Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
-                          * Nội dung chuyển khoản đã được tích hợp trong mã QR.
-                        </Typography>
-                        
-                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #f0f0f0' }}>
-                          <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Tải ảnh xác nhận chuyển khoản:</Typography>
-                          <Button
-                            variant="outlined"
-                            component="label"
-                            size="small"
-                            color="primary"
-                            startIcon={<span>📷</span>}
-                            sx={{ textTransform: 'none' }}
-                          >
-                            {receiptImage ? "Chọn ảnh khác" : "Chọn ảnh từ máy"}
-                            <input
-                              type="file"
-                              hidden
-                              accept="image/*"
-                              onChange={handleReceiptUpload}
-                            />
-                          </Button>
-                          
-                          {receiptImage && (
-                            <Box sx={{ mt: 1, position: 'relative', width: 100 }}>
-                              <img 
-                                src={receiptImage} 
-                                alt="Receipt" 
-                                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd' }} 
-                              />
-                              <Button 
-                                size="small" 
-                                sx={{ position: 'absolute', top: -5, right: -5, minWidth: 20, height: 20, borderRadius: '50%', bgcolor: 'error.main', color: '#fff', p: 0 }}
-                                onClick={() => setReceiptImage(null)}
-                              >
-                                ×
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      </Box>
-                    </Box>
-                  </Box>
-                )}
-
-
-                <FormControlLabel value="cod" control={<Radio size="small" color="error" />} label="Thanh toán bằng tiền mặt khi nhận hàng" sx={{ mb: 1 }}/>
-              </RadioGroup>
-
-              <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 3, mb: 1, color: '#c92127' }}>
-                HÌNH THỨC THANH TOÁN
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              <RadioGroup value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
-                <FormControlLabel value="full" control={<Radio size="small" />} label={
-                  <Typography variant="body2">Thanh toán toàn bộ (100%) - {formatVND(grandTotal)}</Typography>
-                } sx={{ mb: 1 }} />
-                <FormControlLabel value="deposit" control={<Radio size="small" />} label={
-                  <Typography variant="body2">Đặt cọc trước (Tối thiểu 20%)</Typography>
-                } sx={{ mb: 1 }} />
-              </RadioGroup>
-
-              {paymentType === 'deposit' && (
-                <Box sx={{ ml: 4, mt: 1, maxWidth: 300 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                    Số tiền đặt cọc (Tối thiểu: {formatVND(grandTotal * 0.2)})
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    value={depositAmount}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
-                      setDepositAmount(val);
-                    }}
-                    InputProps={{
-                      endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>VNĐ</Typography>
-                    }}
-                    error={depositAmount < grandTotal * 0.2 || depositAmount > grandTotal}
-                    helperText={
-                      depositAmount < grandTotal * 0.2 
-                        ? `Số tiền cọc tối thiểu: ${formatVND(grandTotal * 0.2)}` 
-                        : depositAmount > grandTotal 
-                          ? "Số tiền cọc không được vượt quá tổng hóa đơn" 
-                          : ""
-                    }
-                  />
-                  {depositAmount >= grandTotal * 0.2 && (
-                    <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
-                      Còn lại phải thanh toán: {formatVND(grandTotal - depositAmount)}
-                    </Typography>
-                  )}
-                </Box>
-              )}
-            </Paper>
 
             {/* THÔNG TIN KHÁC */}
             <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
@@ -1145,7 +1137,6 @@ const CheckoutPage = () => {
                 )}
               </Box>
             </Paper>
-
             {/* KIỂM TRA LẠI ĐƠN HÀNG */}
             <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px' }}>
               <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
@@ -1236,6 +1227,253 @@ const CheckoutPage = () => {
               </Box>
             </Paper>
 
+            {/* PHƯƠNG THỨC THANH TOÁN - MOVED TO STEP 2 */}
+
+
+            </>
+            ) : currentStep === 1 ? (
+              <Box>
+                {/* STEP 1: REVIEW ORDER */}
+                <Paper elevation={0} sx={{ p: 4, mb: 3, borderRadius: '4px' }}>
+                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, textAlign: 'center', color: '#c92127' }}>
+                    KIỂM TRA ĐƠN HÀNG
+                  </Typography>
+                  <Divider sx={{ mb: 4 }} />
+
+                  <Grid container spacing={4}>
+                    {/* Summary Info */}
+                    <Grid item xs={12} md={6}>
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>👤 NGƯỜI NHẬN</Typography>
+                        <Box sx={{ pl: 2 }}>
+                          <Typography variant="body2">{addressForm.fullName} - {addressForm.phone}</Typography>
+                          <Typography variant="body2" color="text.secondary">{addressForm.email}</Typography>
+                        </Box>
+                      </Box>
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>📍 ĐỊA CHỈ GIAO</Typography>
+                        <Box sx={{ pl: 2 }}>
+                          <Typography variant="body2">{addressForm.address}, {addressForm.ward}, {addressForm.district}, {addressForm.province}</Typography>
+                          <Typography variant="body2" sx={{ mt: 1, color: '#2e7d32', fontWeight: 'bold' }}>
+                            📅 Ngày giao: {new Date(deliveryDate).toLocaleDateString('vi-VN')}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                       <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fcfcfc', border: '1px dashed #ccc' }}>
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>TỔNG KẾT CHI PHÍ</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2">Tạm tính:</Typography>
+                          <Typography variant="body2">{formatVND(initialTotal)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2">Phí vận chuyển:</Typography>
+                          <Typography variant="body2">{formatVND(shippingFee)}</Typography>
+                        </Box>
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle1" fontWeight="bold">Tổng cộng:</Typography>
+                          <Typography variant="subtitle1" fontWeight="bold" color="#d32f2f">{formatVND(grandTotal)}</Typography>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ mt: 4 }}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>📦 DANH SÁCH SẢN PHẨM</Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                          <TableRow>
+                            <TableCell>Sản phẩm</TableCell>
+                            <TableCell align="right">Đơn giá</TableCell>
+                            <TableCell align="center">Số lượng</TableCell>
+                            <TableCell align="right">Thành tiền</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {selectedItems.map((item, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <img src={item.image} width="40" height="40" style={{ borderRadius: 4 }} alt="" />
+                                  <Typography variant="body2">{item.productName}</Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell align="right">{formatVND(item.currentPrice)}</TableCell>
+                              <TableCell align="center">{item.quantity}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatVND(item.currentPrice * item.quantity)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+
+                  <Box sx={{ mt: 4, textAlign: 'center' }}>
+                    <Button variant="text" onClick={() => setCurrentStep(0)} sx={{ color: '#777', textTransform: 'none' }}>
+                      ← Quay lại bước 1
+                    </Button>
+                  </Box>
+                </Paper>
+              </Box>
+            ) : (
+              <Box>
+                {/* STEP 2: PAYMENT METHOD */}
+                <Paper elevation={0} sx={{ p: 4, mb: 3, borderRadius: '4px' }}>
+                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, textAlign: 'center', color: '#c92127' }}>
+                    CHỌN PHƯƠNG THỨC THANH TOÁN
+                  </Typography>
+                  <Divider sx={{ mb: 4 }} />
+
+                  <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                    {/* REUSE PAYMENT SELECTION UI HERE */}
+                    <RadioGroup value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <Paper variant="outlined" sx={{ p: 2, mb: 2, border: paymentMethod === 'atm' ? '2px solid #c92127' : '1px solid #e0e0e0' }}>
+                        <FormControlLabel value="atm" control={<Radio size="small" />} label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle1" fontWeight="bold">ATM / Internet Banking (VietQR)</Typography>
+                            <Box component="span" sx={{ bgcolor: '#e8f5e9', color: '#2e7d32', fontSize: '10px', px: 1, borderRadius: '10px', fontWeight: 'bold' }}>KHUYÊN DÙNG</Box>
+                          </Box>
+                        } />
+                        {paymentMethod === 'atm' && (
+                          <Box sx={{ mt: 2, p: 2, bgcolor: '#f9f9f9', borderRadius: 2, textAlign: 'center' }}>
+                             <Box sx={{ mt: 3, textAlign: 'center', bgcolor: '#fff', p: 3, borderRadius: 2, border: '1px solid #eee' }}>
+                               <Typography variant="h6" fontWeight="bold" color="primary" gutterBottom>THÔNG TIN CHUYỂN KHOẢN</Typography>
+                               <Typography variant="subtitle1"><strong>Ngân hàng:</strong> Vietcombank</Typography>
+                               <Typography variant="h5" fontWeight="bold" sx={{ my: 1, color: '#c92127' }}><strong>Số TK:</strong> 1031657749</Typography>
+                               <Typography variant="subtitle1"><strong>Chủ TK:</strong> TRƯƠNG THANH TUẤN</Typography>
+                               <Typography variant="h5" fontWeight="bold" sx={{ mt: 2, color: '#2e7d32', p: 1, bgcolor: '#e8f5e9', display: 'inline-block', borderRadius: 1 }}>
+                                 SỐ TIỀN THANH TOÁN: {formatVND(paymentType === 'deposit' ? depositAmount : grandTotal)}
+                               </Typography>
+                               {paymentType === 'deposit' && (
+                                 <Typography variant="body2" sx={{ mt: 1, color: '#d32f2f', fontWeight: 'bold' }}>
+                                   Số tiền còn nợ: {formatVND(grandTotal - depositAmount)}
+                                 </Typography>
+                               )}
+                             </Box>
+                             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
+                                <img 
+                                  src={`https://img.vietqr.io/image/vcb-1031657749-compact2.png?amount=${paymentType === 'deposit' ? depositAmount : grandTotal}&addInfo=THANH TOAN DON HANG&accountName=TRUONG THANH TUAN`}
+                                  alt="VietQR"
+                                  style={{ width: 200, border: '1px solid #ddd', padding: 8, background: '#fff' }}
+                                />
+                             </Box>
+                             <Typography variant="body2" sx={{ mt: 1 }}>Quét mã để thanh toán nhanh chóng</Typography>
+                              
+                              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Button variant="outlined" component="label" size="small" startIcon={<span>📷</span>}>
+                                  {receiptImage ? "Đổi ảnh khác" : "Tải ảnh chứng từ"}
+                                  <input type="file" hidden accept="image/*" onChange={handleReceiptUpload} />
+                                </Button>
+                                
+                                {receiptImage && (
+                                  <Box sx={{ position: 'relative', width: 80, height: 80 }}>
+                                    <img 
+                                      src={receiptImage} 
+                                      alt="Receipt Preview" 
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} 
+                                    />
+                                    <Button 
+                                      size="small" 
+                                      sx={{ 
+                                        position: 'absolute', top: -10, right: -10, 
+                                        minWidth: 20, height: 20, borderRadius: '50%', 
+                                        bgcolor: 'error.main', color: '#fff', p: 0,
+                                        '&:hover': { bgcolor: '#a8161a' }
+                                      }}
+                                      onClick={() => setReceiptImage(null)}
+                                    >
+                                      ×
+                                    </Button>
+                                  </Box>
+                                )}
+                              </Box>
+                            </Box>
+                        )}
+                      </Paper>
+
+                      <Paper 
+                        variant="outlined" 
+                        sx={{ 
+                          p: 2, mb: 2, 
+                          border: paymentMethod === 'cod' ? '2px solid #c92127' : '1px solid #e0e0e0',
+                          opacity: (customerDebtInfo.currentDebt + grandTotal > customerDebtInfo.limit) ? 0.6 : 1
+                        }}
+                      >
+                        <FormControlLabel 
+                          value="cod" 
+                          control={<Radio size="small" disabled={customerDebtInfo.currentDebt + grandTotal > customerDebtInfo.limit} />} 
+                          label={
+                            <Box>
+                              <Typography variant="subtitle1" fontWeight="bold">Thanh toán tiền mặt khi nhận hàng (COD)</Typography>
+                              {customerDebtInfo.currentDebt + grandTotal > customerDebtInfo.limit && (
+                                <Typography variant="caption" color="error" sx={{ display: 'block', fontWeight: 'bold' }}>
+                                  ⚠️ Bạn đã vượt hạn mức nợ ({formatVND(customerDebtInfo.limit)}). Vui lòng chọn Chuyển khoản (ATM) 100%.
+                                </Typography>
+                              )}
+                            </Box>
+                          } 
+                        />
+                      </Paper>
+                    </RadioGroup>
+
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 4, mb: 2, color: '#c92127' }}>HÌNH THỨC THANH TOÁN</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fff9f9', border: '1px solid #ffcdd2' }}>
+                      <RadioGroup value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
+                        <FormControlLabel 
+                          value="full" 
+                          control={<Radio size="small" />} 
+                          label={<Typography variant="body2">Thanh toán 100% (<b>{formatVND(grandTotal)}</b>)</Typography>} 
+                        />
+                        <FormControlLabel 
+                          value="deposit" 
+                          control={<Radio size="small" disabled={customerDebtInfo.currentDebt + (grandTotal - (paymentType === 'deposit' ? depositAmount : grandTotal * 0.2)) > customerDebtInfo.limit} />} 
+                          label={
+                            <Box>
+                              <Typography variant="body2">Thanh toán đặt cọc trước (Tối thiểu 20%)</Typography>
+                              <Typography variant="caption" color="text.secondary">Ghi nhận công nợ cho số tiền còn lại</Typography>
+                              {customerDebtInfo.currentDebt + (grandTotal - (paymentType === 'deposit' ? depositAmount : grandTotal * 0.2)) > customerDebtInfo.limit && (
+                                <Typography variant="caption" color="error" sx={{ display: 'block', fontWeight: 'bold' }}>
+                                  ⚠️ Không thể chọn đặt cọc vì dư nợ vượt hạn mức {formatVND(customerDebtInfo.limit)}.
+                                </Typography>
+                              )}
+                            </Box>
+                          } 
+                        />
+                      </RadioGroup>
+
+                      {paymentType === 'deposit' && (
+                        <Box sx={{ mt: 2, pl: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+                           <TextField 
+                             size="small" label="Số tiền cọc (VND)" type="number" 
+                             value={depositAmount} 
+                             onChange={e => setDepositAmount(parseInt(e.target.value) || 0)}
+                             helperText={`Tối thiểu: ${formatVND(grandTotal * 0.2)}`}
+                             sx={{ width: 250 }}
+                             InputProps={{
+                               endAdornment: <Typography variant="caption">VNĐ</Typography>
+                             }}
+                           />
+                           <Box>
+                              <Typography variant="caption" sx={{ display: 'block' }}>Số tiền còn lại:</Typography>
+                              <Typography variant="subtitle2" color="error" fontWeight="bold">{formatVND(grandTotal - depositAmount)}</Typography>
+                           </Box>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Box>
+
+                  <Box sx={{ mt: 4, textAlign: 'center' }}>
+                    <Button variant="text" onClick={() => setCurrentStep(1)} sx={{ color: '#777', textTransform: 'none' }}>
+                      ← Quay lại bước 2 (Kiểm tra hàng)
+                    </Button>
+                  </Box>
+                </Paper>
+              </Box>
+            )}
+
 
           </Grid>
         </Grid>
@@ -1274,7 +1512,7 @@ const CheckoutPage = () => {
                '&:hover': { bgcolor: '#a8161a' }
              }}
            >
-             Xác nhận thanh toán
+             {currentStep === 0 ? "Tiếp tục" : (currentStep === 1 ? "Tiếp tục thanh toán" : "Xác nhận đặt hàng")}
            </Button>
         </Box>
       </Box>

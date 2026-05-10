@@ -325,10 +325,11 @@ export default function FlashSalesTab() {
       </Box>
 
       <DataTable 
-        rows={sales}
-        columns={columns}
-        getRowId={(row) => row.maKhuyenMai}
+        rows={sales} 
+        columns={columns} 
+        getRowId={(row) => row.maKhuyenMai} 
         loading={loading}
+        showDateFilter={false}
       />
 
       <FlashSaleFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} editing={editing} />

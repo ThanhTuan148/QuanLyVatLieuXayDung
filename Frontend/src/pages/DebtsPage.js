@@ -28,6 +28,7 @@ export default function DebtsPage() {
     soKhoanQuaHan: 0,
     tienSapToiPhaiTra: 0
   });
+  const [warnings, setWarnings] = useState([]);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -55,8 +56,18 @@ export default function DebtsPage() {
     }
   };
 
+  const fetchWarnings = async () => {
+    try {
+      const res = await debtService.getWarnings();
+      setWarnings(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchWarnings();
     fetchDebts();
   }, [tab]);
 
@@ -118,6 +129,7 @@ export default function DebtsPage() {
       field: 'hanThanhToan', 
       headerName: 'Hạn Trả', 
       width: 130,
+      type: 'date',
       valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString('vi-VN') : '—'
     },
     { 
@@ -161,7 +173,7 @@ export default function DebtsPage() {
           </Typography>
           <Typography variant="body2" color="textSecondary">Theo dõi công nợ phải thu và phải trả</Typography>
         </Box>
-        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchStats(); fetchDebts(); }}>Làm Mới</Button>
+        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchStats(); fetchWarnings(); fetchDebts(); }}>Làm Mới</Button>
       </Box>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -183,15 +195,38 @@ export default function DebtsPage() {
         ))}
       </Grid>
 
-      {stats.soKhoanQuaHan > 0 && (
-        <Paper sx={{ p: 2, mb: 3, bgcolor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ p: 1, bgcolor: '#feb2b2', borderRadius: '50%' }}>
-            <RefreshIcon sx={{ color: '#c53030' }} />
+      {warnings.length > 0 && (
+        <Paper sx={{ p: 2, mb: 3, bgcolor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Box sx={{ p: 1, bgcolor: '#feb2b2', borderRadius: '50%' }}>
+              <RefreshIcon sx={{ color: '#c53030' }} />
+            </Box>
+            <Typography variant="subtitle1" fontWeight="bold" color="#c53030">Cảnh báo công nợ sắp đến hạn & Quá hạn ({warnings.length})</Typography>
           </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight="bold" color="#c53030">Cảnh báo: Có {stats.soKhoanQuaHan} khoản nợ đã quá hạn!</Typography>
-            <Typography variant="body2" color="#742a2a">Vui lòng kiểm tra và thực hiện thanh toán hoặc liên hệ khách hàng để thu hồi nợ.</Typography>
-          </Box>
+          <Grid container spacing={2}>
+            {warnings.map((w, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={idx}>
+                <Card variant="outlined" sx={{ borderColor: w.isOverdue ? '#feb2b2' : '#fbd38d', bgcolor: w.isOverdue ? '#fff' : '#fffaf0' }}>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="caption" fontWeight="bold" color={w.isOverdue ? 'error' : 'warning.dark'}>
+                        {w.isOverdue ? 'QUÁ HẠN' : 'SẮP ĐẾN HẠN'}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">{w.maHD}</Typography>
+                    </Box>
+                    <Typography variant="body2" fontWeight="bold" noWrap>{w.tenKhachHang}</Typography>
+                    <Typography variant="body2" color="error" fontWeight="bold">{formatCurrency(w.soTienConLai)}</Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, alignItems: 'center' }}>
+                      <Typography variant="caption">Hạn: {new Date(w.hanThanhToan).toLocaleDateString('vi-VN')}</Typography>
+                      {w.laiPhat > 0 && (
+                        <Chip label={`+${formatCurrency(w.laiPhat)} lãi`} size="small" color="error" sx={{ height: 20, fontSize: '0.6rem' }} />
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
         </Paper>
       )}
 
@@ -208,6 +243,7 @@ export default function DebtsPage() {
           columns={columns}
           getRowId={(row) => row.maCongNo}
           loading={loading}
+          dateField="hanThanhToan"
         />
       </Paper>
 

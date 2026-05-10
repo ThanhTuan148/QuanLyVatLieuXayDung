@@ -5,6 +5,7 @@ using BuildingMaterialAPI.Data;
 using BuildingMaterialAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace BuildingMaterialAPI.Controllers
 {
@@ -232,6 +233,8 @@ namespace BuildingMaterialAPI.Controllers
                 vatCompanyAddress = h.VatCompanyAddress,
                 vatTaxId = h.VatTaxId,
                 vatBudgetCode = h.VatBudgetCode,
+                anhBangChung = h.AnhBangChung,
+                soTienPhaiThu = h.SoTienPhaiThu,
 
                 chiTiet = (h.CTHDs ?? new List<CTHD>()).Select(ct => new
                 {
@@ -323,11 +326,44 @@ namespace BuildingMaterialAPI.Controllers
                     }
                 }
 
+                // Check debt limit based on membership rank
+                if (dto.MaKhachHang.HasValue && (dto.PTTT.Contains("nợ") || dto.PTTT.Contains("sau") || dto.PTTT.Contains("khi nhận hàng")))
+                {
+                    var kh = await _ctx.KhachHangs.FindAsync(dto.MaKhachHang.Value);
+                    if (kh != null)
+                    {
+                        decimal limit = kh.HangThanhVien switch
+                        {
+                            "Bạc" => 50000000,
+                            "Vàng" => 70000000,
+                            "Kim cương" => 100000000,
+                            _ => 20000000 // Default for Bronze/Others
+                        };
+
+                        var currentDebt = await _ctx.CongNos
+                            .Where(c => c.MaKhachHang == dto.MaKhachHang.Value && c.LoaiCongNo == "Phải thu")
+                            .SumAsync(c => c.SoTienConLai ?? 0);
+
+                        // Amount that will be added to debt (Total - initial payment)
+                        var newDebtAmount = dto.TongTien - (dto.PTTT.Contains("ATM") ? (dto.ThanhToan ?? 0) : 0);
+
+                        if (currentDebt + newDebtAmount > limit)
+                        {
+                            return BadRequest(new { 
+                                message = $"Bạn đã vượt quá hạn mức nợ cho phép của hạng {kh.HangThanhVien} ({limit:N0}đ). " +
+                                          $"Dư nợ hiện tại: {currentDebt:N0}đ. Vui lòng thanh toán bớt nợ cũ trước khi đặt đơn hàng mới." 
+                            });
+                        }
+                    }
+                }
+
                 var hd = new HoaDon
                 {
                     NgayLap = dto.NgayLap ?? DateTime.UtcNow,
                     NgayGiao = dto.NgayGiao, TongTien = dto.TongTien,
-                    GiamGia = dto.GiamGia, ThanhToan = dto.ThanhToan,
+                    GiamGia = dto.GiamGia, 
+                    ThanhToan = dto.PTTT.Contains("ATM") ? (dto.ThanhToan ?? 0) : 0,
+                    SoTienPhaiThu = dto.PTTT.Contains("ATM") ? 0 : (dto.ThanhToan ?? 0),
                     PTTT = dto.PTTT, TrangThai = dto.TrangThai ?? "Chờ xử lý",
                     GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang, MaKhuyenMai = dto.MaKhuyenMai,
                     NgayTao = DateTime.UtcNow,
@@ -349,7 +385,8 @@ namespace BuildingMaterialAPI.Controllers
                     VatCompanyAddress = dto.VatCompanyAddress,
                     VatTaxId = dto.VatTaxId,
                     VatBudgetCode = dto.VatBudgetCode,
-                    PhiVanChuyen = dto.PhiVanChuyen ?? 0
+                    PhiVanChuyen = dto.PhiVanChuyen ?? 0,
+                    AnhBangChung = dto.AnhBangChung
                 };
                 _ctx.HoaDons.Add(hd);
                 await _ctx.SaveChangesAsync();
@@ -363,6 +400,26 @@ namespace BuildingMaterialAPI.Controllers
                     MaNguoiThucHien = dto.MaNhanVien
                 });
                 await _ctx.SaveChangesAsync();
+
+                PhieuXuatKho? pxk = null;
+                // Đơn POS bán tại quầy: tạo phiếu xuất kho ngay (vì hàng xuất ngay)
+                if (hd.TrangThai == "Hoàn thành")
+                {
+                    var creator = await _ctx.NhanViens.FindAsync(hd.MaNhanVien);
+                    pxk = new PhieuXuatKho
+                    {
+                        MaHoaDon = hd.MaHoaDon,
+                        MaNhanVien = hd.MaNhanVien,
+                        NgayXuat = DateTime.UtcNow,
+                        NgayTao = DateTime.UtcNow,
+                        NguoiXuat = creator?.TenNV ?? "Hệ thống",
+                        GhiChu = $"Xuất kho trực tiếp tại quầy - Đơn hàng {hd.MaHD}",
+                        ChuKyNguoiLap = creator?.ChuKy,
+                        TrangThai = "Chờ xuất" // Thủ kho xác nhận trước khi Quản lý duyệt
+                    };
+                    _ctx.PhieuXuatKhos.Add(pxk);
+                    await _ctx.SaveChangesAsync();
+                }
 
             if (dto.Items != null && dto.Items.Any())
             {
@@ -393,7 +450,23 @@ namespace BuildingMaterialAPI.Controllers
                     });
 
                     // Cập nhật tồn kho
-                    if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= item.SoLuong; // Trừ thực tế nếu đã hoàn thành
+                    if (hd.TrangThai == "Hoàn thành")
+                    {
+                        kho.SoLuong -= item.SoLuong; // Trừ thực tế nếu đã hoàn thành
+                        
+                        // Thêm vào chi tiết xuất kho
+                        if (pxk != null)
+                        {
+                            _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                            {
+                                MaPhieuXK = pxk.MaPhieuXK,
+                                MaSanPham = item.MaSanPham,
+                                SoLuong = item.SoLuong,
+                                MaKho = kho.MaKhoHang,
+                                DonGiaVon = kho.SanPham?.GiaNhap ?? 0
+                            });
+                        }
+                    }
                     kho.SoLuongTon -= item.SoLuong; // Luôn trừ khả dụng
                     kho.NgayCapNhat = DateTime.UtcNow;
 
@@ -443,8 +516,10 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] HoaDonDto dto)
         {
-            var hd = await _ctx.HoaDons.FindAsync(id);
-            if (hd == null) return NotFound();
+            try
+            {
+                var hd = await _ctx.HoaDons.FindAsync(id);
+                if (hd == null) return NotFound();
 
             if (dto.NgayLap.HasValue) hd.NgayLap = dto.NgayLap.Value;
             hd.NgayGiao = dto.NgayGiao; hd.TongTien = dto.TongTien;
@@ -466,6 +541,33 @@ namespace BuildingMaterialAPI.Controllers
                     NoiDungThayDoi = $"Cập nhật trạng thái từ '{oldStatus}' sang '{hd.TrangThai}'.",
                     MaNguoiThucHien = dto.MaNhanVien
                 });
+            }
+
+            PhieuXuatKho? pxk = null;
+            // Đơn online: Tạo phiếu xuất kho khi Quản lý XÁC NHẬN đơn hàng
+            // (không phải lúc Hoàn thành - vì cần thủ kho soạn hàng trước khi giao)
+            if (hd.TrangThai == "Đã xác nhận" && oldStatus != "Đã xác nhận")
+            {
+                // Chỉ tạo nếu chưa có phiếu xuất kho nào liên kết với đơn hàng này
+                bool pxkExists = await _ctx.PhieuXuatKhos.AnyAsync(p => p.MaHoaDon == id);
+                if (!pxkExists)
+                {
+                    int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
+                    var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
+                    pxk = new PhieuXuatKho
+                    {
+                        MaHoaDon = id,
+                        MaNhanVien = dto.MaNhanVien ?? hd.MaNhanVien,
+                        NgayXuat = DateTime.UtcNow,
+                        NgayTao = DateTime.UtcNow,
+                        NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
+                        GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận",
+                        ChuKyNguoiLap = confirmedBy?.ChuKy,
+                        TrangThai = "Chờ duyệt" // Bước 1: Quản lý duyệt phiếu xuất
+                    };
+                    _ctx.PhieuXuatKhos.Add(pxk);
+                    await _ctx.SaveChangesAsync();
+                }
             }
 
             var oldItems = await _ctx.CTHDs.Where(c => c.MaHoaDon == id).ToListAsync();
@@ -497,21 +599,39 @@ namespace BuildingMaterialAPI.Controllers
                     var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == item.MaSanPham);
                     if (kho != null) 
                     {
-                        if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= item.SoLuong;
+                        if (hd.TrangThai == "Hoàn thành" || hd.TrangThai == "Đã xác nhận")
+                        {
+                            if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= item.SoLuong;
+                            
+                            // Log to outbound history
+                            if (pxk != null)
+                            {
+                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                {
+                                    MaPhieuXK = pxk.MaPhieuXK,
+                                    MaSanPham = item.MaSanPham,
+                                    SoLuong = item.SoLuong,
+                                    MaKho = kho.MaKhoHang,
+                                    DonGiaVon = 0
+                                });
+                            }
+                        }
                         kho.SoLuongTon -= item.SoLuong;
                     }
                 }
             }
 
-            try 
-            { 
                 await _ctx.SaveChangesAsync(); 
                 await SyncCongNoFromHoaDon(hd.MaHoaDon);
                 if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
                     await RecalculateCustomerTier(hd.MaKhachHang.Value);
                 return Ok(new { maHoaDon = hd.MaHoaDon });
             }
-            catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine($"[Order Update Error] {ex.InnerException?.Message ?? ex.Message}");
+                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); 
+            }
         }
 
         [HttpDelete("{id}")]
@@ -673,6 +793,9 @@ namespace BuildingMaterialAPI.Controllers
         public string? VatTaxId { get; set; }
         public string? VatBudgetCode { get; set; }
         public decimal? PhiVanChuyen { get; set; }
+        [JsonPropertyName("anhBangChung")]
+        public string? AnhBangChung { get; set; }
+        public decimal? SoTienPhaiThu { get; set; }
     }
 
     public class CTHDDto

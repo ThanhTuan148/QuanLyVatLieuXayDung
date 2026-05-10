@@ -4,7 +4,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent,
   TextField, MenuItem, Select, FormControl, InputLabel, Chip,
   Alert, Skeleton, Avatar, Tooltip, IconButton,
-  ToggleButton, ToggleButtonGroup
+  ToggleButton, ToggleButtonGroup, Autocomplete
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -17,7 +17,7 @@ import {
 } from '@mui/icons-material';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  Legend, ResponsiveContainer, Area, AreaChart,
+  Legend, ResponsiveContainer, Area, AreaChart, LineChart, Line,
 } from 'recharts';
 import DataTable from '../components/DataTable';
 
@@ -209,13 +209,27 @@ export default function PriceHistoryPage() {
       <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 2, border: '1px solid #e2e8f0' }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={5}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Sản phẩm</InputLabel>
-              <Select value={selectedProduct} label="Sản phẩm" onChange={e => { setSelectedProduct(e.target.value); setViewMode(e.target.value ? 'detail' : 'overview'); }}>
-                <MenuItem value="">— Tất cả —</MenuItem>
-                {products.map(p => <MenuItem key={p.maSanPham} value={p.maSanPham}>{p.maSP} - {p.tenSP}</MenuItem>)}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              fullWidth
+              size="small"
+              options={products}
+              getOptionLabel={(option) => `${option.maSP} - ${option.tenSP}`}
+              value={products.find(p => p.maSanPham === selectedProduct) || null}
+              onChange={(event, newValue) => {
+                const id = newValue ? newValue.maSanPham : '';
+                setSelectedProduct(id);
+                setViewMode(id ? 'detail' : 'overview');
+              }}
+              renderInput={(params) => (
+                <TextField 
+                  {...params} 
+                  label="Tìm sản phẩm..." 
+                  placeholder="Nhập mã hoặc tên sản phẩm"
+                />
+              )}
+              noOptionsText="Không tìm thấy sản phẩm"
+              clearOnEscape
+            />
           </Grid>
           <Grid item xs={12} sm={4}>
             <TextField select fullWidth size="small" label="Thời gian" value={days} onChange={e => setDays(Number(e.target.value))}>
@@ -258,7 +272,13 @@ export default function PriceHistoryPage() {
               <InventoryIcon sx={{ color: '#6366f1' }} />
               <Typography variant="subtitle1" fontWeight={700}>Bảng Giá Tổng Hợp</Typography>
             </Box>
-            <DataTable rows={productsOverview} columns={overviewColumns} getRowId={(r) => r.maSanPham} onRowClick={(p) => handleSelectProduct(p.id)} />
+            <DataTable 
+              rows={productsOverview} 
+              columns={overviewColumns} 
+              getRowId={(r) => r.maSanPham} 
+              onRowClick={(p) => handleSelectProduct(p.id)} 
+              dateField="lanThayDoiGanNhat"
+            />
           </Paper>
 
           {selectedProduct && chartData && (
@@ -267,19 +287,44 @@ export default function PriceHistoryPage() {
                 <Typography variant="h6" fontWeight={700}>{chartData.product?.tenSP}</Typography>
                 <Typography variant="body2" color="text.secondary">Giá bán hiện tại: <strong style={{ color: '#6366f1' }}>{formatVND(chartData.product?.giaBanHienTai)}</strong></Typography>
               </Box>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={chartPoints}>
-                  <defs>
-                    <linearGradient id="cgb" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="ngay" />
-                  <YAxis tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+              <ResponsiveContainer width="100%" height={450}>
+                <LineChart data={chartPoints} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="ngay" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={v => formatVND(v).replace(' ₫', '')}
+                  />
                   <RechartsTooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Area type="monotone" dataKey="Giá bán" stroke="#6366f1" strokeWidth={2} fill="url(#cgb)" dot={{ r: 4 }} />
-                  <Area type="monotone" dataKey="Giá nhập" stroke="#f59e0b" strokeWidth={2} fill="none" strokeDasharray="5 5" />
-                </AreaChart>
+                  <Legend verticalAlign="top" height={50} iconType="circle" />
+                  
+                  <Line 
+                    type="linear" 
+                    dataKey="Giá bán" 
+                    stroke="#4f46e5" 
+                    strokeWidth={3} 
+                    dot={{ r: 5, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 7, strokeWidth: 0 }}
+                  />
+                  
+                  <Line 
+                    type="linear" 
+                    dataKey="Giá nhập" 
+                    stroke="#f59e0b" 
+                    strokeWidth={3} 
+                    strokeDasharray="5 5"
+                    dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </Paper>
           )}
@@ -289,7 +334,12 @@ export default function PriceHistoryPage() {
               <TimelineIcon sx={{ color: '#6366f1' }} />
               <Typography variant="subtitle1" fontWeight={700}>Nhật Ký Thay Đổi {selectedProductName && `— ${selectedProductName}`}</Typography>
             </Box>
-            <DataTable rows={historyData} columns={historyColumns} getRowId={(r) => r.id || Math.random()} />
+            <DataTable 
+              rows={historyData} 
+              columns={historyColumns} 
+              getRowId={(r) => r.id || Math.random()} 
+              dateField="ngayThayDoi"
+            />
           </Paper>
         </>
       )}

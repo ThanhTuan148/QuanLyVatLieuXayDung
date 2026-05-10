@@ -263,10 +263,11 @@ function ProductsTab({ showGiftsOnly = false }) {
       </Grid>
 
       <DataTable 
-        rows={filtered}
-        columns={columns}
-        getRowId={(row) => row.maSanPham}
+        rows={products} 
+        columns={columns} 
+        getRowId={(row) => row.maSanPham} 
         loading={loading}
+        showDateFilter={false}
       />
 
       <ProductForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />

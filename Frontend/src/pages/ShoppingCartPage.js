@@ -25,6 +25,7 @@ import {
   Checkbox,
   Avatar,
   IconButton,
+  Pagination,
 } from '@mui/material';
 import { Delete as DeleteIcon, Home as HomeIcon, Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import cartService from '../services/cartService';
@@ -41,20 +42,25 @@ const ShoppingCartPage = () => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
-  
+
   // Manual Coupon state (from text input)
   const [appliedManualCoupon, setAppliedManualCoupon] = useState(null);
   const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
-  
+
   // Selected Promo state (from browsing list)
   const [appliedPromoCoupon, setAppliedPromoCoupon] = useState(null);
   const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
-  
+
   // Rewards state
   const [allVouchers, setAllVouchers] = useState([]);
   const [couponsOpen, setCouponsOpen] = useState(false);
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [selectedGifts, setSelectedGifts] = useState([]);
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 5;
+  
   // Fetch cart items
   const fetchCart = async () => {
     try {
@@ -63,21 +69,34 @@ const ShoppingCartPage = () => {
         cartService.getUserCart(),
         productService.getAllProducts()
       ]);
-      
+
       const allProducts = Array.isArray(productsRes.data) ? productsRes.data : (Array.isArray(productsRes) ? productsRes : []);
-      
+
       // Hydrate cart items with full product info
-      const hydratedCart = (cart || []).map(item => {
-        const prod = allProducts.find(p => (p.maSanPham || p.maSP) == item.productId);
+      const hydratedCart = await Promise.all((cart || []).map(async (item) => {
+        let prod = allProducts.find(p => (p.maSanPham || p.maSP) == item.productId);
+        
+        // If not found in bulk list, try fetching individually (might be discontinued/hidden)
+        if (!prod) {
+          try {
+            const singleProdRes = await productService.getProductById(item.productId);
+            prod = singleProdRes.data || singleProdRes;
+          } catch (err) {
+            console.warn(`Could not find details for product ${item.productId}`);
+          }
+        }
+
         return {
           ...item,
           productName: prod?.tenSP || `Sản phẩm #${item.productId}`,
           image: prod?.hinhAnh || '',
           originalPrice: prod?.giaBan || item.price,
           currentPrice: prod?.giaSauKhuyenMai || prod?.giaBan || item.price,
-          hasDiscount: prod && prod.giaSauKhuyenMai && prod.giaSauKhuyenMai < prod.giaBan
+          hasDiscount: prod && prod.giaSauKhuyenMai && prod.giaSauKhuyenMai < prod.giaBan,
+          soLuongTon: prod?.soLuongTon || 0,
+          isDiscontinued: !allProducts.find(p => (p.maSanPham || p.maSP) == item.productId) && prod
         };
-      });
+      }));
 
       setCartItems(hydratedCart);
       // Auto-select all items initially if not already set
@@ -108,7 +127,7 @@ const ShoppingCartPage = () => {
 
   // Selection handlers
   const handleToggleSelect = (id) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -123,15 +142,24 @@ const ShoppingCartPage = () => {
 
   // Handle quantity change
   const handleQuantityChange = async (cartId, newQuantity) => {
+    const item = cartItems.find(i => i.cartId === cartId);
+    if (!item) return;
+
     if (newQuantity < 1) return;
+
+    const maxStock = item.soLuongTon || 0;
+    if (newQuantity > maxStock) {
+      alert(`Sản phẩm "${item.productName}" chỉ còn ${maxStock} sản phẩm trong kho.`);
+      return;
+    }
 
     try {
       await cartService.updateCartItem(cartId, {
         quantity: newQuantity,
       });
       // Update local state directly for smoother UI
-      setCartItems(prev => prev.map(item => 
-        item.cartId === cartId ? { ...item, quantity: newQuantity } : item
+      setCartItems(prev => prev.map(i =>
+        i.cartId === cartId ? { ...i, quantity: newQuantity } : i
       ));
     } catch (error) {
       console.error('Error updating cart:', error);
@@ -173,10 +201,10 @@ const ShoppingCartPage = () => {
   // Handle promo selection (receives data from CouponsModal)
   const handleSelectPromo = (uudai) => {
     if (uudai) {
-      const discount = uudai.loaiUuDai === 'PhanTram' 
-        ? (total * uudai.giaTriGiam / 100) 
+      const discount = uudai.loaiUuDai === 'PhanTram'
+        ? (total * uudai.giaTriGiam / 100)
         : uudai.giaTriGiam;
-      
+
       setAppliedPromoCoupon(uudai.code);
       setPromoDiscountAmount(discount);
     }
@@ -190,7 +218,7 @@ const ShoppingCartPage = () => {
 
   // Find next best voucher for progress bar
   const nextVouchers = allVouchers.filter(v => total < (v.donHangToiThieu || 0));
-  const nextVoucher = nextVouchers.length > 0 ? nextVouchers.reduce((prev, curr) => 
+  const nextVoucher = nextVouchers.length > 0 ? nextVouchers.reduce((prev, curr) =>
     (curr.donHangToiThieu < prev.donHangToiThieu ? curr : prev), nextVouchers[0]) : null;
 
   // Calculate eligible vouchers count
@@ -247,10 +275,10 @@ const ShoppingCartPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {cartItems.map((item) => (
+                  {cartItems.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((item) => (
                     <TableRow key={item.cartId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                       <TableCell padding="checkbox">
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedIds.includes(item.cartId)}
                           onChange={() => handleToggleSelect(item.cartId)}
                           color="primary"
@@ -258,9 +286,9 @@ const ShoppingCartPage = () => {
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar 
-                            src={item.image} 
-                            variant="rounded" 
+                          <Avatar
+                            src={item.image}
+                            variant="rounded"
                             sx={{ width: 60, height: 60, bgcolor: '#f5f5f5', border: '1px solid #eee' }}
                           >
                             📦
@@ -296,7 +324,7 @@ const ShoppingCartPage = () => {
                               if (!isNaN(num) && num > 0) {
                                 handleQuantityChange(item.cartId, num);
                               } else if (val === '') {
-                                setCartItems(prev => prev.map(i => 
+                                setCartItems(prev => prev.map(i =>
                                   i.cartId === item.cartId ? { ...i, quantity: '' } : i
                                 ));
                               }
@@ -306,10 +334,10 @@ const ShoppingCartPage = () => {
                                 handleQuantityChange(item.cartId, 1);
                               }
                             }}
-                            style={{ 
-                              width: '40px', 
-                              border: 'none', 
-                              textAlign: 'center', 
+                            style={{
+                              width: '40px',
+                              border: 'none',
+                              textAlign: 'center',
                               fontWeight: 600,
                               outline: 'none',
                               backgroundColor: 'transparent',
@@ -336,6 +364,18 @@ const ShoppingCartPage = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {cartItems.length > rowsPerPage && (
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                <Pagination 
+                  count={Math.ceil(cartItems.length / rowsPerPage)} 
+                  page={page} 
+                  onChange={(e, v) => setPage(v)} 
+                  color="primary" 
+                />
+              </Box>
+            )}
+
             <Box sx={{ mt: 2, textAlign: 'right' }}>
               <Button color="error" onClick={handleClearCart}>
                 🗑️ Xóa Toàn Bộ Giỏ Hàng
@@ -344,115 +384,131 @@ const ShoppingCartPage = () => {
           </Grid>
 
           {/* Order Summary & Rewards */}
-          <Grid item xs={12} md={4}>
-            {/* Rewards Section */}
-            <PromotionSection 
-              currentTotal={total}
-              onOpenCoupons={() => setCouponsOpen(true)}
-              onOpenGifts={() => setGiftsOpen(true)}
-              bestCoupon={nextVoucher}
-              eligibleCount={eligibleVouchersCount}
-              selectedGiftsCount={selectedGifts.length}
-              giftLimit={giftLimit}
-            />
+          <Grid item xs={12} md={4} sx={{ alignSelf: 'start' }}>
+            <Box sx={{ position: 'sticky', top: 20 }}>
 
-            <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-                  📋 Tóm Tắt Đơn Hàng
-                </Typography>
+              {/* Rewards Section */}
+              <PromotionSection
+                currentTotal={total}
+                onOpenCoupons={() => setCouponsOpen(true)}
+                onOpenGifts={() => setGiftsOpen(true)}
+                bestCoupon={nextVoucher}
+                eligibleCount={eligibleVouchersCount}
+                selectedGiftsCount={selectedGifts.length}
+                giftLimit={giftLimit}
+              />
 
-                <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #e0e0e0' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography color="text.secondary">Tạm tính ({selectedIds.length} món):</Typography>
-                    <Typography sx={{ fontWeight: 600 }}>
-                      ₫{subtotalSelected.toLocaleString('vi-VN')}
+              <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    📋 Tóm Tắt Đơn Hàng
+                  </Typography>
+
+                  <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #e0e0e0' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography color="text.secondary">Tạm tính ({selectedIds.length} món):</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>
+                        ₫{subtotalSelected.toLocaleString('vi-VN')}
+                      </Typography>
+                    </Box>
+                    {productDiscount > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography color="text.secondary">Giảm giá sản phẩm:</Typography>
+                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
+                          -₫{productDiscount.toLocaleString('vi-VN')}
+                        </Typography>
+                      </Box>
+                    )}
+                    {manualDiscountAmount > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography color="text.secondary">Mã giảm giá ({appliedManualCoupon}):</Typography>
+                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
+                          -₫{manualDiscountAmount.toLocaleString('vi-VN')}
+                        </Typography>
+                      </Box>
+                    )}
+                    {promoDiscountAmount > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography color="text.secondary">Khuyến mãi ({appliedPromoCoupon}):</Typography>
+                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
+                          -₫{promoDiscountAmount.toLocaleString('vi-VN')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Box sx={{ mb: 3, p: 2, backgroundColor: '#fff5f0', borderRadius: '8px', border: '1px solid #ffe8db' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontWeight: 700 }}>Tổng cộng:</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: '#e68c55' }}>
+                        ₫{total.toLocaleString('vi-VN')}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
+                      (Tiết kiệm được ₫{(productDiscount + manualDiscountAmount + promoDiscountAmount).toLocaleString('vi-VN')})
                     </Typography>
                   </Box>
-                  {productDiscount > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography color="text.secondary">Giảm giá sản phẩm:</Typography>
-                      <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                        -₫{productDiscount.toLocaleString('vi-VN')}
-                      </Typography>
-                    </Box>
-                  )}
-                  {manualDiscountAmount > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography color="text.secondary">Mã giảm giá ({appliedManualCoupon}):</Typography>
-                      <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                        -₫{manualDiscountAmount.toLocaleString('vi-VN')}
-                      </Typography>
-                    </Box>
-                  )}
-                  {promoDiscountAmount > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography color="text.secondary">Khuyến mãi ({appliedPromoCoupon}):</Typography>
-                      <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                        -₫{promoDiscountAmount.toLocaleString('vi-VN')}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
 
-                <Box sx={{ mb: 3, p: 2, backgroundColor: '#fff5f0', borderRadius: '8px', border: '1px solid #ffe8db' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography sx={{ fontWeight: 700 }}>Tổng cộng:</Typography>
-                    <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: '#e68c55' }}>
-                      ₫{total.toLocaleString('vi-VN')}
+                  {/* Coupon Section */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      🎟️ Mã Giảm Giá
                     </Typography>
+                    <CouponInput
+                      orderAmount={subtotalSelected - productDiscount}
+                      onCouponApply={handleApplyManualCoupon}
+                    />
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
-                    (Tiết kiệm được ₫{(productDiscount + manualDiscountAmount + promoDiscountAmount).toLocaleString('vi-VN')})
-                  </Typography>
-                </Box>
 
-                {/* Coupon Section */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
-                    🎟️ Mã Giảm Giá
-                  </Typography>
-                   <CouponInput
-                    orderAmount={subtotalSelected - productDiscount}
-                    onCouponApply={handleApplyManualCoupon}
-                  />
-                </Box>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    disabled={selectedIds.length === 0}
+                    onClick={() => {
+                      // Final stock validation before checkout
+                      const outOfStockItems = selectedItems.filter(item => item.quantity > item.soLuongTon);
+                      if (outOfStockItems.length > 0) {
+                        const names = outOfStockItems.map(i => {
+                          if (i.productName.startsWith('Sản phẩm #')) {
+                            return `${i.productName} (Sản phẩm ngừng kinh doanh/đã xóa)`;
+                          }
+                          return i.productName;
+                        }).join(', ');
+                        alert(`⚠️ Một số sản phẩm vượt quá tồn kho hoặc không còn bán: ${names}. Vui lòng xóa hoặc điều chỉnh lại số lượng.`);
+                        return;
+                      }
 
-                <Button
-                  variant="contained"
-                  fullWidth
-                  size="large"
-                  disabled={selectedIds.length === 0}
-                  onClick={() => {
-                    if (selectedGifts.length < giftLimit) {
-                      alert(`🎁 Bạn chưa chọn đủ quà tặng! Vui lòng chọn đủ ${giftLimit} món quà để tiếp tục thanh toán.`);
-                      setGiftsOpen(true); // Auto-open gifts modal for convenience
-                    } else {
-                      navigate('/checkout', { 
-                        state: {
-                          selectedItems,
-                          total,
-                          subtotalSelected,
-                          productDiscount,
-                          manualDiscountAmount,
-                          promoDiscountAmount,
-                          appliedManualCoupon,
-                          appliedPromoCoupon,
-                          gifts: selectedGifts
-                        }
-                      });
-                    }
-                  }}
-                  sx={{ 
-                    bgcolor: '#e68c55', py: 1.5, borderRadius: '30px', fontWeight: 700,
-                    '&:hover': { bgcolor: '#cc7a4a' },
-                    boxShadow: '0 4px 14px rgba(230, 140, 85, 0.3)'
-                  }}
-                >
-                  🚀 Thanh Toán Ngay ({selectedIds.length})
-                </Button>
-              </CardContent>
-            </Card>
+                      if (selectedGifts.length < giftLimit) {
+                        alert(`🎁 Bạn chưa chọn đủ quà tặng! Vui lòng chọn đủ ${giftLimit} món quà để tiếp tục thanh toán.`);
+                        setGiftsOpen(true); // Auto-open gifts modal for convenience
+                      } else {
+                        navigate('/checkout', {
+                          state: {
+                            selectedItems,
+                            total,
+                            subtotalSelected,
+                            productDiscount,
+                            manualDiscountAmount,
+                            promoDiscountAmount,
+                            appliedManualCoupon,
+                            appliedPromoCoupon,
+                            gifts: selectedGifts
+                          }
+                        });
+                      }
+                    }}
+                    sx={{
+                      bgcolor: '#e68c55', py: 1.5, borderRadius: '30px', fontWeight: 700,
+                      '&:hover': { bgcolor: '#cc7a4a' },
+                      boxShadow: '0 4px 14px rgba(230, 140, 85, 0.3)'
+                    }}
+                  >
+                    🚀 Thanh Toán Ngay ({selectedIds.length})
+                  </Button>
+                </CardContent>
+              </Card>
+            </Box>
           </Grid>
         </Grid>
       ) : (
@@ -469,8 +525,8 @@ const ShoppingCartPage = () => {
 
 
       {/* Reward Modals */}
-      <CouponsModal 
-        open={couponsOpen} 
+      <CouponsModal
+        open={couponsOpen}
         onClose={() => setCouponsOpen(false)}
         coupons={allVouchers}
         currentTotal={total}
@@ -478,7 +534,7 @@ const ShoppingCartPage = () => {
         onApply={handleSelectPromo}
       />
 
-      <GiftsModal 
+      <GiftsModal
         open={giftsOpen}
         onClose={() => setGiftsOpen(false)}
         currentTotal={total}

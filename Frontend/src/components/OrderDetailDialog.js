@@ -94,6 +94,26 @@ function OrderDetailDialog({ open, onClose, orderId }) {
                     <Typography variant="caption" color="textSecondary" display="block">Phương thức thanh toán</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{order.pttt}</Typography>
                   </Box>
+                  {order.pttt?.includes('ATM') && (
+                    <Box>
+                      <Typography variant="caption" color="textSecondary" display="block">Ảnh chứng từ</Typography>
+                      {order.anhBangChung ? (
+                        <Box 
+                          component="img" 
+                          src={order.anhBangChung} 
+                          sx={{ 
+                            width: 100, height: 100, borderRadius: 2, cursor: 'pointer', 
+                            border: '2px solid #e68c55', objectFit: 'cover',
+                            boxShadow: '0 2px 8px rgba(230, 140, 85, 0.3)',
+                            '&:hover': { transform: 'scale(1.1)', transition: '0.2s' }
+                          }} 
+                          onClick={() => window.open(order.anhBangChung, '_blank')}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="error" sx={{ fontWeight: 'bold' }}>Chưa tải ảnh</Typography>
+                      )}
+                    </Box>
+                  )}
                 </Box>
               </Grid>
 
@@ -248,8 +268,39 @@ function OrderDetailDialog({ open, onClose, orderId }) {
                   <Typography variant="body2">-{formatVND(order.giamGia)}</Typography>
                 </Box>
                 <Divider sx={{ my: 1 }} />
+                <Box sx={{ mb: 1 }}>
+                  {order.thanhToan >= order.tongTien ? (
+                    <Box sx={{ p: 1, bgcolor: '#e8f5e9', borderRadius: 1, border: '1px solid #2e7d32' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2e7d32', textAlign: 'center' }}>
+                        ✅ Đã thanh toán thành công {formatVND(order.thanhToan)}
+                      </Typography>
+                    </Box>
+                  ) : order.thanhToan > 0 ? (
+                    <Box sx={{ p: 1, bgcolor: '#fff3e0', borderRadius: 1, border: '1px solid #ef6c00' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#ef6c00' }}>
+                        💰 Đã thanh toán {formatVND(order.thanhToan)}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#d32f2f', display: 'block', mt: 0.5 }}>
+                        🔴 Công nợ: {formatVND(order.tongTien - order.thanhToan)}
+                      </Typography>
+                    </Box>
+                  ) : order.pttt?.includes('ATM') ? (
+                    <Box sx={{ p: 1, bgcolor: '#ffebee', borderRadius: 1, border: '1px solid #c62828' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#c62828', textAlign: 'center' }}>
+                        ⌛ Chờ xác nhận thanh toán ATM
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ p: 1, bgcolor: '#e3f2fd', borderRadius: 1, border: '1px solid #1976d2' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976d2', textAlign: 'center' }}>
+                        🚚 Vui lòng thanh toán {formatVND(order.soTienPhaiThu || order.tongTien)} cho Tài xế khi nhận hàng
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>Thanh toán:</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>Thực thu:</Typography>
                   <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
                     {formatVND(order.thanhToan)}
                   </Typography>

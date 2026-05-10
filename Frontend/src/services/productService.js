@@ -2,8 +2,8 @@
 import api from './api';
 
 const productService = {
-  getAllProducts: (hang) => {
-    return api.get('/products', { params: { hang } });
+  getAllProducts: (hang, includeGifts = true) => {
+    return api.get('/products', { params: { hang, includeGifts } });
   },
 
   getProductById: (id) => {

@@ -268,6 +268,7 @@ CREATE TABLE [dbo].[CTPN] (
     [MaKhoHang]     INT NULL,
     [MaNhaCungCap]  INT NULL,
     [TrangThai]     NVARCHAR(50) NULL,
+    [GhiChu]        NVARCHAR(MAX) NULL,
     [NgayTao]       DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY ([MaPhieuNhap]) REFERENCES [dbo].[PHIEUNHAP]([MaPhieuNhap]) ON DELETE CASCADE,
     FOREIGN KEY ([MaSanPham]) REFERENCES [dbo].[SANPHAM]([MaSanPham]),

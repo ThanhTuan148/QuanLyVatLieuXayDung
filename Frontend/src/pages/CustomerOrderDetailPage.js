@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Container, Typography, Box, Paper, Grid, Table, TableBody, 
-  TableCell, TableContainer, TableHead, TableRow, Chip, 
+import {
+  Container, Typography, Box, Paper, Grid, Table, TableBody,
+  TableCell, TableContainer, TableHead, TableRow, Chip,
   IconButton, Button, Skeleton, Alert, Breadcrumbs, Link, Divider, Stack
 } from '@mui/material';
-import { 
-  ArrowBack as BackIcon, 
+import {
+  ArrowBack as BackIcon,
   Receipt as ReceiptIcon,
   LocalShipping as ShippingIcon,
   Payment as PaymentIcon,
@@ -31,7 +31,7 @@ const CustomerOrderDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
-  
+
   // Review state
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -42,13 +42,13 @@ const CustomerOrderDetailPage = () => {
 
   const fetchReviewStatus = async (orderData) => {
     if (!user || !orderData.chiTiet) return;
-    
+
     const statusObj = {};
     const promises = orderData.chiTiet.map(async (item) => {
       try {
         const res = await reviewService.checkReviewStatus(
-          item.maSanPham, 
-          user.maKhachHang || user.id, 
+          item.maSanPham,
+          user.maKhachHang || user.id,
           orderData.maHoaDon || orderData.id
         );
         if (res.data?.hasReviewed) {
@@ -69,7 +69,7 @@ const CustomerOrderDetailPage = () => {
       const res = await orderService.getOrderById(id);
       const orderData = res.data || res;
       setOrder(orderData);
-      
+
       // Fetch history
       const histRes = await orderService.getOrderHistory(id);
       setHistory(histRes.data || []);
@@ -144,7 +144,7 @@ const CustomerOrderDetailPage = () => {
     if (!order) return { can: false, reason: "" };
     if (order.trangThai !== "Hoàn thành") return { can: false, reason: "Đơn hàng chưa hoàn thành." };
     if (order.coYeuCauDoiTra) return { can: false, reason: "Đơn hàng đã yêu cầu đổi/trả trước đó. (Mỗi đơn hàng chỉ được yêu cầu 1 lần duy nhất)" };
-    
+
     // Check 24h
     if (order.ngayGiao) {
       const deliveryDate = new Date(order.ngayGiao);
@@ -153,7 +153,7 @@ const CustomerOrderDetailPage = () => {
       const diffHrs = diffMs / (1000 * 60 * 60);
       if (diffHrs > 24) return { can: false, reason: "Đã quá thời hạn 24h kể từ lúc nhận hàng." };
     }
-    
+
     return { can: true, reason: "" };
   };
 
@@ -171,11 +171,11 @@ const CustomerOrderDetailPage = () => {
 
   const handleReorder = () => {
     // Redirect to checkout with order data
-    navigate('/checkout', { 
-      state: { 
+    navigate('/checkout', {
+      state: {
         reorderFrom: order,
         // We'll extract items and addresses in CheckoutPage
-      } 
+      }
     });
   };
 
@@ -201,19 +201,19 @@ const CustomerOrderDetailPage = () => {
   const groupedItems = order.chiTiet?.reduce((acc, item) => {
     // Determine the best address for grouping
     let addr = item.diaChiGiaoHang || item.DiaChiGiaoHang;
-    
+
     // If item address is missing or is the generic "multiple" string, try order address
     if (!addr || addr === 'Giao hàng nhiều địa chỉ') {
       addr = (order.diaChiGiaoHang !== 'Giao hàng nhiều địa chỉ') ? order.diaChiGiaoHang : '';
     }
-    
+
     // Ultimate fallback
     if (!addr) addr = 'Địa chỉ giao hàng';
 
-    if (!acc[addr]) acc[addr] = { 
-      items: [], 
-      receiver: item.tenNguoiNhan || item.TenNguoiNhan || order.tenNguoiNhan || order.tenKhachHang, 
-      phone: item.sdtNguoiNhan || item.SdtNguoiNhan || order.sdtNguoiNhan 
+    if (!acc[addr]) acc[addr] = {
+      items: [],
+      receiver: item.tenNguoiNhan || item.TenNguoiNhan || order.tenNguoiNhan || order.tenKhachHang,
+      phone: item.sdtNguoiNhan || item.SdtNguoiNhan || order.sdtNguoiNhan
     };
     acc[addr].items.push(item);
     return acc;
@@ -223,18 +223,18 @@ const CustomerOrderDetailPage = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Breadcrumbs */}
       <Breadcrumbs sx={{ mb: 3 }}>
-        <Link 
-          component="button" 
-          underline="hover" 
-          color="inherit" 
+        <Link
+          component="button"
+          underline="hover"
+          color="inherit"
           onClick={() => navigate('/shopping')}
         >
           Trang chủ
         </Link>
-        <Link 
-          component="button" 
-          underline="hover" 
-          color="inherit" 
+        <Link
+          component="button"
+          underline="hover"
+          color="inherit"
           onClick={() => navigate('/my-orders')}
         >
           Đơn hàng của tôi
@@ -255,8 +255,8 @@ const CustomerOrderDetailPage = () => {
             </Typography>
           </Box>
         </Box>
-        <Chip 
-          label={getStatusLabel(order.trangThai)} 
+        <Chip
+          label={getStatusLabel(order.trangThai)}
           color={getStatusColor(order.trangThai)}
           sx={{ fontWeight: 700, px: 2, height: 40, fontSize: '1rem' }}
         />
@@ -275,11 +275,11 @@ const CustomerOrderDetailPage = () => {
                   </Typography>
                 </Box>
                 <Box sx={{ ml: 3 }}>
-                   <Typography variant="body2" fontWeight={600}>Người nhận: {groupData.receiver || order.tenNguoiNhan || 'N/A'}</Typography>
-                   <Typography variant="body2" color="text.secondary">SĐT: {groupData.phone || order.sdtNguoiNhan || 'N/A'}</Typography>
+                  <Typography variant="body2" fontWeight={600}>Người nhận: {groupData.receiver || order.tenNguoiNhan || 'N/A'}</Typography>
+                  <Typography variant="body2" color="text.secondary">SĐT: {groupData.phone || order.sdtNguoiNhan || 'N/A'}</Typography>
                 </Box>
               </Box>
-              
+
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -304,15 +304,15 @@ const CustomerOrderDetailPage = () => {
                                 {reviewsStatus[item.maSanPham] ? (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <Chip label="Đã đánh giá" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '10px' }} />
-                                    <Button 
-                                      size="small" 
+                                    <Button
+                                      size="small"
                                       onClick={() => handleOpenReview(item, reviewsStatus[item.maSanPham])}
                                       sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: '11px' }}
                                     >
                                       Sửa
                                     </Button>
-                                    <Button 
-                                      size="small" 
+                                    <Button
+                                      size="small"
                                       color="error"
                                       onClick={() => handleDeleteReview(reviewsStatus[item.maSanPham].maDanhGia)}
                                       sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: '11px' }}
@@ -321,9 +321,9 @@ const CustomerOrderDetailPage = () => {
                                     </Button>
                                   </Box>
                                 ) : order.trangThai === 'Hoàn thành' && (
-                                  <Button 
-                                    size="small" 
-                                    variant="text" 
+                                  <Button
+                                    size="small"
+                                    variant="text"
                                     onClick={() => handleOpenReview(item)}
                                     sx={{ textTransform: 'none', p: 0, minWidth: 0, fontWeight: 700, color: '#e68c55' }}
                                   >
@@ -337,7 +337,7 @@ const CustomerOrderDetailPage = () => {
                           <TableCell align="center">{item.soLuong}</TableCell>
                           <TableCell align="center">
                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                              <Chip 
+                              <Chip
                                 label={`${item.soLuongDaGiao || 0} / ${item.soLuong} đã nhận`}
                                 size="small"
                                 color={(item.soLuongDaGiao || 0) >= item.soLuong ? 'success' : 'default'}
@@ -345,7 +345,7 @@ const CustomerOrderDetailPage = () => {
                                 sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold', width: '100%' }}
                               />
                               {(item.soLuongDangGiao > 0) && (
-                                <Chip 
+                                <Chip
                                   label={`${item.soLuongDangGiao} đang đến`}
                                   size="small"
                                   color="primary"
@@ -354,7 +354,7 @@ const CustomerOrderDetailPage = () => {
                                 />
                               )}
                               {(item.soLuongChoGiao > 0) && (
-                                <Chip 
+                                <Chip
                                   label={`${item.soLuongChoGiao} chờ giao`}
                                   size="small"
                                   color="warning"
@@ -366,7 +366,7 @@ const CustomerOrderDetailPage = () => {
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>{formatVND(item.thanhTien || 0)}</TableCell>
                         </TableRow>
-                        
+
                         {item.doiTra && item.doiTra.length > 0 && item.doiTra.map((dt, dtIdx) => (
                           <TableRow key={`return-${iIdx}-${dtIdx}`} sx={{ bgcolor: '#fff5f5' }}>
                             <TableCell colSpan={2}>
@@ -389,7 +389,7 @@ const CustomerOrderDetailPage = () => {
                         ))}
                       </React.Fragment>
                     ))}
-                    
+
                     {/* Actual Gift Items */}
                     {groupData.items.filter(i => i.donGia === 0 && !(['Xi măng', 'Thép', 'Gạch', 'Cát', 'Đá', 'Sắt'].some(kw => i.tenSanPham?.includes(kw)))).map((item, iIdx) => (
                       <TableRow key={`gift-${iIdx}`} sx={{ bgcolor: '#fffdf9' }}>
@@ -404,7 +404,7 @@ const CustomerOrderDetailPage = () => {
                         <TableCell align="center">{item.soLuong}</TableCell>
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                            <Chip 
+                            <Chip
                               label={`${item.soLuongDaGiao || 0} / ${item.soLuong} đã nhận`}
                               size="small"
                               color={(item.soLuongDaGiao || 0) >= item.soLuong ? 'success' : 'default'}
@@ -412,7 +412,7 @@ const CustomerOrderDetailPage = () => {
                               sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold', width: '100%' }}
                             />
                             {(item.soLuongDangGiao > 0) && (
-                              <Chip 
+                              <Chip
                                 label={`${item.soLuongDangGiao} đang đến`}
                                 size="small"
                                 color="warning"
@@ -446,9 +446,9 @@ const CustomerOrderDetailPage = () => {
                 <Typography variant="body2" color="text.secondary">Chưa có thông tin trạng thái chi tiết.</Typography>
               ) : history.map((h, idx) => (
                 <Box key={h.maLichSu} sx={{ mb: 2, position: 'relative' }}>
-                  <Box sx={{ 
-                    position: 'absolute', left: -31, top: 4, width: 10, height: 10, 
-                    borderRadius: '50%', bgcolor: idx === 0 ? 'primary.main' : '#bdbdbd' 
+                  <Box sx={{
+                    position: 'absolute', left: -31, top: 4, width: 10, height: 10,
+                    borderRadius: '50%', bgcolor: idx === 0 ? 'primary.main' : '#bdbdbd'
                   }} />
                   <Typography variant="subtitle2" fontWeight={700} color={idx === 0 ? 'primary.main' : 'text.primary'}>
                     {h.trangThaiMoi}
@@ -498,11 +498,39 @@ const CustomerOrderDetailPage = () => {
                 <PaymentIcon color="action" />
                 <Typography variant="subtitle2" fontWeight={700}>Thanh toán</Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary">{order.pttt || 'N/A'}</Typography>
-              <Typography variant="body2" color={order.thanhToan >= order.tongTien ? 'success.main' : 'error.main'} fontWeight={600}>
-                Trạng thái: {order.thanhToan >= order.tongTien ? 'Đã thanh toán đủ' : `Đã thanh toán: ${formatVND(order.thanhToan)} (Chờ thu thêm ${formatVND(order.tongTien - order.thanhToan)})`}
-              </Typography>
-              
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{order.pttt || 'N/A'}</Typography>
+
+              <Box sx={{ mt: 1 }}>
+                {order.thanhToan >= order.tongTien ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #2e7d32' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                      ✅ Đã thanh toán thành công {formatVND(order.thanhToan)}
+                    </Typography>
+                  </Box>
+                ) : order.thanhToan > 0 ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#fff3e0', borderRadius: 2, border: '1px solid #ef6c00' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#ef6c00' }}>
+                      💰 Đã thanh toán {formatVND(order.thanhToan)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#d32f2f', display: 'block', mt: 0.5 }}>
+                      🔴 Công nợ phải trả: {formatVND(order.tongTien - order.thanhToan)}
+                    </Typography>
+                  </Box>
+                ) : order.pttt?.includes('ATM') ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#ffebee', borderRadius: 2, border: '1px solid #c62828' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#c62828' }}>
+                      ⌛ Chờ xác nhận thanh toán ATM
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, bgcolor: '#e3f2fd', borderRadius: 2, border: '1px solid #1976d2' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                      🚚 Vui lòng thanh toán {formatVND(order.soTienPhaiThu || order.tongTien)} cho Tài xế khi nhận hàng
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
               {history.some(h => h.noiDungThayDoi?.includes('Đã thu')) && (
                 <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #ccc' }}>
                   <Typography variant="caption" fontWeight={700} color="text.secondary" gutterBottom display="block">
@@ -520,6 +548,26 @@ const CustomerOrderDetailPage = () => {
                   ))}
                 </Box>
               )}
+
+              {order.anhBangChung && (
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #ccc' }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" gutterBottom display="block">
+                    ẢNH CHỨNG TỪ THANH TOÁN
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={order.anhBangChung}
+                    sx={{
+                      width: '100%', maxHeight: 200, borderRadius: 2, cursor: 'pointer',
+                      border: '1px solid #ddd', objectFit: 'contain', bgcolor: '#fff'
+                    }}
+                    onClick={() => window.open(order.anhBangChung, '_blank')}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.5 }}>
+                    (Nhấp vào ảnh để xem kích thước lớn)
+                  </Typography>
+                </Box>
+              )}
             </Paper>
 
             {/* Live Tracking Section */}
@@ -529,7 +577,7 @@ const CustomerOrderDetailPage = () => {
                   <ShippingIcon color="primary" />
                   <Typography variant="subtitle1" fontWeight={700}>Theo dõi lộ trình đơn hàng</Typography>
                 </Box>
-                
+
                 <Box sx={{ position: 'relative', pl: 3, borderLeft: '2px dashed #1976d2', ml: 1 }}>
                   <Box sx={{ mb: 2 }}>
                     <Typography variant="caption" color="text.secondary">Vị trí hiện tại của Shipper:</Typography>
@@ -541,7 +589,7 @@ const CustomerOrderDetailPage = () => {
                         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontStyle: 'italic', mb: 1 }}>
                           Tọa độ: {order.latestDelivery.lat}, {order.latestDelivery.lng}
                         </Typography>
-                        
+
                         {/* Nhúng Google Maps */}
                         <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: '12px', mb: 1 }}>
                           <iframe
@@ -554,9 +602,9 @@ const CustomerOrderDetailPage = () => {
                             allowFullScreen
                           ></iframe>
                         </Paper>
-                        <Button 
-                          size="small" 
-                          startIcon={<OpenInNewIcon />} 
+                        <Button
+                          size="small"
+                          startIcon={<OpenInNewIcon />}
                           href={`https://www.google.com/maps/search/?api=1&query=${order.latestDelivery.lat},${order.latestDelivery.lng}`}
                           target="_blank"
                           sx={{ fontSize: '0.7rem' }}
@@ -566,14 +614,14 @@ const CustomerOrderDetailPage = () => {
                       </Box>
                     )}
                   </Box>
-                  
+
                   <Box>
                     <Typography variant="caption" color="text.secondary">Nhân viên giao hàng:</Typography>
                     <Typography variant="body2" fontWeight={600}>
                       {order.latestDelivery.nguoiGiao || "Đang phân bổ"}
                     </Typography>
                   </Box>
-                  
+
                   {order.latestDelivery.ngayGiaoDuKien && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="caption" color="text.secondary">Dự kiến giao:</Typography>
@@ -582,7 +630,7 @@ const CustomerOrderDetailPage = () => {
                       </Typography>
                     </Box>
                   )}
-                  
+
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">Cập nhật lúc:</Typography>
                     <Typography variant="body2" fontSize="0.75rem">
@@ -590,7 +638,7 @@ const CustomerOrderDetailPage = () => {
                     </Typography>
                   </Box>
                 </Box>
-                
+
                 <Alert severity="info" sx={{ mt: 2, bgcolor: 'transparent', border: 'none', p: 0 }}>
                   <Typography variant="caption">
                     * Shipper sẽ liên hệ với bạn trước khi giao tới. Vui lòng giữ máy.
@@ -612,7 +660,7 @@ const CustomerOrderDetailPage = () => {
                       {order.vatType === 'business' ? 'Doanh nghiệp / Tổ chức' : 'Cá nhân'}
                     </Typography>
                   </Box>
-                  
+
                   {order.vatType === 'business' ? (
                     <>
                       <Box>
@@ -640,7 +688,7 @@ const CustomerOrderDetailPage = () => {
                       </Box>
                     </>
                   )}
-                  
+
                   <Box>
                     <Typography variant="caption" color="text.secondary" display="block">Email nhận hóa đơn</Typography>
                     <Typography variant="body2">{order.vatEmail}</Typography>
@@ -649,16 +697,16 @@ const CustomerOrderDetailPage = () => {
               </Paper>
             )}
 
-            <Button 
-              fullWidth 
-              variant="outlined" 
+            <Button
+              fullWidth
+              variant="outlined"
               startIcon={<BackIcon />}
               onClick={() => navigate('/my-orders')}
               sx={{ borderRadius: '12px', py: 1 }}
             >
               Quay lại danh sách
             </Button>
-            
+
             {order.trangThai === 'Hoàn thành' && (
               <Box sx={{ width: '100%' }}>
                 {!canRequestReturn(order).can ? (
@@ -667,9 +715,9 @@ const CustomerOrderDetailPage = () => {
                     <Typography variant="caption">{canRequestReturn(order).reason}</Typography>
                   </Alert>
                 ) : (
-                  <Button 
-                    fullWidth 
-                    variant="outlined" 
+                  <Button
+                    fullWidth
+                    variant="outlined"
                     color="error"
                     onClick={() => setReturnDialogOpen(true)}
                     sx={{ borderRadius: '12px', py: 1, borderWidth: '2px', '&:hover': { borderWidth: '2px' } }}
@@ -681,9 +729,9 @@ const CustomerOrderDetailPage = () => {
             )}
 
             {(order.trangThai === 'Chờ xử lý' || order.trangThai === 'Chờ xác nhận') && (
-              <Button 
-                fullWidth 
-                variant="contained" 
+              <Button
+                fullWidth
+                variant="contained"
                 color="error"
                 onClick={handleCancelOrder}
                 sx={{ borderRadius: '12px', py: 1, fontWeight: 700 }}
@@ -693,9 +741,9 @@ const CustomerOrderDetailPage = () => {
             )}
 
             {(order.trangThai === 'Đã hủy' || order.trangThai === 'Hoàn thành') && (
-              <Button 
-                fullWidth 
-                variant="contained" 
+              <Button
+                fullWidth
+                variant="contained"
                 color="primary"
                 onClick={handleReorder}
                 sx={{ borderRadius: '12px', py: 1, fontWeight: 700 }}
@@ -706,8 +754,8 @@ const CustomerOrderDetailPage = () => {
           </Stack>
         </Grid>
       </Grid>
-      <CustomerReturnDialog 
-        open={returnDialogOpen} 
+      <CustomerReturnDialog
+        open={returnDialogOpen}
         onClose={() => setReturnDialogOpen(false)}
         order={order}
         onSaved={() => {
@@ -715,7 +763,7 @@ const CustomerOrderDetailPage = () => {
           setReturnDialogOpen(false);
         }}
       />
-      <ProductReviewDialog 
+      <ProductReviewDialog
         open={reviewDialogOpen}
         onClose={() => {
           setReviewDialogOpen(false);

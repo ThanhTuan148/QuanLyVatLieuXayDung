@@ -169,6 +169,7 @@ function SuppliersPage() {
         columns={columns}
         getRowId={(row) => row.maNhaCungCap}
         loading={loading}
+        showDateFilter={false}
       />
 
       <SupplierForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />

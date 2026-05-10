@@ -67,7 +67,7 @@ const ProductDetailPage = () => {
         }
 
         // Fetch related products and fully hydrated products with promos
-        const allRes = await productService.getAllProducts();
+        const allRes = await productService.getAllProducts(null, false);
         const allProducts = Array.isArray(allRes.data) ? allRes.data : (Array.isArray(allRes) ? allRes : []);
         setAllProductsState(allProducts);
         
@@ -90,16 +90,32 @@ const ProductDetailPage = () => {
   }, [id]);
 
   const handleQuantityChange = (delta) => {
-    setQuantity(Math.max(1, quantity + delta));
+    const maxStock = product?.soLuongTon || 0;
+    const newQty = quantity + delta;
+    if (newQty < 1) return;
+    if (newQty > maxStock) {
+      alert(`Sản phẩm này chỉ còn ${maxStock} sản phẩm trong kho.`);
+      return;
+    }
+    setQuantity(newQty);
   };
 
   const handleAddToCart = async () => {
     if (!product) return;
+    if (product.soLuongTon <= 0) {
+      alert('Sản phẩm đã hết hàng!');
+      return;
+    }
+    if (quantity > product.soLuongTon) {
+      alert(`Không thể thêm vào giỏ hàng. Chỉ còn ${product.soLuongTon} sản phẩm.`);
+      return;
+    }
     try {
       await cartService.addToCart({
         productId: product.maSanPham || product.maSP,
         price: product.giaSauKhuyenMai || product.giaBan || 0,
-        quantity: quantity
+        quantity: quantity,
+        maxStock: product.soLuongTon // Track max stock for early warnings
       });
       alert('Đã thêm vào giỏ hàng!');
     } catch (err) {
@@ -352,29 +368,42 @@ const ProductDetailPage = () => {
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '30px', px: 2, py: 1, bgcolor: '#fff', opacity: isOutOfStock ? 0.5 : 1 }}>
-                <IconButton size="small" onClick={() => handleQuantityChange(-1)} disabled={isOutOfStock}><RemoveIcon fontSize="small" /></IconButton>
-                <Typography sx={{ px: 2, fontWeight: 600, minWidth: '40px', textAlign: 'center' }}>{quantity}</Typography>
-                <IconButton size="small" onClick={() => handleQuantityChange(1)} disabled={isOutOfStock}><AddIcon fontSize="small" /></IconButton>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2, flexGrow: 1 }}>
+              {!product.isGift ? (
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '30px', px: 2, py: 1, bgcolor: '#fff', opacity: isOutOfStock ? 0.5 : 1 }}>
+                    <IconButton size="small" onClick={() => handleQuantityChange(-1)} disabled={isOutOfStock}><RemoveIcon fontSize="small" /></IconButton>
+                    <Typography sx={{ px: 2, fontWeight: 600, minWidth: '40px', textAlign: 'center' }}>{quantity}</Typography>
+                    <IconButton size="small" onClick={() => handleQuantityChange(1)} disabled={isOutOfStock}><AddIcon fontSize="small" /></IconButton>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 2, flexGrow: 1 }}>
+                    <Button 
+                      variant="outlined" 
+                      onClick={handleAddToCart} 
+                      disabled={isOutOfStock}
+                      sx={{ flex: 1, borderRadius: '30px', py: 1.5, fontSize: '1rem', fontWeight: 600, textTransform: 'none', border: '2px solid #222', color: '#222', '&:hover': { border: '2px solid #000', bgcolor: '#f0f0f0' } }}
+                    >
+                      Thêm vào giỏ
+                    </Button>
+                    <Button 
+                      variant="contained" 
+                      onClick={handleBuyNow} 
+                      disabled={isOutOfStock}
+                      sx={{ flex: 1, bgcolor: '#222', color: '#fff', borderRadius: '30px', py: 1.5, fontSize: '1rem', fontWeight: 600, textTransform: 'none', '&:hover': { bgcolor: '#000' } }}
+                    >
+                      {isOutOfStock ? 'Đã hết hàng' : 'Mua ngay'}
+                    </Button>
+                  </Box>
+                </>
+              ) : (
                 <Button 
-                  variant="outlined" 
-                  onClick={handleAddToCart} 
-                  disabled={isOutOfStock}
-                  sx={{ flex: 1, borderRadius: '30px', py: 1.5, fontSize: '1rem', fontWeight: 600, textTransform: 'none', border: '2px solid #222', color: '#222', '&:hover': { border: '2px solid #000', bgcolor: '#f0f0f0' } }}
-                >
-                  Thêm vào giỏ
-                </Button>
-                <Button 
+                  disabled 
+                  fullWidth 
                   variant="contained" 
-                  onClick={handleBuyNow} 
-                  disabled={isOutOfStock}
-                  sx={{ flex: 1, bgcolor: '#222', color: '#fff', borderRadius: '30px', py: 1.5, fontSize: '1rem', fontWeight: 600, textTransform: 'none', '&:hover': { bgcolor: '#000' } }}
+                  sx={{ borderRadius: '30px', py: 1.5, fontSize: '1rem', fontWeight: 600, bgcolor: '#999 !important', color: '#fff !important' }}
                 >
-                  {isOutOfStock ? 'Đã hết hàng' : 'Mua ngay'}
+                  Sản phẩm quà tặng - Không bán lẻ
                 </Button>
-              </Box>
+              )}
             </Box>
 
             {/* Utility Links */}

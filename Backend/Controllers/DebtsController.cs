@@ -98,6 +98,31 @@ namespace BuildingMaterialAPI.Controllers
 
             return Ok(result);
         }
+        [HttpGet("customer/{customerId}")]
+        public async Task<IActionResult> GetByCustomer(int customerId)
+        {
+            var list = await _ctx.CongNos
+                .Include(c => c.KhachHang)
+                .Include(c => c.HoaDon)
+                .Where(c => c.MaKhachHang == customerId && c.LoaiCongNo == "Phải thu")
+                .OrderByDescending(c => c.NgayCapNhat)
+                .Select(c => new {
+                    maCongNo = c.MaCongNo,
+                    maCN = c.MaCN,
+                    soTienNo = c.SoTienNo,
+                    soTienDaTra = c.SoTienDaTra,
+                    soTienConLai = c.SoTienConLai,
+                    hanThanhToan = c.HanThanhToan,
+                    trangThai = c.TrangThai,
+                    maHoaDon = c.MaHoaDon,
+                    maHD = c.HoaDon != null ? c.HoaDon.MaHD : "",
+                    ngayTao = c.NgayTao,
+                    ngayCapNhat = c.NgayCapNhat,
+                    laiPhat = c.LaiPhat
+                }).ToListAsync();
+
+            return Ok(list);
+        }
 
         [HttpGet("statistics")]
         public async Task<IActionResult> GetStatistics()
@@ -112,6 +137,34 @@ namespace BuildingMaterialAPI.Controllers
                 tienSapToiPhaiTra = await _ctx.LichHenTraNos.Where(l => l.TrangThai == "Chưa hoàn thành" && l.NgayHen >= now).SumAsync(l => l.SoTienDuKien)
             };
             return Ok(stats);
+        }
+
+        [HttpGet("warnings")]
+        public async Task<IActionResult> GetWarnings()
+        {
+            var now = DateTime.UtcNow;
+            var threeDaysLater = now.AddDays(3);
+
+            var warnings = await _ctx.CongNos
+                .Include(c => c.KhachHang)
+                .Include(c => c.HoaDon)
+                .Where(c => c.LoaiCongNo == "Phải thu" && c.SoTienConLai > 0 && 
+                            (c.HanThanhToan < now || c.HanThanhToan <= threeDaysLater))
+                .OrderBy(c => c.HanThanhToan)
+                .Select(c => new {
+                    maCongNo = c.MaCongNo,
+                    maCN = c.MaCN,
+                    maHD = c.HoaDon != null ? c.HoaDon.MaHD : "",
+                    tenKhachHang = c.KhachHang != null ? c.KhachHang.TenKH : "Ẩn danh",
+                    soTienConLai = c.SoTienConLai,
+                    hanThanhToan = c.HanThanhToan,
+                    isOverdue = c.HanThanhToan < now,
+                    ngayNhacNoEmail = c.NgayNhacNoEmail,
+                    laiPhat = c.LaiPhat
+                })
+                .ToListAsync();
+
+            return Ok(warnings);
         }
 
         [HttpGet("{id}/history")]
@@ -129,6 +182,7 @@ namespace BuildingMaterialAPI.Controllers
                     pttt = h.PTTT,
                     soGiaoDich = h.SoGiaoDich,
                     ghiChu = h.GhiChu,
+                    anhBangChung = h.AnhBangChung,
                     tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "Hệ thống"
                 }).ToListAsync();
             return Ok(history);
@@ -153,6 +207,7 @@ namespace BuildingMaterialAPI.Controllers
                 SoGiaoDich = req.SoGiaoDich,
                 MaNhanVien = req.MaNhanVien,
                 GhiChu = req.GhiChu,
+                AnhBangChung = req.AnhBangChung,
                 TrangThai = "Thành công",
                 NgayTao = DateTime.UtcNow
             };
@@ -241,5 +296,6 @@ namespace BuildingMaterialAPI.Controllers
         public int? MaNhanVien { get; set; }
         public string? GhiChu { get; set; }
         public DateTime? NgayTT { get; set; }
+        public string? AnhBangChung { get; set; }
     }
 }

@@ -82,18 +82,18 @@ const CustomerShoppingPage = () => {
 
   useEffect(() => {
     let animationFrameId;
-    
+
     const scroll = () => {
       const scrollContainer = scrollRef.current;
       if (scrollContainer && !isDragging && !isHoveredRef.current) {
-         scrollContainer.scrollLeft += 1;
-         if (scrollContainer.scrollLeft >= scrollContainer.scrollWidth / 2) {
-             scrollContainer.scrollLeft -= scrollContainer.scrollWidth / 2;
-         }
+        scrollContainer.scrollLeft += 1;
+        if (scrollContainer.scrollLeft >= scrollContainer.scrollWidth / 2) {
+          scrollContainer.scrollLeft -= scrollContainer.scrollWidth / 2;
+        }
       }
       animationFrameId = requestAnimationFrame(scroll);
     };
-    
+
     animationFrameId = requestAnimationFrame(scroll);
     return () => cancelAnimationFrame(animationFrameId);
   }, [isDragging]);
@@ -104,30 +104,30 @@ const CustomerShoppingPage = () => {
     startXRef.current = e.pageX - scrollRef.current.offsetLeft;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
   };
-  
+
   const handleMouseLeave = () => {
     setIsDragging(false);
     isHoveredRef.current = false;
   };
-  
+
   const handleMouseUp = () => {
     setIsDragging(false);
   };
-  
+
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     e.preventDefault();
     const x = e.pageX - scrollRef.current.offsetLeft;
     const walk = (x - startXRef.current) * 1.5;
     dragDistanceRef.current = Math.abs(walk);
-    
+
     let newScrollLeft = scrollLeftRef.current - walk;
-    
+
     const maxScroll = scrollRef.current.scrollWidth / 2;
     if (newScrollLeft <= 0) {
-       newScrollLeft += maxScroll;
+      newScrollLeft += maxScroll;
     } else if (newScrollLeft > maxScroll) {
-       newScrollLeft -= maxScroll;
+      newScrollLeft -= maxScroll;
     }
 
     scrollRef.current.scrollLeft = newScrollLeft;
@@ -220,7 +220,7 @@ const CustomerShoppingPage = () => {
 
         // Fetch products, categories, and flash sales from real API
         const [productsRes, categoriesRes, flashSalesRes] = await Promise.all([
-          productService.getAllProducts(),
+          productService.getAllProducts(null, false),
           fetch('http://localhost:5000/api/categories').then(r => r.json()).catch(() => []),
           flashSaleService.getActiveSales().catch(() => [])
         ]);
@@ -645,21 +645,21 @@ const CustomerShoppingPage = () => {
             {(loading
               ? Array(5).fill(null).map((_, i) => ({ maSanPham: i, _skeleton: true }))
               : (() => {
-                  const keyMap = { 'Xi măng': ['xi măng', 'ximang', 'xi mang'], 'Sắt thép': ['sắt', 'thép', 'sat thep', 'sat', 'thep'], 'Gạch đá': ['gạch', 'đá', 'gach', 'da'], 'Khác': [] };
-                  let filtered = products;
-                  if (bestSellerTab !== 'Tất cả') {
-                    const keywords = keyMap[bestSellerTab] || [];
-                    filtered = products.filter(p => {
-                      const cat = (p.tenLoai || p.tenDanhMuc || '').toLowerCase();
-                      if (bestSellerTab === 'Khác') {
-                        const allKeywords = Object.values(keyMap).flat();
-                        return !allKeywords.some(k => cat.includes(k));
-                      }
-                      return keywords.some(k => cat.includes(k));
-                    });
-                  }
-                  return filtered.slice(0, 5);
-                })()
+                const keyMap = { 'Xi măng': ['xi măng', 'ximang', 'xi mang'], 'Sắt thép': ['sắt', 'thép', 'sat thep', 'sat', 'thep'], 'Gạch đá': ['gạch', 'đá', 'gach', 'da'], 'Khác': [] };
+                let filtered = products;
+                if (bestSellerTab !== 'Tất cả') {
+                  const keywords = keyMap[bestSellerTab] || [];
+                  filtered = products.filter(p => {
+                    const cat = (p.tenLoai || p.tenDanhMuc || '').toLowerCase();
+                    if (bestSellerTab === 'Khác') {
+                      const allKeywords = Object.values(keyMap).flat();
+                      return !allKeywords.some(k => cat.includes(k));
+                    }
+                    return keywords.some(k => cat.includes(k));
+                  });
+                }
+                return filtered.slice(0, 5);
+              })()
             ).map((prod, idx) => (
               <Grid item xs={12} sm={6} md={4} lg={2.4} key={prod.maSanPham || idx}>
                 {prod._skeleton ? (
