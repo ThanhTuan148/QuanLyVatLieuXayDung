@@ -6,6 +6,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import voucherUuDaiService from '../services/voucherUuDaiService';
 import DataTable from './DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => v ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '—';
 
@@ -14,6 +15,11 @@ export default function UuDaiTab() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+
+  const { permissions } = usePermissions();
+  const canCreate = permissions?.promotions?.coTheTao ?? false;
+  const canEdit = permissions?.promotions?.coTheSua ?? false;
+  const canDelete = permissions?.promotions?.coTheXoa ?? false;
 
   const [form, setForm] = useState({
     tenUuDai: '', code: '', loaiUuDai: 'PhanTram', giaTriGiam: '', donHangToiThieu: '', giamToiDa: '',
@@ -164,9 +170,10 @@ export default function UuDaiTab() {
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <Box>
-          <Button size="small" onClick={() => handleOpenForm(params.row)}>Sửa</Button>
-          <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {canEdit && <Button size="small" onClick={() => handleOpenForm(params.row)}>Sửa</Button>}
+          {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>}
+          {!canEdit && !canDelete && <Typography variant="caption" color="textDisabled">Chỉ xem</Typography>}
         </Box>
       )
     }
@@ -176,14 +183,16 @@ export default function UuDaiTab() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>🎁 Quản Lý Ưu Đãi Hệ Thống</Typography>
-        <Button 
-          variant="contained" 
-          startIcon={<AddIcon />} 
-          onClick={() => handleOpenForm()} 
-          sx={{ background: 'linear-gradient(135deg, #FF512F 0%, #DD2476 100%)' }}
-        >
-          Tạo Ưu Đãi
-        </Button>
+        {canCreate && (
+          <Button 
+            variant="contained" 
+            startIcon={<AddIcon />} 
+            onClick={() => handleOpenForm()} 
+            sx={{ background: 'linear-gradient(135deg, #FF512F 0%, #DD2476 100%)' }}
+          >
+            Tạo Ưu Đãi
+          </Button>
+        )}
       </Box>
 
       <DataTable 

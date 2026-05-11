@@ -153,11 +153,15 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
     { value: 'Khách từ chối', label: '❌ Khách từ chối' }
   ];
 
+  const roleStr = String(currentUser?.roleName || currentUser?.role || currentUser?.Role || currentUser?.vaiTro || '').trim().toLowerCase();
+  const isQuanLy = roleStr === 'quản lý' || roleStr === 'giám đốc' || roleStr === 'admin' || roleStr === 'quanly';
+  const currentUserId = currentUser?.maNhanVien || currentUser?.id || currentUser?.EmployeeId || 0;
+
   const canUpdate = delivery && (
-    currentUser?.EmployeeId === delivery.maNhanVien || 
-    currentUser?.RoleName === 'QuanLy' || 
-    currentUser?.RoleName === 'Admin'
+    currentUserId === delivery.maNhanVien || 
+    isQuanLy
   );
+
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>

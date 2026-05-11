@@ -215,10 +215,10 @@ function ProductsTab({ showGiftsOnly = false }) {
   ];
 
   const stats = [
-    { label: 'Tổng sản phẩm', value: products.length, color: '#667eea' },
-    { label: 'Đang bán', value: products.filter(p => p.trangThai).length, color: '#43e97b' },
-    { label: 'Ngừng bán', value: products.filter(p => !p.trangThai).length, color: '#f5576c' },
-    { label: 'Cần nhập hàng', value: products.filter(p => p.mucTonToiThieu > 0).length, color: '#ffa726' },
+    { label: showGiftsOnly ? 'Tổng quà tặng' : 'Tổng sản phẩm', value: filtered.length, color: '#667eea' },
+    { label: 'Đang hoạt động', value: filtered.filter(p => p.trangThai).length, color: '#43e97b' },
+    { label: 'Ngừng hoạt động', value: filtered.filter(p => !p.trangThai).length, color: '#f5576c' },
+    { label: showGiftsOnly ? 'Quà tặng hết hàng' : 'Cần nhập hàng', value: filtered.filter(p => p.mucTonToiThieu > 0).length, color: '#ffa726' },
   ];
 
   return (
@@ -226,23 +226,27 @@ function ProductsTab({ showGiftsOnly = false }) {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Quản Lý Sản Phẩm</Typography>
-          <Typography variant="body2" color="textSecondary">Cơ sở dữ liệu vật liệu xây dựng</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{showGiftsOnly ? '🎁 Quản Lý Quà Tặng' : '📦 Quản Lý Sản Phẩm'}</Typography>
+          <Typography variant="body2" color="textSecondary">{showGiftsOnly ? 'Danh sách sản phẩm quà tặng cho khách hàng' : 'Cơ sở dữ liệu vật liệu xây dựng'}</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-products" onChange={handleImport} />
-          <label htmlFor="import-excel-products">
-            <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
-              Nhập Excel
-            </Button>
-          </label>
+          {canCreate && (
+            <>
+              <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-products" onChange={handleImport} />
+              <label htmlFor="import-excel-products">
+                <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
+                  Nhập Excel
+                </Button>
+              </label>
+            </>
+          )}
           <Button variant="outlined" startIcon={<FileDownloadIcon />} color="primary" onClick={handleExport}>
             Xuất Excel
           </Button>
           {canCreate && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
               sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 2 }}>
-              Thêm Sản Phẩm
+              {showGiftsOnly ? 'Thêm Quà Tặng' : 'Thêm Sản Phẩm'}
             </Button>
           )}
         </Box>
@@ -263,7 +267,7 @@ function ProductsTab({ showGiftsOnly = false }) {
       </Grid>
 
       <DataTable 
-        rows={products} 
+        rows={filtered} 
         columns={columns} 
         getRowId={(row) => row.maSanPham} 
         loading={loading}

@@ -292,21 +292,51 @@ using (var scope = app.Services.CreateScope())
             BEGIN
                 ALTER TABLE [dbo].[CTPHIEUDOITRA] ADD [TrangThai] NVARCHAR(50) NULL;
             END
-
-            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LICHSUTHANGHANG]') AND type in (N'U'))
-            BEGIN
-                CREATE TABLE [dbo].[LICHSUTHANGHANG](
-                    [MaLichSu] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                    [MaKhachHang] [int] NOT NULL,
-                    [HangCu] [nvarchar](20) NULL,
-                    [HangMoi] [nvarchar](20) NULL,
-                    [TongChiTieuHienTai] [decimal](18, 2) NULL,
-                    [LyDo] [nvarchar](max) NULL,
-                    [NgayThayDoi] [datetime2](7) NOT NULL DEFAULT GETDATE(),
-                    CONSTRAINT [FK_LICHSUTHANGHANG_KHACHHANG] FOREIGN KEY([MaKhachHang]) REFERENCES [dbo].[KHACHHANG] ([MaKhachHang]) ON DELETE CASCADE
-                );
-            END
         ");
+
+        // Enforce Admin Permissions
+        context.Database.ExecuteSqlRaw(@"
+            -- 1. Ensure 'Admin' role exists
+            -- === ĐỒNG BỘ PHÂN QUYỀN THEO BẢNG YÊU CẦU (FIX EXACT ROLE NAMES) ===
+            -- 1. Đảm bảo các Vai trò tồn tại (Chỉ insert TenVT, MaVT tự sinh)
+            IF NOT EXISTS (SELECT * FROM [VAITRO] WHERE [TenVT] = N'Quản trị viên') INSERT INTO [VAITRO] ([TenVT], [NgayTao], [NgayCapNhat]) VALUES (N'Quản trị viên', GETDATE(), GETDATE());
+            IF NOT EXISTS (SELECT * FROM [VAITRO] WHERE [TenVT] = N'Quản lý') INSERT INTO [VAITRO] ([TenVT], [NgayTao], [NgayCapNhat]) VALUES (N'Quản lý', GETDATE(), GETDATE());
+            IF NOT EXISTS (SELECT * FROM [VAITRO] WHERE [TenVT] = N'Nhân viên bán hàng') INSERT INTO [VAITRO] ([TenVT], [NgayTao], [NgayCapNhat]) VALUES (N'Nhân viên bán hàng', GETDATE(), GETDATE());
+            IF NOT EXISTS (SELECT * FROM [VAITRO] WHERE [TenVT] = N'Nhân viên kho') INSERT INTO [VAITRO] ([TenVT], [NgayTao], [NgayCapNhat]) VALUES (N'Nhân viên kho', GETDATE(), GETDATE());
+            IF NOT EXISTS (SELECT * FROM [VAITRO] WHERE [TenVT] = N'Tài xế') INSERT INTO [VAITRO] ([TenVT], [NgayTao], [NgayCapNhat]) VALUES (N'Tài xế', GETDATE(), GETDATE());
+
+            -- 2. Đồng bộ Quyền (PHANQUYEN)
+            DELETE FROM [PHANQUYEN];
+
+            -- ADMIN: NV (Q01), KH (Q06), Cài đặt (Q09)
+            INSERT INTO [PHANQUYEN] ([MaVaiTro], [MaQuyen])
+            SELECT v.[MaVaiTro], q.[MaQuyen] FROM [VAITRO] v, [QUYEN] q 
+            WHERE v.[TenVT] = N'Quản trị viên' AND q.[MaQ] IN ('Q01', 'Q06', 'Q09');
+
+            -- MANAGER: Tất cả nghiệp vụ + Nhân viên (xem)
+            INSERT INTO [PHANQUYEN] ([MaVaiTro], [MaQuyen])
+            SELECT v.[MaVaiTro], q.[MaQuyen] FROM [VAITRO] v, [QUYEN] q 
+            WHERE v.[TenVT] = N'Quản lý' AND q.[MaQ] IN ('Q01', 'Q02', 'Q03', 'Q04', 'Q05', 'Q06', 'Q07', 'Q08', 'Q09');
+
+            -- STAFF (BÁN HÀNG): SP/KM (Q10 - Chỉ xem), Đơn hàng (Q03), KH (Q06), Cài đặt (Q09)
+            INSERT INTO [PHANQUYEN] ([MaVaiTro], [MaQuyen])
+            SELECT v.[MaVaiTro], q.[MaQuyen] FROM [VAITRO] v, [QUYEN] q 
+            WHERE v.[TenVT] = N'Nhân viên bán hàng' AND q.[MaQ] IN ('Q10', 'Q03', 'Q06', 'Q09');
+
+            -- STAFF (KHO): SP (Q02), Kho (Q04), Cài đặt (Q09)
+            INSERT INTO [PHANQUYEN] ([MaVaiTro], [MaQuyen])
+            SELECT v.[MaVaiTro], q.[MaQuyen] FROM [VAITRO] v, [QUYEN] q 
+            WHERE v.[TenVT] = N'Nhân viên kho' AND q.[MaQ] IN ('Q02', 'Q04', 'Q09');
+
+            -- TAIXE: Giao hàng (Q05), Kho (Q04 - chỉ xem), Cài đặt (Q09)
+            INSERT INTO [PHANQUYEN] ([MaVaiTro], [MaQuyen])
+            SELECT v.[MaVaiTro], q.[MaQuyen] FROM [VAITRO] v, [QUYEN] q 
+            WHERE v.[TenVT] = N'Tài xế' AND q.[MaQ] IN ('Q05', 'Q04', 'Q09');
+
+            -- 3. Xóa ghi đè lẻ
+            DELETE FROM [NHANVIEN_MODULE_QUYEN];
+            ");
+
     } catch (Exception ex) { 
         Console.WriteLine($"[Emergency Fix Error] {ex.Message}");
     }

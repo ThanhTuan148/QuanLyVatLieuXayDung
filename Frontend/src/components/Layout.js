@@ -55,7 +55,7 @@ function Layout({ children }) {
     { text: '📊 Kho Hàng', icon: <StorageIcon />, path: '/inventory', moduleKey: 'inventory' },
     { text: '📈 Lịch Sử Giá', icon: <StorageIcon />, path: '/price-history', moduleKey: 'inventory' },
     { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'orders' },
-    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' }, 
+    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' },
     { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'dashboard' },
 
     { text: '👨‍💼 Nhân Viên', icon: <ManageAccountsIcon />, path: '/employees', moduleKey: 'employees' },
@@ -72,21 +72,39 @@ function Layout({ children }) {
 
   const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
   const isTaiXe = roleStr.includes('tài xế');
+  const isSysAdmin = roleStr.includes('admin') || roleStr.includes('quản trị');
+  const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
+  const isQuanLy = isHighManager || isSysAdmin;
 
   const filteredMenuItems = menuItems.filter(item => {
-    if (isTaiXe) {
-      return ['/dashboard', '/deliveries', '/settings'].includes(item.path);
+    // === Admin hệ thống: chỉ được 3 mục cố định, KHÔNG được xem gì khác ===
+    if (isSysAdmin) {
+      return ['/customers', '/employees', '/settings'].includes(item.path);
     }
 
-    if (['/dashboard', '/settings', '/reports'].includes(item.path)) return true;
-    
+    // Chỉ Quản Lý/Giám Đốc mới xem được Tổng quan và Báo cáo
+    if (['/dashboard', '/reports'].includes(item.path) && !isHighManager) return false;
+
+    if (isTaiXe) {
+      return ['/deliveries', '/inventory', '/settings'].includes(item.path);
+    }
+
+    // Dashboard và Reports luôn hiển thị nếu đã vượt qua check isHighManager ở trên
+    if (['/dashboard', '/reports'].includes(item.path)) return true;
+
+    // Cài đặt: Kiểm tra quyền 'settings' hoặc là Quản lý/Giám đốc
+    if (item.path === '/settings') return permissions?.['settings']?.coTheXem || isHighManager;
+
     if (!permissions) return false;
 
     let mKey = item.moduleKey;
-    if (item.path === '/debts') mKey = 'customers'; // Link debts to customers permission instead of dashboard
+    if (item.path === '/debts') mKey = 'customers';
 
     return permissions[mKey] ? permissions[mKey].coTheXem : false;
   });
+
+
+
 
   return (
     <Box sx={{ display: 'flex' }}>

@@ -359,17 +359,22 @@ namespace BuildingMaterialAPI.Controllers
             }
         }
 
+        public class OutboundActionRequest
+        {
+            public int managerId { get; set; }
+        }
+
         [HttpPost("{id}/confirm-export")]
-        public async Task<IActionResult> ConfirmExport(int id, [FromBody] dynamic body)
+        public async Task<IActionResult> ConfirmExport(int id, [FromBody] OutboundActionRequest body)
         {
             var p = await _ctx.PhieuXuatKhos.FindAsync(id);
             if (p == null) return NotFound();
 
-            int managerId = (int)body.managerId;
-            var staff = await _ctx.NhanViens.FindAsync(managerId); // Using managerId field for staff ID from frontend
-            if (staff == null) return BadRequest("Staff not found");
+            int managerId = body?.managerId ?? 0;
+            var staff = await _ctx.NhanViens.FindAsync(managerId);
+            if (staff == null) return BadRequest("Nhân viên không tồn tại");
 
-            p.TrangThai = "Chờ nhận"; // Next step: Driver must receive
+            p.TrangThai = "Chờ nhận"; 
             p.MaNguoiXuatKho = staff.MaNhanVien;
             p.ChuKyNguoiXuatKho = staff.ChuKy;
             
@@ -378,15 +383,16 @@ namespace BuildingMaterialAPI.Controllers
         }
 
         [HttpPost("{id}/confirm-receipt")]
-        public async Task<IActionResult> ConfirmReceipt(int id, [FromBody] dynamic body)
+        public async Task<IActionResult> ConfirmReceipt(int id, [FromBody] OutboundActionRequest body)
         {
             var p = await _ctx.PhieuXuatKhos
                 .Include(x => x.PhieuGiaoHang)
+                    .ThenInclude(gh => gh.CTPhieuGiaoHangs)
                 .FirstOrDefaultAsync(x => x.MaPhieuXK == id);
             
             if (p == null) return NotFound();
 
-            int driverId = (int)body.managerId; // Reusing managerId field for driver ID
+            int driverId = body?.managerId ?? 0;
             var driver = await _ctx.NhanViens.FindAsync(driverId);
             if (driver == null) return BadRequest("Tài xế không tồn tại");
 
@@ -394,11 +400,21 @@ namespace BuildingMaterialAPI.Controllers
             p.MaNguoiNhan = driverId;
             p.ChuKyNguoiNhan = driver.ChuKy;
 
-            // Tự động chuyển trạng thái Phiếu giao hàng sang "Đang giao"
             if (p.PhieuGiaoHang != null)
             {
                 p.PhieuGiaoHang.TrangThai = "Đang giao";
                 p.PhieuGiaoHang.NgayCapNhat = DateTime.UtcNow;
+
+                if (p.PhieuGiaoHang.CTPhieuGiaoHangs != null)
+                {
+                    foreach (var item in p.PhieuGiaoHang.CTPhieuGiaoHangs)
+                    {
+                        if (string.IsNullOrEmpty(item.TrangThai) || item.TrangThai.Trim() == "Chờ giao")
+                        {
+                            item.TrangThai = "Đang giao";
+                        }
+                    }
+                }
             }
 
             await _ctx.SaveChangesAsync();
@@ -406,19 +422,19 @@ namespace BuildingMaterialAPI.Controllers
         }
 
         [HttpPost("{id}/approve")]
-        public async Task<IActionResult> ApproveOutbound(int id, [FromBody] dynamic body)
+        public async Task<IActionResult> ApproveOutbound(int id, [FromBody] OutboundActionRequest body)
         {
             var p = await _ctx.PhieuXuatKhos.FindAsync(id);
             if (p == null) return NotFound();
 
-            int managerId = (int)body.managerId;
+            int managerId = body?.managerId ?? 0;
             var manager = await _ctx.NhanViens.FindAsync(managerId);
             if (manager == null) return BadRequest("Quản lý không tồn tại.");
 
             p.MaNguoiDuyet = managerId;
             p.NgayDuyet = DateTime.UtcNow;
             p.ChuKyQuanLy = manager.ChuKy;
-            p.TrangThai = "Chờ xuất"; // Now warehouse can start picking
+            p.TrangThai = "Chờ xuất"; 
 
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Đã phê duyệt và ký số phiếu xuất kho thành công." });

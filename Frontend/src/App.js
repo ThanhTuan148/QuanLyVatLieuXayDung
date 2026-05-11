@@ -48,8 +48,18 @@ function App() {
     if (userObj.employeeId) return true; // Most reliable way to check if it's a staff member
     
     const roleStr = (userObj.role || userObj.Role || userObj.roleName || '').toLowerCase();
-    const adminWords = ['admin', 'manager', 'staff', 'nhanvien', 'quanly', 'quản trị', 'quản lý', 'nhân viên', 'kế toán'];
+    const adminWords = ['admin', 'manager', 'staff', 'nhanvien', 'quanly', 'quản trị', 'quản lý', 'nhân viên', 'kế toán', 'tài xế', 'taixe', 'thủ kho'];
     return adminWords.some(w => roleStr.includes(w));
+  };
+
+  const getAdminHomeRoute = (userObj) => {
+    if (!userObj) return '/shopping';
+    const roleStr = String(userObj.role || userObj.Role || userObj.roleName || '').toLowerCase();
+    if (roleStr.includes('tài xế')) return '/deliveries';
+    if (roleStr.includes('thủ kho')) return '/inventory';
+    if (roleStr.includes('admin') || roleStr.includes('quản trị')) return '/customers'; // SysAdmin goes to Customers management
+    if (roleStr.includes('quản lý') || roleStr.includes('giám đốc')) return '/dashboard';
+    return '/products'; 
   };
 
   useEffect(() => {
@@ -68,6 +78,16 @@ function App() {
     return <Layout>{children}</Layout>;
   };
 
+  const DashboardRoute = ({ children }) => {
+    if (!isAuthenticated) return <Navigate to="/auth" />;
+    if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
+    const roleStr = String(userRole?.role || userRole?.Role || userRole?.roleName || '').toLowerCase();
+    const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
+    if (!isHighManager) return <Navigate to={getAdminHomeRoute(userRole)} />;
+    return <Layout>{children}</Layout>;
+  };
+
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -80,7 +100,7 @@ function App() {
           {/* Default: redirect root based on role */}
           <Route path="/" element={
             isAuthenticated 
-              ? (isAdminUser(userRole) ? <Navigate to="/dashboard" /> : <Navigate to="/shopping" />)
+              ? (isAdminUser(userRole) ? <Navigate to={getAdminHomeRoute(userRole)} /> : <Navigate to="/shopping" />)
               : <Navigate to="/shopping" />
           } />
           {/* /login redirects to /auth (old page removed) */}
@@ -100,7 +120,7 @@ function App() {
             path="/auth"
             element={
               isAuthenticated 
-                ? (isAdminUser(userRole) ? <Navigate to="/dashboard" /> : <Navigate to="/shopping" />) 
+                ? (isAdminUser(userRole) ? <Navigate to={getAdminHomeRoute(userRole)} /> : <Navigate to="/shopping" />) 
                 : <ShoppingLayout><CustomerAuthPage /></ShoppingLayout>
             }
           />
@@ -112,7 +132,7 @@ function App() {
 
 
           {/* Admin / Staff routes - protected by token and role */}
-          <Route path="/dashboard" element={<AdminRoute><DashboardPage /></AdminRoute>} />
+          <Route path="/dashboard" element={<DashboardRoute><DashboardPage /></DashboardRoute>} />
           <Route path="/products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
           <Route path="/orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
 

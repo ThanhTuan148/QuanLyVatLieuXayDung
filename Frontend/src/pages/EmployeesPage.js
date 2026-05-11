@@ -15,22 +15,23 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import api from '../services/api';
 import DataTable from '../components/DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 
 // ─── Dialog Phân Quyền (Module CRUD) ──────────────────────────
 const MODULES = [
-  { key: 'products',    label: '📦 Sản Phẩm' },
-  { key: 'categories',  label: '🗂️ Loại Sản Phẩm' },
-  { key: 'inventory',   label: '🏭 Kho Hàng' },
-  { key: 'orders',      label: '🛒 Đơn Hàng' },
-  { key: 'customers',   label: '👤 Khách Hàng' },
-  { key: 'suppliers',   label: '🏢 Nhà Cung Cấp' },
-  { key: 'flashsales',  label: '⚡ Flash Sales' },
-  { key: 'promotions',  label: '🏷️ Khuyến Mãi' },
-  { key: 'deliveries',  label: '🚚 Giao Hàng' },
-  { key: 'reports',     label: '📊 Báo Cáo' },
-  { key: 'employees',   label: '👥 Nhân Viên' },
+  { key: 'products', label: '📦 Sản Phẩm' },
+  { key: 'categories', label: '🗂️ Loại Sản Phẩm' },
+  { key: 'inventory', label: '🏭 Kho Hàng' },
+  { key: 'orders', label: '🛒 Đơn Hàng' },
+  { key: 'customers', label: '👤 Khách Hàng' },
+  { key: 'suppliers', label: '🏢 Nhà Cung Cấp' },
+  { key: 'flashsales', label: '⚡ Flash Sales' },
+  { key: 'promotions', label: '🏷️ Khuyến Mãi' },
+  { key: 'deliveries', label: '🚚 Giao Hàng' },
+  { key: 'reports', label: '📊 Báo Cáo' },
+  { key: 'employees', label: '👥 Nhân Viên' },
 ];
 
 const autoMapGeneralToModule = (generalPerms) => {
@@ -149,7 +150,7 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
             {generalQuyens.map(q => <Chip key={q.maQ} label={q.tenQ} size="small" variant="outlined" />)}
           </Box>
         </Box>
-        <DataTable 
+        <DataTable
           rows={MODULES.map(m => ({ ...m, id: m.key }))}
           hideFooter
           columns={[
@@ -158,11 +159,13 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
             { field: 'coTheTao', headerName: 'Thêm', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheTao} onChange={() => handleToggle(p.row.key, 'coTheTao')} /> },
             { field: 'coTheSua', headerName: 'Sửa', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheSua} onChange={() => handleToggle(p.row.key, 'coTheSua')} /> },
             { field: 'coTheXoa', headerName: 'Xóa', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheXoa} onChange={() => handleToggle(p.row.key, 'coTheXoa')} /> },
-            { field: 'all', headerName: 'Tất Cả', width: 80, align: 'center', renderCell: (p) => {
+            {
+              field: 'all', headerName: 'Tất Cả', width: 80, align: 'center', renderCell: (p) => {
                 const q = moduleQuyens[p.row.key] || {};
                 const all = q.coTheXem && q.coTheTao && q.coTheSua && q.coTheXoa;
                 return <Checkbox checked={!!all} color="secondary" onChange={(e) => setAllRow(p.row.key, e.target.checked)} />;
-            }}
+              }
+            }
           ]}
         />
       </DialogContent>
@@ -221,11 +224,11 @@ function CreateAccountDialog({ open, onClose, employee, roles, onSaved }) {
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 'bold' }}>🔑 Cấp Tài Khoản</DialogTitle>
       <DialogContent dividers>
-        <TextField fullWidth margin="dense" label="Tên Đăng Nhập" value={form.tenTK} onChange={e => setForm({...form, tenTK: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Mật Khẩu" value={form.matKhau} onChange={e => setForm({...form, matKhau: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+        <TextField fullWidth margin="dense" label="Tên Đăng Nhập" value={form.tenTK} onChange={e => setForm({ ...form, tenTK: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Mật Khẩu" value={form.matKhau} onChange={e => setForm({ ...form, matKhau: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
         <FormControl fullWidth margin="dense"><InputLabel>Vai Trò</InputLabel>
-          <Select value={form.maVaiTro} label="Vai Trò" onChange={e => setForm({...form, maVaiTro: e.target.value})}>
+          <Select value={form.maVaiTro} label="Vai Trò" onChange={e => setForm({ ...form, maVaiTro: e.target.value })}>
             {roles.map(r => <MenuItem key={r.maVaiTro} value={r.maVaiTro}>{r.tenVT}</MenuItem>)}
           </Select>
         </FormControl>
@@ -259,12 +262,12 @@ function EmployeeFormDialog({ open, onClose, editing, onSaved }) {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 'bold' }}>{editing ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}</DialogTitle>
       <DialogContent dividers>
-        <TextField fullWidth margin="dense" label="Tên Nhân Viên" value={form.tenNV} onChange={e => setForm({...form, tenNV: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Số Điện Thoại" value={form.sdt} onChange={e => setForm({...form, sdt: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Địa Chỉ" value={form.diaChi} onChange={e => setForm({...form, diaChi: e.target.value})} />
-        <TextField fullWidth margin="dense" label="Sức chứa xe" value={form.sucChuaToiDa} onChange={e => setForm({...form, sucChuaToiDa: e.target.value})} />
-        <FormControlLabel control={<Switch checked={form.trangThai} onChange={e => setForm({...form, trangThai: e.target.checked})} />} label="Đang làm việc" />
+        <TextField fullWidth margin="dense" label="Tên Nhân Viên" value={form.tenNV} onChange={e => setForm({ ...form, tenNV: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Số Điện Thoại" value={form.sdt} onChange={e => setForm({ ...form, sdt: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Địa Chỉ" value={form.diaChi} onChange={e => setForm({ ...form, diaChi: e.target.value })} />
+        <TextField fullWidth margin="dense" label="Sức chứa xe" value={form.sucChuaToiDa} onChange={e => setForm({ ...form, sucChuaToiDa: e.target.value })} />
+        <FormControlLabel control={<Switch checked={form.trangThai} onChange={e => setForm({ ...form, trangThai: e.target.checked })} />} label="Đang làm việc" />
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Hủy</Button><Button variant="contained" onClick={handleSave} disabled={saving}>Lưu</Button></DialogActions>
     </Dialog>
@@ -282,6 +285,10 @@ export default function EmployeesPage() {
   const [roleDialog, setRoleDialog] = useState(null);
   const [createAccDialog, setCreateAccDialog] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const { user } = usePermissions();
+  const isAdmin = user?.role?.toLowerCase().includes('admin') || 
+                  user?.roleName?.toLowerCase().includes('quản trị');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -319,37 +326,58 @@ export default function EmployeesPage() {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    await api.post('/employees/import', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
+    await api.post('/employees/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     load();
   };
 
   const columns = [
-    { field: 'tenNV', headerName: 'Nhân Viên', flex: 1.5, minWidth: 200, renderCell: (p) => (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar sx={{ width: 32, height: 32, background: 'linear-gradient(135deg, #667eea, #764ba2)', fontSize: '0.8rem' }}>{p.value?.[0]}</Avatar>
-        <Box><Typography variant="body2" sx={{ fontWeight: 'bold' }}>{p.value}</Typography><Typography variant="caption" color="textSecondary">{p.row.maNV}</Typography></Box>
-      </Box>
-    )},
+    {
+      field: 'tenNV', headerName: 'Nhân Viên', flex: 1.5, minWidth: 200, renderCell: (p) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Avatar sx={{ width: 32, height: 32, background: 'linear-gradient(135deg, #667eea, #764ba2)', fontSize: '0.8rem' }}>{p.value?.[0]}</Avatar>
+          <Box><Typography variant="body2" sx={{ fontWeight: 'bold' }}>{p.value}</Typography><Typography variant="caption" color="textSecondary">{p.row.maNV}</Typography></Box>
+        </Box>
+      )
+    },
     { field: 'sdt', headerName: 'Liên Hệ', flex: 1, renderCell: (p) => <Box><Typography variant="body2">{p.value || '—'}</Typography><Typography variant="caption">{p.row.email || '—'}</Typography></Box> },
-    { field: 'tenTK', headerName: 'Tài Khoản', width: 140, renderCell: (p) => p.value ? (
+    {
+      field: 'tenTK', headerName: 'Tài Khoản', width: 140, renderCell: (p) => p.value ? (
         <Box><Typography variant="body2" fontWeight={500}>{p.value}</Typography><Chip label={p.row.trangThaiTK ? 'Bình thường' : 'Khóa'} size="small" color={p.row.trangThaiTK ? 'success' : 'error'} variant="outlined" /></Box>
       ) : (
         <Button size="small" startIcon={<PersonAddIcon />} onClick={() => setCreateAccDialog(p.row)}>Tạo TK</Button>
       )
     },
     { field: 'tenVaiTro', headerName: 'Vai Trò', width: 130, renderCell: (p) => <Chip label={p.value || '—'} size="small" color="primary" variant="outlined" /> },
-    { field: 'trangThai', headerName: 'Trạng Thái', width: 120, renderCell: (p) => (
+    {
+      field: 'trangThai', headerName: 'Trạng Thái', width: 120, renderCell: (p) => (
         <Chip label={p.value ? 'Đang làm' : 'Nghỉ việc'} size="small" color={p.value ? 'success' : 'default'} onClick={() => handleToggleStatus(p.row.maNhanVien)} sx={{ cursor: 'pointer' }} />
       )
     },
-    { field: 'actions', headerName: 'Thao Tác', width: 180, sortable: false, renderCell: (p) => (
-      <Box>
-        <IconButton size="small" color="primary" onClick={() => { setEditing(p.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
-        <IconButton size="small" sx={{ color: '#f5a623' }} onClick={() => setRoleDialog(p.row)} disabled={!p.row.maTaiKhoan}><AdminPanelSettingsIcon fontSize="small" /></IconButton>
-        <IconButton size="small" sx={{ color: '#43b89c' }} onClick={() => setPermDialog(p.row)} disabled={!p.row.maTaiKhoan}><SecurityIcon fontSize="small" /></IconButton>
-        <IconButton size="small" color="error" onClick={() => setDeleteConfirm(p.row)}><DeleteIcon fontSize="small" /></IconButton>
-      </Box>
-    )}
+    {
+      field: 'actions', headerName: 'Thao Tác', width: 180, sortable: false, renderCell: (p) => (
+        <Box>
+          <IconButton size="small" color="primary" onClick={() => { setEditing(p.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
+          
+          <Tooltip title={isAdmin ? "Thay đổi vai trò" : "Chỉ Admin mới có quyền đổi vai trò"}>
+            <span>
+              <IconButton size="small" sx={{ color: '#f5a623' }} onClick={() => setRoleDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin}>
+                <AdminPanelSettingsIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <Tooltip title={isAdmin ? "Phân quyền" : "Chỉ Admin mới có quyền phân quyền"}>
+            <span>
+              <IconButton size="small" sx={{ color: '#43b89c' }} onClick={() => setPermDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin}>
+                <SecurityIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <IconButton size="small" color="error" onClick={() => setDeleteConfirm(p.row)} disabled={!isAdmin}><DeleteIcon fontSize="small" /></IconButton>
+        </Box>
+      )
+    }
   ];
 
   const stats = [
