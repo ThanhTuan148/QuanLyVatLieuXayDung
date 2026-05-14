@@ -32,8 +32,6 @@ namespace BuildingMaterialAPI.Models
         [Column("ChuKyNguoiXuatKho")] public string? ChuKyNguoiXuatKho { get; set; }
         [Column("MaNguoiNhan")] public int? MaNguoiNhan { get; set; }
         [Column("ChuKyNguoiNhan")] public string? ChuKyNguoiNhan { get; set; }
-        [Column("MaTaiXe")] public int? MaTaiXe { get; set; }
-        [Column("ChuKyTaiXe")] public string? ChuKyTaiXe { get; set; }
         [Column("TrangThai")] public string? TrangThai { get; set; } // Chờ duyệt, Chờ xuất, Đã xuất
         
         [Column("NgayTao")] public DateTime NgayTao { get; set; }

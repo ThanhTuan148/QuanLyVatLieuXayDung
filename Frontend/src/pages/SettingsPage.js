@@ -13,6 +13,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionContext';
 
 function SettingsPage() {
   const [tabValue, setTabValue] = useState(0);
@@ -29,6 +30,10 @@ function SettingsPage() {
   // Dialog States
   const [restoreDialog, setRestoreDialog] = useState(null);
   const [deleteBackupDialog, setDeleteBackupDialog] = useState(null);
+
+  const { user } = usePermissions();
+  const isAdmin = user?.role?.toLowerCase().includes('admin') || 
+                  user?.roleName?.toLowerCase().includes('quản trị');
 
   // Retrieve user ID from localStorage
   const userStr = localStorage.getItem('user');
@@ -126,7 +131,7 @@ function SettingsPage() {
         <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} textColor="primary" indicatorColor="primary">
           <Tab icon={<LockResetIcon />} iconPosition="start" label="Bảo Mật (Đổi Mật Khẩu)" sx={{ fontWeight: 'bold' }} />
           <Tab icon={<LockResetIcon />} iconPosition="start" label="Chữ Ký Số" sx={{ fontWeight: 'bold' }} />
-          <Tab icon={<StorageIcon />} iconPosition="start" label="Sao Lưu & Phục Hồi Dữ Liệu" sx={{ fontWeight: 'bold' }} />
+          {isAdmin && <Tab icon={<StorageIcon />} iconPosition="start" label="Sao Lưu & Phục Hồi Dữ Liệu" sx={{ fontWeight: 'bold' }} />}
         </Tabs>
       </Box>
 
@@ -169,7 +174,7 @@ function SettingsPage() {
       {tabValue === 1 && <SignatureTab userId={userId} />}
 
       {/* ===== TAB 2: SAO LƯU & PHỤC HỒI ===== */}
-      {tabValue === 2 && (
+      {tabValue === 2 && isAdmin && (
         <Box sx={{ mt: 2 }}>
           <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>

@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import flashSaleService from '../services/flashSaleService';
 import api from '../services/api';
 import DataTable from './DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v || 0);
 
@@ -246,7 +247,12 @@ export default function FlashSalesTab() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
-  
+
+  const { permissions } = usePermissions();
+  const canCreate = permissions?.flashsales?.coTheTao ?? false;
+  const canEdit = permissions?.flashsales?.coTheSua ?? false;
+  const canDelete = permissions?.flashsales?.coTheXoa ?? false;
+
   const load = useCallback(async () => {
     setLoading(true);
     try { const data = await flashSaleService.getAllSales(); setSales(Array.isArray(data) ? data : []); }
@@ -308,8 +314,9 @@ export default function FlashSalesTab() {
       filterable: false,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>
-          <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>
+          {canEdit && <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+          {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>}
+          {!canEdit && !canDelete && <Typography variant="caption" color="textDisabled">Chỉ xem</Typography>}
         </Box>
       )
     }
@@ -319,9 +326,11 @@ export default function FlashSalesTab() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>⚡ Flash Sales Management</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-          Tạo Flash Sale
-        </Button>
+        {canCreate && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+            Tạo Flash Sale
+          </Button>
+        )}
       </Box>
 
       <DataTable 

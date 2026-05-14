@@ -34,6 +34,10 @@ function DashboardPage() {
   // Pagination for inventory alerts
   const [alertPage, setAlertPage] = useState(0);
   const [alertRowsPerPage, setAlertRowsPerPage] = useState(5);
+
+  // Pagination for debts
+  const [debtPage, setDebtPage] = useState(0);
+  const [debtRowsPerPage, setDebtRowsPerPage] = useState(5);
   
   const [topProductsChart, setTopProductsChart] = useState('bar'); // bar, line, area
   const [salesRatioChart, setSalesRatioChart] = useState('pie'); // pie, bar
@@ -42,6 +46,12 @@ function DashboardPage() {
   const handleChangeAlertRowsPerPage = (event) => {
     setAlertRowsPerPage(parseInt(event.target.value, 10));
     setAlertPage(0);
+  };
+
+  const handleChangeDebtPage = (event, newPage) => setDebtPage(newPage);
+  const handleChangeDebtRowsPerPage = (event) => {
+    setDebtRowsPerPage(parseInt(event.target.value, 10));
+    setDebtPage(0);
   };
 
   useEffect(() => {
@@ -399,7 +409,7 @@ function DashboardPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {debts.map((d) => (
+                      {debts.slice(debtPage * debtRowsPerPage, debtPage * debtRowsPerPage + debtRowsPerPage).map((d) => (
                         <TableRow key={d.maCN} hover>
                           <TableCell sx={{ fontWeight: 'bold', color: '#667eea' }}>{d.maCN}</TableCell>
                           <TableCell>{d.tenDoiTac}</TableCell>
@@ -410,6 +420,19 @@ function DashboardPage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+              {debts.length > 5 && (
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 20]}
+                  component="div"
+                  count={debts.length}
+                  rowsPerPage={debtRowsPerPage}
+                  page={debtPage}
+                  onPageChange={handleChangeDebtPage}
+                  onRowsPerPageChange={handleChangeDebtRowsPerPage}
+                  labelRowsPerPage="Dòng:"
+                  size="small"
+                />
               )}
             </CardContent>
           </Card>

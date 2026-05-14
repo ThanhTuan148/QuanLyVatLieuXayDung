@@ -6,6 +6,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import couponService from '../services/couponService';
 import DataTable from './DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => v ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '—';
 
@@ -14,6 +15,11 @@ export default function CouponTab() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+
+  const { permissions } = usePermissions();
+  const canCreate = permissions?.promotions?.coTheTao ?? false;
+  const canEdit = permissions?.promotions?.coTheSua ?? false;
+  const canDelete = permissions?.promotions?.coTheXoa ?? false;
 
   const [form, setForm] = useState({
     code: '', loaiCoupon: 'PhanTram', giaTriGiam: '', donHangToiThieu: '', giamToiDa: '',
@@ -133,8 +139,9 @@ export default function CouponTab() {
       filterable: false,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Button size="small" onClick={() => handleOpenForm(params.row)}>Sửa</Button>
-          <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>
+          {canEdit && <Button size="small" onClick={() => handleOpenForm(params.row)}>Sửa</Button>}
+          {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>}
+          {!canEdit && !canDelete && <Typography variant="caption" color="textDisabled">Chỉ xem</Typography>}
         </Box>
       )
     }
@@ -144,9 +151,11 @@ export default function CouponTab() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>🎟️ Coupon Management</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenForm()} sx={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
-          Tạo Coupon
-        </Button>
+        {canCreate && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenForm()} sx={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
+            Tạo Coupon
+          </Button>
+        )}
       </Box>
 
       <DataTable 

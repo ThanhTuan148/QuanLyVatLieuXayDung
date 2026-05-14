@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import promotionService from '../services/promotionService';
 import api from '../services/api';
 import DataTable from './DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => v != null ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '—';
 
@@ -303,6 +304,11 @@ export default function ProductPromotionsTab() {
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
 
+  const { permissions } = usePermissions();
+  const canCreate = permissions?.promotions?.coTheTao ?? false;
+  const canEdit = permissions?.promotions?.coTheSua ?? false;
+  const canDelete = permissions?.promotions?.coTheXoa ?? false;
+
   const load = async () => {
     setLoading(true);
     try { const data = await promotionService.getAll(); setPromotions(Array.isArray(data) ? data : (data?.data || [])); }
@@ -393,8 +399,9 @@ export default function ProductPromotionsTab() {
   // Re-define actions column properly
   columns[6].renderCell = (params) => (
     <Box sx={{ display: 'flex', gap: 0.5 }}>
-      <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>
-      <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>
+      {canEdit && <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+      {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maKhuyenMai)}>Xóa</Button>}
+      {!canEdit && !canDelete && <Typography variant="caption" color="textDisabled">Chỉ xem</Typography>}
     </Box>
   );
 
@@ -402,10 +409,12 @@ export default function ProductPromotionsTab() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>🏷️ Khuyến Mãi Sản Phẩm</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
-          sx={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', color: '#333' }}>
-          Thêm Khuyến Mãi
-        </Button>
+        {canCreate && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
+            sx={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', color: '#333' }}>
+            Thêm Khuyến Mãi
+          </Button>
+        )}
       </Box>
 
       <DataTable 
