@@ -20,17 +20,24 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import api from '../services/api';
 import inventoryService from '../services/inventoryService';
+import productService from '../services/productService';
 import InventoryForm from '../components/InventoryForm';
 import DataTable from '../components/DataTable';
+import ConfirmReceiptDialog from '../components/ConfirmReceiptDialog';
+import OutboundHistoryDialog from '../components/OutboundHistoryDialog';
+import { usePermissions } from '../contexts/PermissionContext';
 
 export default function InventoryPage() {
+  const { permissions } = usePermissions();
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [warehouseDialogOpen, setWarehouseDialogOpen] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
+  const [products, setProducts] = useState([]);
   const [newWarehouse, setNewWarehouse] = useState({ tenKho: '', loaiKho: '', diaChi: '' });
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
 
   const [historyDialog, setHistoryDialog] = useState(null);
   const [historyItems, setHistoryItems] = useState([]);
@@ -46,31 +53,23 @@ export default function InventoryPage() {
   
   const [outboundSearch, setOutboundSearch] = useState('');
   const [outboundFilters, setOutboundFilters] = useState({ tuNgay: '', denNgay: '', trangThai: 'All' });
+  
+  const [confirmReceiptOpen, setConfirmReceiptOpen] = useState(false);
+  const [selectedOutbound, setSelectedOutbound] = useState(null);
+  const [outboundHistoryLogOpen, setOutboundHistoryLogOpen] = useState(false);
+  const [selectedOutboundId, setSelectedOutboundId] = useState(null);
+  const [selectedOutboundCode, setSelectedOutboundCode] = useState('');
+
+  const [procurementDetail, setProcurementDetail] = useState(null);
+  const [procurementDetailLoading, setProcurementDetailLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
 
-  const filteredOutboundHistory = useMemo(() => {
-    return outboundHistory.filter(row => {
-      const searchLower = outboundSearch.toLowerCase();
-      const matchesSearch = !outboundSearch || 
-        row.maXK?.toLowerCase().includes(searchLower) ||
-        row.maGH?.toLowerCase().includes(searchLower) ||
-        row.maHD?.toLowerCase().includes(searchLower);
-      
-      const matchesStatus = outboundFilters.trangThai === 'All' || row.trangThai?.trim() === outboundFilters.trangThai;
-      
-      const rowDate = new Date(row.ngayXuat);
-      const matchesFrom = !outboundFilters.tuNgay || rowDate >= new Date(outboundFilters.tuNgay);
-      let matchesTo = true;
-      if (outboundFilters.denNgay) {
-        const toDate = new Date(outboundFilters.denNgay);
-        toDate.setHours(23, 59, 59, 999);
-        matchesTo = rowDate <= toDate;
-      }
-      
-      return matchesSearch && matchesStatus && matchesFrom && matchesTo;
-    });
-  }, [outboundHistory, outboundSearch, outboundFilters]);
+  const allTabs = [
+    { label: "Tồn Kho Chi Tiết", icon: <InventoryIcon />, moduleKey: 'inventory', type: 'inventory' },
+    { label: "Sản Phẩm Quà Tặng", icon: <CardGiftcardIcon />, moduleKey: 'inventory', type: 'gift' },
+    { label: "Lịch Sử Xuất Kho", icon: <LocalShippingIcon />, moduleKey: 'inventory', type: 'history' }
+  ];
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -80,15 +79,28 @@ export default function InventoryPage() {
   const isThuKho = roleStr.includes('thủ kho') || roleStr.includes('nhân viên kho');
   const userId = user?.maNhanVien || user?.id || 0;
 
+  const visibleTabs = useMemo(() => {
+    return allTabs.filter(tab => {
+      const hasPerm = !tab.moduleKey || permissions?.[tab.moduleKey]?.coTheXem;
+      if (isTaiXe) return tab.type === 'history';
+      return hasPerm;
+    });
+  }, [permissions, isTaiXe]);
+
   useEffect(() => {
-    if (isTaiXe) setActiveTab(2);
-  }, [isTaiXe]);
+    if (activeTab >= visibleTabs.length) setActiveTab(0);
+  }, [visibleTabs.length, activeTab]);
 
   useEffect(() => { 
-    fetchInventory(); 
-    fetchWarehouses();
-    if (activeTab === 2) fetchOutboundHistory();
-  }, [activeTab]);
+    if (visibleTabs.length === 0) return;
+    const currentTabType = visibleTabs[activeTab]?.type;
+    if (currentTabType === 'inventory' || currentTabType === 'gift') {
+      fetchInventory(); 
+      fetchWarehouses();
+      fetchProducts();
+    }
+    if (currentTabType === 'history') fetchOutboundHistory();
+  }, [activeTab, visibleTabs]);
 
   const fetchOutboundHistory = async () => {
     setOutboundLoading(true);
@@ -110,11 +122,15 @@ export default function InventoryPage() {
     }
   };
 
-  const handleConfirmReceipt = async (id) => {
-    if (!window.confirm('Tài xế xác nhận đã nhận đủ hàng và chuẩn bị đi giao?')) return;
+  const handleConfirmReceipt = async (items) => {
     try {
-      await api.post(`/inventory/${id}/confirm-receipt`, { managerId: userId });
-      alert('Đã xác nhận nhận hàng thành công. Trạng thái giao hàng đã được cập nhật.');
+      const payload = {
+        managerId: userId,
+        items: items
+      };
+      const res = await api.post(`/inventory/${selectedOutbound.maPhieuXK}/confirm-receipt`, payload);
+      alert(res.data.message);
+      setConfirmReceiptOpen(false);
       fetchOutboundHistory();
     } catch (err) {
       alert('Lỗi xác nhận: ' + (err.response?.data?.message || err.message));
@@ -144,6 +160,13 @@ export default function InventoryPage() {
     } catch (err) { console.error(err); }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const res = await productService.getAllProducts();
+      setProducts(res.data || []);
+    } catch (err) { console.error(err); }
+  };
+
   const fetchInventory = async () => {
     setLoading(true);
     try { 
@@ -167,12 +190,28 @@ export default function InventoryPage() {
     finally { setHistoryLoading(false); }
   };
 
+  const handleOpenProcurementDetail = async (id) => {
+    setProcurementDetailLoading(true);
+    try {
+      const res = await api.get(`/procurement/${id}`);
+      setProcurementDetail(res.data);
+    } catch (err) {
+      alert('Không thể tải chi tiết phiếu nhập');
+    } finally {
+      setProcurementDetailLoading(false);
+    }
+  };
+
   const handleSave = async (payload) => {
     try {
       if (editing?.maCTKho) await inventoryService.update(editing.maCTKho, payload);
       else await inventoryService.create(payload);
-      setFormOpen(false); fetchInventory();
-    } catch { alert('Lưu thất bại'); }
+      setFormOpen(false); 
+      fetchInventory();
+    } catch (err) { 
+      const msg = err.response?.data?.message || err.message || 'Lưu thất bại';
+      alert(msg); 
+    }
   };
 
   const handleDelete = async (id) => {
@@ -184,15 +223,42 @@ export default function InventoryPage() {
   const handleAddWarehouse = async () => {
     if (!newWarehouse.tenKho) return alert('Vui lòng nhập tên kho');
     try {
-      await inventoryService.createWarehouse(newWarehouse);
+      if (editingWarehouse) {
+        await inventoryService.updateWarehouse(editingWarehouse.maKhoHang, newWarehouse);
+        alert('Cập nhật kho thành công');
+      } else {
+        await inventoryService.createWarehouse(newWarehouse);
+        alert('Thêm kho mới thành công');
+      }
       setNewWarehouse({ tenKho: '', loaiKho: '', diaChi: '' });
+      setEditingWarehouse(null);
       fetchWarehouses();
-    } catch { alert('Thêm kho thất bại'); }
+    } catch (err) { 
+      alert(editingWarehouse ? 'Cập nhật thất bại' : 'Thêm kho thất bại'); 
+    }
+  };
+
+  const handleDeleteWarehouse = async (id) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa kho này? Lưu ý: Không thể xóa kho nếu đang có hàng tồn.')) return;
+    try {
+      await inventoryService.deleteWarehouse(id);
+      alert('Đã xóa kho thành công');
+      fetchWarehouses();
+      fetchInventory(); // Cập nhật lại danh sách tồn kho vì có thể ảnh hưởng đến hiển thị
+    } catch (err) {
+      alert(err.response?.data || 'Xóa kho thất bại');
+    }
+  };
+
+  const handleEditWarehouse = (w) => {
+    setEditingWarehouse(w);
+    setNewWarehouse({ tenKho: w.tenKho, loaiKho: w.loaiKho, diaChi: w.diaChi });
   };
 
   const giftInventory = inventory.filter(i => !!i.isGift);
   const regularInventory = inventory.filter(i => !i.isGift);
-  const currentList = activeTab === 0 ? regularInventory : giftInventory;
+  const currentTabType = visibleTabs[activeTab]?.type;
+  const currentList = currentTabType === 'inventory' ? regularInventory : giftInventory;
 
   const columns = [
     { field: 'maCTKho', headerName: 'ID', width: 80, renderCell: (params) => <b>{params.value}</b> },
@@ -205,7 +271,8 @@ export default function InventoryPage() {
     },
     { field: 'maSanPham', headerName: 'Mã SP', width: 100 },
     { field: 'tenSP', headerName: 'Tên Sản Phẩm', flex: 1.5, minWidth: 250 },
-    { field: 'soLuongTon', headerName: 'Tồn Kho', width: 120, renderCell: (params) => {
+    { field: 'soLuongNhap', headerName: 'SL Nhập', width: 100 },
+    { field: 'soLuongTon', headerName: 'SL Tồn', width: 100, renderCell: (params) => {
         const isCritical = params.value <= (params.row.mucTonToiThieu || 0);
         return (
           <Chip 
@@ -216,14 +283,13 @@ export default function InventoryPage() {
           />
         );
     }},
-    { field: 'viTri', headerName: 'Vị Trí', width: 100 },
     { 
       field: 'ngayNhapCuoi', 
       headerName: 'Ngày Nhập Cuối', 
       width: 150,
       valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('vi-VN') : '—'
     },
-    { field: 'mucTonToiThieu', headerName: 'Mức Báo Động', width: 120 },
+    { field: 'mucTonToiThieu', headerName: 'SL Tồn Tối Thiểu', width: 120 },
     {
       field: 'actions',
       headerName: 'Thao Tác',
@@ -308,7 +374,7 @@ export default function InventoryPage() {
                 </IconButton>
               </Tooltip>
             )}
-            {row.trangThai?.trim() === 'Chờ xuất' && (isThuKho || isQuanLy) && (
+            {row.trangThai?.trim() === 'Đã duyệt' && (isThuKho || isQuanLy) && (
               <Tooltip title="Thủ kho xác nhận soạn hàng xong (Bước 2)">
                 <IconButton size="small" color="primary" onClick={() => handleConfirmExport(row.maPhieuXK)}>
                   <InventoryIcon />
@@ -317,7 +383,7 @@ export default function InventoryPage() {
             )}
             {row.trangThai?.trim() === 'Chờ nhận' && (isTaiXe || isQuanLy) && (
               <Tooltip title="Tài xế xác nhận nhận hàng để đi giao (Bước 3)">
-                <IconButton size="small" sx={{ color: '#f57c00' }} onClick={() => handleConfirmReceipt(row.maPhieuXK)}>
+                <IconButton size="small" sx={{ color: '#f57c00' }} onClick={() => { setSelectedOutbound(row); setConfirmReceiptOpen(true); }}>
                   <LocalShippingIcon />
                 </IconButton>
               </Tooltip>
@@ -343,6 +409,15 @@ export default function InventoryPage() {
                 <PictureAsPdfIcon />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Xem lịch sử xử lý">
+              <IconButton size="small" color="inherit" onClick={() => { 
+                setSelectedOutboundId(row.maPhieuXK); 
+                setSelectedOutboundCode(row.maPXK);
+                setOutboundHistoryLogOpen(true); 
+              }}>
+                <HistoryIcon />
+              </IconButton>
+            </Tooltip>
           </Stack>
         );
       }
@@ -357,6 +432,8 @@ export default function InventoryPage() {
     { label: 'Cần nhập hàng', value: canNhap.length, color: '#f5576c' },
     { label: 'Kho đang quản lý', value: [...new Set(currentList.map(i => i.maKhoHang))].length, color: '#ffa726' },
   ];
+
+  if (visibleTabs.length === 0) return null;
 
   return (
     <Box>
@@ -376,35 +453,34 @@ export default function InventoryPage() {
         )}
       </Box>
 
-      <Tabs value={isTaiXe ? 0 : activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
-        {!isTaiXe && <Tab icon={<InventoryIcon />} iconPosition="start" label="Tồn Kho Chi Tiết" />}
-        {!isTaiXe && <Tab icon={<CardGiftcardIcon />} iconPosition="start" label="Sản Phẩm Quà Tặng" />}
-        <Tab icon={<LocalShippingIcon />} iconPosition="start" label="Lịch Sử Xuất Kho" />
+      <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        {visibleTabs.map((tab, idx) => (
+          <Tab key={idx} icon={tab.icon} iconPosition="start" label={tab.label} />
+        ))}
       </Tabs>
 
-      {!isTaiXe && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {stats.map((s, i) => (
-            <Grid item xs={6} md={3} key={i}>
-              <Card sx={{ borderLeft: `4px solid ${s.color}` }}>
-                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: s.color }}>{s.value}</Typography>
-                  <Typography variant="caption" color="textSecondary">{s.label}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
-      {(!isTaiXe && activeTab < 2) ? (
-        <DataTable 
-          rows={currentList}
-          columns={columns}
-          getRowId={(row) => row.maCTKho}
-          loading={loading}
-          dateField="ngayNhapCuoi"
-        />
+      {(!isTaiXe && currentTabType !== 'history') ? (
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {stats.map((s, i) => (
+              <Grid item xs={6} md={3} key={i}>
+                <Card sx={{ borderLeft: `4px solid ${s.color}` }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: s.color }}>{s.value}</Typography>
+                    <Typography variant="caption" color="textSecondary">{s.label}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          <DataTable 
+            rows={currentList}
+            columns={columns}
+            getRowId={(row) => row.maCTKho}
+            loading={loading}
+            dateField="ngayNhapCuoi"
+          />
+        </>
       ) : (
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           {!isTaiXe && (
@@ -444,7 +520,7 @@ export default function InventoryPage() {
         </Paper>
       )}
 
-      {/* Dialog xem chi tiết sản phẩm xuất kho */}
+      {/* Dialogs ... (HistoryDialog, OutboundDetail, InventoryForm, WarehouseDialog) */}
       <Dialog open={!!expandedOutbound} onClose={() => setExpandedOutbound(null)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ bgcolor: '#f8f9fa', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>
           Chi tiết sản phẩm Phiếu {expandedOutbound?.maXK}
@@ -480,14 +556,22 @@ export default function InventoryPage() {
         </DialogActions>
       </Dialog>
 
-      <InventoryForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
+      <InventoryForm 
+        open={formOpen} 
+        onClose={() => setFormOpen(false)} 
+        onSaved={handleSave} 
+        initial={editing || {}} 
+        warehouses={warehouses}
+        products={products}
+      />
 
       <Dialog open={warehouseDialogOpen} onClose={() => setWarehouseDialogOpen(false)} maxWidth="md" fullWidth>
-
         <DialogTitle sx={{ fontWeight: 'bold' }}>Quản Lý Danh Mục Kho Hàng</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ mb: 3, p: 2, background: '#f8f9fc', borderRadius: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Thêm Kho Mới:</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+              {editingWarehouse ? 'Chỉnh Sửa Kho:' : 'Thêm Kho Mới:'}
+            </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField size="small" label="Tên Kho" value={newWarehouse.tenKho} onChange={e => setNewWarehouse({...newWarehouse, tenKho: e.target.value})} sx={{ flex: 1.5 }} />
               <Autocomplete
@@ -497,18 +581,44 @@ export default function InventoryPage() {
                 renderInput={(params) => <TextField {...params} label="Loại Kho" />}
               />
               <TextField size="small" label="Địa chỉ" value={newWarehouse.diaChi} onChange={e => setNewWarehouse({...newWarehouse, diaChi: e.target.value})} sx={{ flex: 2 }} />
-              <Button variant="contained" onClick={handleAddWarehouse}>Thêm</Button>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" onClick={handleAddWarehouse}>
+                  {editingWarehouse ? 'Lưu' : 'Thêm'}
+                </Button>
+                {editingWarehouse && (
+                  <Button variant="outlined" color="inherit" onClick={() => { setEditingWarehouse(null); setNewWarehouse({ tenKho: '', loaiKho: '', diaChi: '' }); }}>
+                    Hủy
+                  </Button>
+                )}
+              </Stack>
             </Box>
           </Box>
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
-              <TableHead sx={{ background: '#f5f5f5' }}><TableRow><TableCell>Mã Kho</TableCell><TableCell>Tên Kho</TableCell><TableCell>Loại Kho</TableCell><TableCell>Địa Chỉ</TableCell></TableRow></TableHead>
+              <TableHead sx={{ background: '#f5f5f5' }}>
+                <TableRow>
+                  <TableCell>Mã Kho</TableCell>
+                  <TableCell>Tên Kho</TableCell>
+                  <TableCell>Loại Kho</TableCell>
+                  <TableCell>Địa Chỉ</TableCell>
+                  <TableCell align="right">Thao Tác</TableCell>
+                </TableRow>
+              </TableHead>
               <TableBody>
                 {warehouses.map(w => (
-                  <TableRow key={w.maKhoHang}>
-                    <TableCell>{w.maKho}</TableCell><TableCell sx={{ fontWeight: 'bold' }}>{w.tenKho}</TableCell>
+                  <TableRow key={w.maKhoHang} sx={editingWarehouse?.maKhoHang === w.maKhoHang ? { bgcolor: 'rgba(25, 118, 210, 0.08)' } : {}}>
+                    <TableCell>{w.maKho}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>{w.tenKho}</TableCell>
                     <TableCell><Chip label={w.loaiKho || '—'} size="small" color="primary" variant="outlined" /></TableCell>
                     <TableCell>{w.diaChi}</TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" color="primary" onClick={() => handleEditWarehouse(w)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDeleteWarehouse(w.maKhoHang)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -525,7 +635,6 @@ export default function InventoryPage() {
         <DialogContent dividers sx={{ p: 2 }}>
           {historyLoading ? <LinearProgress sx={{ mb: 2 }} /> : (
             <>
-              {/* Search + Filters */}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
                 <TextField
                   size="small"
@@ -543,10 +652,6 @@ export default function InventoryPage() {
                     ) : null
                   }}
                   sx={{ minWidth: 220 }}
-                />
-                <TextField size="small" label="Mã phiếu" value={historyFilters.maPhieuNhap}
-                  onChange={e => { setHistoryFilters(p => ({...p, maPhieuNhap: e.target.value})); setHistoryPage(0); }}
-                  sx={{ width: 130 }}
                 />
                 <TextField size="small" label="Nhà cung cấp" value={historyFilters.tenNhaCungCap}
                   onChange={e => { setHistoryFilters(p => ({...p, tenNhaCungCap: e.target.value})); setHistoryPage(0); }}
@@ -611,14 +716,24 @@ export default function InventoryPage() {
                             </TableRow>
                           ) : paginated.map((h, i) => (
                             <TableRow key={h.maPhieuNhap || i} hover>
-                              <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>{h.maPhieuNhap}</TableCell>
+                              <TableCell 
+                                sx={{ 
+                                  color: 'primary.main', 
+                                  fontWeight: 'bold', 
+                                  cursor: 'pointer',
+                                  '&:hover': { textDecoration: 'underline' }
+                                }}
+                                onClick={() => handleOpenProcurementDetail(h.idPhieuNhap)}
+                              >
+                                {h.maPhieuNhap}
+                              </TableCell>
                               <TableCell>{h.ngayNhap ? new Date(h.ngayNhap).toLocaleString('vi-VN') : '—'}</TableCell>
                               <TableCell>{h.tenNhaCungCap}</TableCell>
                               <TableCell align="center">
                                 <Chip label={h.soLuongNhan} size="small" color="primary" variant="outlined" sx={{ fontWeight: 'bold' }} />
                               </TableCell>
-                              <TableCell align="right">{h.donGia?.toLocaleString()} đ</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{h.thanhTien?.toLocaleString()} đ</TableCell>
+                              <TableCell align="right">{h.donGia?.toLocaleString('vi-VN')} đ</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{h.thanhTien?.toLocaleString('vi-VN')} đ</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -633,10 +748,10 @@ export default function InventoryPage() {
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 2 }}>
                         <Typography variant="body2" color="primary.main" sx={{ fontWeight: 'bold' }}>
-                          Tổng SL: {totalSL.toLocaleString()}
+                          Tổng SL: {totalSL.toLocaleString('vi-VN')}
                         </Typography>
                         <Typography variant="body2" color="success.main" sx={{ fontWeight: 'bold' }}>
-                          Tổng tiền: {totalTT.toLocaleString()} đ
+                          Tổng tiền: {totalTT.toLocaleString('vi-VN')} đ
                         </Typography>
                       </Box>
                     </Box>
@@ -668,6 +783,75 @@ export default function InventoryPage() {
         </DialogContent>
         <DialogActions><Button onClick={() => setHistoryDialog(null)}>Đóng</Button></DialogActions>
       </Dialog>
+
+      {/* DIALOG: CHI TIẾT PHIẾU NHẬP */}
+      <Dialog open={!!procurementDetail} onClose={() => setProcurementDetail(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Chi Tiết Phiếu Nhập: {procurementDetail?.maPN}
+          <Chip label={procurementDetail?.trangThai} color="primary" size="small" />
+        </DialogTitle>
+        <DialogContent dividers>
+          {procurementDetailLoading ? <LinearProgress /> : (
+            <>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={6}>
+                  <Typography variant="body2"><b>Nhà Cung Cấp:</b> {procurementDetail?.tenNhaCungCap}</Typography>
+                  <Typography variant="body2"><b>Ngày Nhập:</b> {new Date(procurementDetail?.ngayNhap).toLocaleString('vi-VN')}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2"><b>Người Lập:</b> {procurementDetail?.tenNhanVien}</Typography>
+                  <Typography variant="body2"><b>Tổng Tiền:</b> {procurementDetail?.tongTien?.toLocaleString('vi-VN')} đ</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                   <Typography variant="body2"><b>Ghi Chú:</b> {procurementDetail?.ghiChu || 'Không có'}</Typography>
+                </Grid>
+              </Grid>
+
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Sản Phẩm</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }} align="center">S.Lượng Đặt</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }} align="center">S.Lượng Nhận</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }} align="right">Đơn Giá</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }} align="right">Thành Tiền</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {procurementDetail?.chiTiet?.map((ct, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{ct.tenSanPham}</TableCell>
+                        <TableCell align="center">{ct.soLuong}</TableCell>
+                        <TableCell align="center">
+                          <Chip label={ct.soLuongDaNhan} size="small" color={ct.soLuongDaNhan >= ct.soLuong ? 'success' : 'warning'} variant="outlined" />
+                        </TableCell>
+                        <TableCell align="right">{ct.donGia?.toLocaleString('vi-VN')} đ</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{ct.thanhTien?.toLocaleString('vi-VN')} đ</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setProcurementDetail(null)}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
+      <ConfirmReceiptDialog 
+        open={confirmReceiptOpen} 
+        onClose={() => setConfirmReceiptOpen(false)} 
+        outboundNote={selectedOutbound}
+        onConfirm={handleConfirmReceipt}
+      />
+      <OutboundHistoryDialog
+        open={outboundHistoryLogOpen}
+        onClose={() => setOutboundHistoryLogOpen(false)}
+        outboundId={selectedOutboundId}
+        outboundCode={selectedOutboundCode}
+      />
     </Box>
   );
 }

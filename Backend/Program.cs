@@ -131,6 +131,8 @@ using (var scope = app.Services.CreateScope())
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'MaNguoiNhan') ALTER TABLE [PHIEUXUATKHO] ADD [MaNguoiNhan] int NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'ChuKyNguoiNhan') ALTER TABLE [PHIEUXUATKHO] ADD [ChuKyNguoiNhan] nvarchar(max) NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUXUATKHO]') AND name = 'TrangThai') ALTER TABLE [PHIEUXUATKHO] ADD [TrangThai] nvarchar(50) NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CTPHIEUXUATKHO]') AND name = 'SoLuongThucNhan') ALTER TABLE [CTPHIEUXUATKHO] ADD [SoLuongThucNhan] int NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CTPHIEUXUATKHO]') AND name = 'GhiChu') ALTER TABLE [CTPHIEUXUATKHO] ADD [GhiChu] nvarchar(max) NULL;");
 
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUDOITRA]') AND name = 'LoiDo') ALTER TABLE [PHIEUDOITRA] ADD [LoiDo] NVARCHAR(100) NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[PHIEUDOITRA]') AND name = 'PhiVanChuyenMoi') ALTER TABLE [PHIEUDOITRA] ADD [PhiVanChuyenMoi] DECIMAL(18, 2) NULL;");
@@ -150,8 +152,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Bút thử điện thông minh', N'Bút thử điện cảm ứng, báo đèn led', '/images/butthudienthongminh.jpg', N'Cái', 0, 0, 50, N'OEM', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId1 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId1, 200, 200, 200, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId1, 200, 200, 200);
             END
 
             IF NOT EXISTS (SELECT * FROM [SANPHAM] WHERE [TenSP] = N'Đèn pin siêu sáng')
@@ -160,8 +162,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Đèn pin siêu sáng', N'Đèn pin cầm tay sạc USB', '/images/denpin.jpg', N'Cái', 0, 0, 30, N'OEM', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId2 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId2, 100, 100, 100, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId2, 100, 100, 100);
             END
 
             IF NOT EXISTS (SELECT * FROM [SANPHAM] WHERE [TenSP] = N'Găng tay bảo hộ')
@@ -170,8 +172,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Găng tay bảo hộ', N'Găng tay len phủ hạt nhựa chống trượt', '/images/gangtaybaoho.jpg', N'Đôi', 0, 0, 200, N'OEM', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId3 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId3, 500, 500, 500, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId3, 500, 500, 500);
             END
 
             IF NOT EXISTS (SELECT * FROM [SANPHAM] WHERE [TenSP] = N'Nón bảo hộ COV')
@@ -180,8 +182,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Nón bảo hộ COV', N'Nón bảo hộ công trường tiêu chuẩn', '/images/non-bao-ho-cov.jpg', N'Cái', 0, 0, 50, N'COV', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId4 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId4, 150, 150, 150, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId4, 150, 150, 150);
             END
 
             IF NOT EXISTS (SELECT * FROM [SANPHAM] WHERE [TenSP] = N'Thước cuộn 5m')
@@ -190,8 +192,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Thước cuộn 5m', N'Thước thép bọc nhựa chống va đập', '/images/thuoccuon5m.jpg', N'Cái', 0, 0, 100, N'OEM', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId5 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId5, 300, 300, 300, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId5, 300, 300, 300);
             END
 
             IF NOT EXISTS (SELECT * FROM [SANPHAM] WHERE [TenSP] = N'Tua vít đa năng')
@@ -200,8 +202,8 @@ using (var scope = app.Services.CreateScope())
                 VALUES (N'Tua vít đa năng', N'Bộ tua vít nhiều đầu thay thế', '/images/tuavitdanang.jpg', N'Cái', 0, 0, 50, N'OEM', N'Việt Nam', 9, 1);
                 
                 DECLARE @newId6 INT = SCOPE_IDENTITY();
-                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon],[ViTri])
-                VALUES (1, @newId6, 250, 250, 250, N'Kệ Quà Tặng');
+                INSERT INTO [CTKHOHANG] ([MaKhoHang],[MaSanPham],[SoLuong],[SoLuongNhap],[SoLuongTon])
+                VALUES (1, @newId6, 250, 250, 250);
             END
         ");
 
@@ -291,6 +293,57 @@ using (var scope = app.Services.CreateScope())
             IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CTPHIEUDOITRA]') AND name = 'TrangThai')
             BEGIN
                 ALTER TABLE [dbo].[CTPHIEUDOITRA] ADD [TrangThai] NVARCHAR(50) NULL;
+            END
+
+            -- LICHSUPHIEUXUATKHO
+            -- DROP TABLE IF EXISTS [dbo].[LICHSUPHIEUXUATKHO]; -- Reset if exists to fix FK
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LICHSUPHIEUXUATKHO]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[LICHSUPHIEUXUATKHO](
+                    [MaLichSu] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [MaPhieuXK] [int] NOT NULL,
+                    [TrangThaiCu] [nvarchar](50) NULL,
+                    [TrangThaiMoi] [nvarchar](50) NULL,
+                    [NoiDungThayDoi] [nvarchar](max) NULL,
+                    [MaNguoiThucHien] [int] NULL,
+                    [NgayTao] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+                    CONSTRAINT [FK_LICHSUPHIEUXUATKHO_PHIEUXUATKHO] FOREIGN KEY([MaPhieuXK]) REFERENCES [dbo].[PHIEUXUATKHO] ([MaPhieuXK]) ON DELETE CASCADE
+                );
+            END
+            ELSE
+            BEGIN
+                -- Fix FK if it was created wrongly in previous turn
+                IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_LICHSUPHIEUXUATKHO_PHIEUXUATKHO')
+                BEGIN
+                     DECLARE @referenced_column_name nvarchar(100);
+                     SELECT @referenced_column_name = COL_NAME(fc.referenced_object_id, fc.referenced_column_id)
+                     FROM sys.foreign_key_columns fc
+                     JOIN sys.foreign_keys f ON f.object_id = fc.constraint_object_id
+                     WHERE f.name = 'FK_LICHSUPHIEUXUATKHO_PHIEUXUATKHO';
+
+                     IF @referenced_column_name = 'MaXK'
+                     BEGIN
+                         ALTER TABLE [dbo].[LICHSUPHIEUXUATKHO] DROP CONSTRAINT [FK_LICHSUPHIEUXUATKHO_PHIEUXUATKHO];
+                         ALTER TABLE [dbo].[LICHSUPHIEUXUATKHO] WITH CHECK ADD CONSTRAINT [FK_LICHSUPHIEUXUATKHO_PHIEUXUATKHO] FOREIGN KEY([MaPhieuXK]) REFERENCES [dbo].[PHIEUXUATKHO] ([MaPhieuXK]) ON DELETE CASCADE;
+                     END
+                END
+            END
+
+            -- LICHSUGIAOHANG
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LICHSUGIAOHANG]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[LICHSUGIAOHANG](
+                    [MaLichSu] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [MaPhieuGH] [int] NOT NULL,
+                    [TrangThaiCu] [nvarchar](50) NULL,
+                    [TrangThaiMoi] [nvarchar](50) NULL,
+                    [NoiDungThayDoi] [nvarchar](max) NULL,
+                    [HinhAnhXacNhan] [nvarchar](max) NULL,
+                    [MaNguoiThucHien] [int] NULL,
+                    [ViTriCapNhat] [nvarchar](500) NULL,
+                    [NgayTao] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+                    CONSTRAINT [FK_LICHSUGIAOHANG_PHIEUGIAOHANG] FOREIGN KEY([MaPhieuGH]) REFERENCES [dbo].[PHIEUGIAOHANG] ([MaPhieuGH]) ON DELETE CASCADE
+                );
             END
         ");
 

@@ -419,7 +419,7 @@ export default function ReturnsPage() {
                     <TableBody>
                         {(pivotPriceHistories[pivotItems[selectedPivotItemIdx].maSanPham] || []).map((h, i) => (
                             <TableRow key={i} hover onClick={() => setPivotItems(prev => prev.map((itm, idx) => idx === selectedPivotItemIdx ? { ...itm, price: h.giaHienTai, newSupplierId: h.maNCC } : itm))}>
-                                <TableCell>{h.tenNCC}</TableCell><TableCell align="right">{h.giaHienTai?.toLocaleString()} đ</TableCell>
+                                <TableCell>{h.tenNCC}</TableCell><TableCell align="right">{h.giaHienTai?.toLocaleString('vi-VN')} đ</TableCell>
                                 <TableCell align="center"><Button size="small" variant={pivotItems[selectedPivotItemIdx].newSupplierId === h.maNCC ? "contained" : "outlined"} color="success">Chọn</Button></TableCell>
                             </TableRow>
                         ))}

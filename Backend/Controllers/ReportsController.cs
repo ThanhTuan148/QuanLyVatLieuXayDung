@@ -14,14 +14,26 @@ namespace BuildingMaterialAPI.Controllers
         public ReportsController(ApplicationDbContext ctx) { _ctx = ctx; }
 
         [HttpGet("revenue-profit")]
-        public async Task<IActionResult> GetRevenueProfit([FromQuery] int days = 30)
+        public async Task<IActionResult> GetRevenueProfit([FromQuery] int days = 30, [FromQuery] string? startDateStr = null, [FromQuery] string? endDateStr = null)
         {
-            var startDate = DateTime.Today.AddDays(-days);
+            DateTime startDate;
+            DateTime endDate = DateTime.Today.AddDays(1);
+
+            if (!string.IsNullOrEmpty(startDateStr) && DateTime.TryParseExact(startDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var sd)) {
+                startDate = sd;
+                if (!string.IsNullOrEmpty(endDateStr) && DateTime.TryParseExact(endDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var ed)) {
+                    endDate = ed.AddDays(1);
+                } else {
+                    endDate = sd.AddDays(1); // Nếu chỉ chọn 1 ngày, mặc định lấy trong ngày đó
+                }
+            } else {
+                startDate = DateTime.Today.AddDays(-days);
+            }
             
             // Lấy tất cả hóa đơn hoàn thành trong khoảng thời gian
             var orders = await _ctx.HoaDons
                 .Include(h => h.CTHDs)
-                .Where(h => h.TrangThai.ToLower().Contains("hoàn thành") && h.NgayLap >= startDate)
+                .Where(h => h.TrangThai.ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
                 .ToListAsync();
 
             // Lấy giá nhập gần nhất của các sản phẩm để tính lợi nhuận (giả định đơn giản)
@@ -39,7 +51,8 @@ namespace BuildingMaterialAPI.Controllers
                 .GroupBy(h => h.NgayLap.Date)
                 .Select(g => new {
                     Date = g.Key.ToString("yyyy-MM-dd"),
-                    Revenue = g.Sum(h => h.ThanhToan ?? 0),
+                    Revenue = g.Sum(h => h.TongTien ?? 0), // Tính doanh thu theo giá trị đơn hàng
+                    Collected = g.Sum(h => h.ThanhToan ?? 0), // Số tiền thực tế đã thu
                     Profit = g.Sum(h => h.CTHDs.Sum(ct => {
                         decimal cost = latestImportPrices.ContainsKey(ct.MaSanPham) ? latestImportPrices[ct.MaSanPham] : 0;
                         return (ct.DonGia - cost) * ct.SoLuong;
@@ -118,6 +131,63 @@ namespace BuildingMaterialAPI.Controllers
             };
 
             return Ok(summary);
+        }
+
+        [HttpGet("daily-orders")]
+        public async Task<IActionResult> GetDailyOrders([FromQuery] string date)
+        {
+            if (!DateTime.TryParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedDate)) 
+                return BadRequest("Invalid date format. Expected yyyy-MM-dd");
+
+            var startDate = parsedDate.Date;
+            var endDate = startDate.AddDays(1);
+
+            var orders = await _ctx.HoaDons
+                .Include(h => h.KhachHang)
+                .Where(h => h.TrangThai.ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
+                .Select(h => new {
+                    h.MaHoaDon,
+                    h.MaHD,
+                    tenKH = h.KhachHang != null ? h.KhachHang.TenKH : "Khách lẻ",
+                    h.NgayLap,
+                    tongTien = h.TongTien,
+                    thanhToan = h.ThanhToan,
+                    h.PTTT,
+                    h.TrangThai
+                })
+                .ToListAsync();
+
+            return Ok(orders);
+        }
+
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetSummary()
+        {
+            var totalRevenue = await _ctx.HoaDons.Where(h => h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.TongTien ?? 0);
+            var totalCollected = await _ctx.HoaDons.Where(h => h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.ThanhToan ?? 0);
+            var totalDebt = await _ctx.CongNos.Where(c => c.MaKhachHang != null).SumAsync(c => c.SoTienConLai);
+            var totalProducts = await _ctx.SanPhams.CountAsync();
+            var totalOrders = await _ctx.HoaDons.CountAsync(h => h.TrangThai.ToLower().Contains("hoàn thành"));
+            
+            // Giá trị kho = Tổng (Số lượng tồn * Giá nhập gần nhất)
+            var inventoryItems = await _ctx.CTKhoHangs.Where(k => k.SoLuongTon > 0).ToListAsync();
+            var productIds = inventoryItems.Select(i => i.MaSanPham).Distinct().ToList();
+            
+            var latestPrices = await _ctx.CTPNs
+                .Where(c => productIds.Contains(c.MaSanPham))
+                .GroupBy(c => c.MaSanPham)
+                .Select(g => new { 
+                    MaSanPham = g.Key, 
+                    GiaNhap = g.OrderByDescending(x => x.NgayTao).Select(x => x.DonGia).FirstOrDefault() 
+                })
+                .ToDictionaryAsync(x => x.MaSanPham, x => x.GiaNhap);
+
+            decimal inventoryValue = inventoryItems.Sum(item => {
+                decimal price = latestPrices.ContainsKey(item.MaSanPham) ? latestPrices[item.MaSanPham] : 0;
+                return item.SoLuongTon * price;
+            });
+
+            return Ok(new { totalRevenue, totalDebt, totalProducts, totalOrders, inventoryValue });
         }
     }
 }

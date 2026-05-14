@@ -60,7 +60,8 @@ namespace BuildingMaterialAPI.Controllers
                     PhoneNumber = phoneNumber,
                     RoleName = taiKhoan.VaiTro?.TenVT ?? "Unknown",
                     IsActive = taiKhoan.TrangThai,
-                    MaKhachHang = taiKhoan.KhachHang?.MaKhachHang
+                    MaKhachHang = taiKhoan.KhachHang?.MaKhachHang,
+                    ChuKy = nhanVien?.ChuKy
                 };
 
                 return Ok(response);
@@ -260,5 +261,6 @@ namespace BuildingMaterialAPI.Controllers
         public string RoleName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public int? MaKhachHang { get; set; }
+        public string? ChuKy { get; set; }
     }
 }

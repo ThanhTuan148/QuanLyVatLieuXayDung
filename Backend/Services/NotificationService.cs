@@ -2,12 +2,15 @@ using BuildingMaterialAPI.Data;
 using BuildingMaterialAPI.Hubs;
 using BuildingMaterialAPI.Models;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace BuildingMaterialAPI.Services
 {
     public interface INotificationService
     {
         Task SendNotificationAsync(string title, string content, string type = "HeThong", string? userId = null, string? link = null);
+        Task SendToRoleAsync(string roleName, string title, string content, string type = "HeThong", string? link = null);
+        Task SendToPermissionAsync(string moduleKey, string title, string content, string type = "HeThong", string? link = null);
     }
 
     public class NotificationService : INotificationService
@@ -45,8 +48,69 @@ namespace BuildingMaterialAPI.Services
             }
             else
             {
-                // Gửi riêng cho user đó qua group định danh
+                // Gửi riêng cho user đó qua group định danh (Sử dụng MaTaiKhoan làm key)
                 await _hubContext.Clients.Group($"User_{userId}").SendAsync("ReceiveNotification", notification);
+            }
+        }
+
+        public async Task SendToRoleAsync(string roleName, string title, string content, string type = "HeThong", string? link = null)
+        {
+            var targetUserIds = await _ctx.TaiKhoans
+                .Include(t => t.VaiTro)
+                .Where(t => t.VaiTro.TenVT.Contains(roleName) && t.TrangThai)
+                .Select(t => t.MaTaiKhoan.ToString())
+                .ToListAsync();
+
+            foreach (var uid in targetUserIds)
+            {
+                await SendNotificationAsync(title, content, type, uid, link);
+            }
+        }
+
+        public async Task SendToPermissionAsync(string moduleKey, string title, string content, string type = "HeThong", string? link = null)
+        {
+            // Ánh xạ từ moduleKey của frontend sang các mã quyền (MaQ) trong database
+            var permissionCodes = moduleKey switch
+            {
+                "employees" => new[] { "Q01" },
+                "products" or "categories" or "promotions" or "flashsales" => new[] { "Q02", "Q10" },
+                "orders" => new[] { "Q03", "Q11" },
+                "inventory" or "suppliers" => new[] { "Q04" },
+                "deliveries" => new[] { "Q05" },
+                "customers" => new[] { "Q06" },
+                "reports" => new[] { "Q07", "Q08" },
+                "settings" => new[] { "Q09" },
+                _ => Array.Empty<string>()
+            };
+
+            // 1. Lấy các vai trò có quyền xem module này thông qua bảng PHANQUYEN
+            var roleIds = await _ctx.PhanQuyens
+                .Include(p => p.Quyen)
+                .Where(p => permissionCodes.Contains(p.Quyen.MaQ))
+                .Select(p => p.MaVaiTro)
+                .Distinct()
+                .ToListAsync();
+
+            // 2. Lấy danh sách tài khoản thuộc các vai trò đó
+            var accountIdsByRole = await _ctx.TaiKhoans
+                .Where(t => roleIds.Contains(t.MaVaiTro) && t.TrangThai)
+                .Select(t => t.MaTaiKhoan.ToString())
+                .ToListAsync();
+
+            // 3. Lấy danh sách tài khoản có ghi đè quyền cụ thể trong NHANVIEN_MODULE_QUYEN
+            var accountIdsByOverride = await _ctx.NhanVienModuleQuyens
+                .Include(nmq => nmq.NhanVien)
+                .Where(nmq => nmq.Module == moduleKey && nmq.CoTheXem)
+                .Select(nmq => nmq.NhanVien.MaTaiKhoan.HasValue ? nmq.NhanVien.MaTaiKhoan.Value.ToString() : null)
+                .Where(id => id != null)
+                .ToListAsync();
+
+            // Kết hợp và gửi thông báo
+            var targetUserIds = accountIdsByRole.Union(accountIdsByOverride!).Distinct().ToList();
+
+            foreach (var uid in targetUserIds)
+            {
+                await SendNotificationAsync(title, content, type, uid, link);
             }
         }
     }

@@ -29,7 +29,7 @@ namespace BuildingMaterialAPI.Controllers
                     maSanPham = c.MaSanPham,
                     tenSP = c.SanPham != null ? c.SanPham.TenSP : "",
                     soLuong = c.SoLuong, soLuongNhap = c.SoLuongNhap, soLuongTon = c.SoLuongTon,
-                    viTri = c.ViTri, ngayNhapCuoi = c.NgayNhapCuoi,
+                    ngayNhapCuoi = c.NgayNhapCuoi,
                     mucTonToiThieu = c.SanPham != null ? c.SanPham.MucTonToiThieu : 0,
                     isGift = c.SanPham != null && c.SanPham.IsGift == true
                 }).ToListAsync());
@@ -37,19 +37,42 @@ namespace BuildingMaterialAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
-            var c = await _ctx.CTKhoHangs.FindAsync(id);
-            return c == null ? NotFound() : Ok(c);
+            var c = await _ctx.CTKhoHangs
+                .Include(x => x.SanPham)
+                .Include(x => x.KhoHang)
+                .FirstOrDefaultAsync(x => x.MaCTKho == id);
+
+            if (c == null) return NotFound();
+
+            return Ok(new
+            {
+                maCTKho = c.MaCTKho,
+                maKhoHang = c.MaKhoHang,
+                tenKho = c.KhoHang != null ? c.KhoHang.TenKho : "",
+                loaiKho = c.KhoHang != null ? c.KhoHang.LoaiKho : "Kho Khác",
+                maSanPham = c.MaSanPham,
+                tenSP = c.SanPham != null ? c.SanPham.TenSP : "",
+                soLuong = c.SoLuong,
+                soLuongNhap = c.SoLuongNhap,
+                soLuongTon = c.SoLuongTon,
+                ngayNhapCuoi = c.NgayNhapCuoi,
+                mucTonToiThieu = c.SanPham != null ? c.SanPham.MucTonToiThieu : 0,
+                isGift = c.SanPham != null && c.SanPham.IsGift == true
+            });
         }
 
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CTKhoHangDto dto)
         {
-            if (dto == null) return BadRequest();
+            // Kiểm tra trùng lặp (Kho, Sản phẩm)
+            var exists = await _ctx.CTKhoHangs.AnyAsync(x => x.MaKhoHang == dto.MaKhoHang && x.MaSanPham == dto.MaSanPham);
+            if (exists) return BadRequest(new { message = "Sản phẩm này đã có bản ghi tồn kho trong kho này rồi. Vui lòng chọn kho khác hoặc chỉnh sửa bản ghi hiện có." });
+
             var ct = new CTKhoHang
             {
                 MaKhoHang = dto.MaKhoHang, MaSanPham = dto.MaSanPham,
                 SoLuong = dto.SoLuong, SoLuongNhap = dto.SoLuongNhap, SoLuongTon = dto.SoLuongTon,
-                ViTri = dto.ViTri, NgayNhapCuoi = dto.NgayNhapCuoi ?? DateTime.UtcNow,
+                NgayNhapCuoi = dto.NgayNhapCuoi ?? DateTime.UtcNow,
                 NgayCapNhat = DateTime.UtcNow,
             };
             _ctx.CTKhoHangs.Add(ct);
@@ -62,9 +85,12 @@ namespace BuildingMaterialAPI.Controllers
         {
             var ct = await _ctx.CTKhoHangs.FindAsync(id);
             if (ct == null) return NotFound();
+            // Kiểm tra trùng lặp (Kho, Sản phẩm) - loại trừ bản ghi hiện tại
+            var duplicate = await _ctx.CTKhoHangs.AnyAsync(x => x.MaKhoHang == dto.MaKhoHang && x.MaSanPham == dto.MaSanPham && x.MaCTKho != id);
+            if (duplicate) return BadRequest(new { message = "Sản phẩm này đã tồn tại trong kho bạn vừa chọn. Bạn không thể chuyển mặt hàng sang kho này vì sẽ gây trùng lặp dữ liệu." });
+
             ct.MaKhoHang = dto.MaKhoHang; ct.MaSanPham = dto.MaSanPham;
             ct.SoLuong = dto.SoLuong; ct.SoLuongNhap = dto.SoLuongNhap; ct.SoLuongTon = dto.SoLuongTon;
-            ct.ViTri = dto.ViTri;
             if (dto.NgayNhapCuoi.HasValue) ct.NgayNhapCuoi = dto.NgayNhapCuoi.Value;
             ct.NgayCapNhat = DateTime.UtcNow;
             try { await _ctx.SaveChangesAsync(); return Ok(ct); }
@@ -85,19 +111,61 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetWarehouses()
         {
             var list = await _ctx.KhoHangs
-                .Select(k => new { k.MaKhoHang, k.MaKho, k.TenKho, k.LoaiKho, k.DiaChi })
+                .Select(k => new { k.MaKhoHang, k.MaKho, k.TenKho, k.LoaiKho, k.DiaChi, k.GhiChu })
                 .ToListAsync();
             return Ok(list);
         }
 
         [HttpPost("warehouses")]
-        public async Task<IActionResult> CreateWarehouse([FromBody] KhoHang kho)
+        public async Task<IActionResult> CreateWarehouse([FromBody] WarehouseDto dto)
         {
-            kho.NgayTao = DateTime.UtcNow;
-            kho.NgayCapNhat = DateTime.UtcNow;
+            if (dto == null) return BadRequest("Dữ liệu không hợp lệ");
+            
+            var kho = new KhoHang
+            {
+                TenKho = dto.TenKho,
+                LoaiKho = dto.LoaiKho,
+                DiaChi = dto.DiaChi,
+                GhiChu = dto.GhiChu,
+                NgayTao = DateTime.UtcNow,
+                NgayCapNhat = DateTime.UtcNow,
+                TrangThai = true
+            };
+
             _ctx.KhoHangs.Add(kho);
             await _ctx.SaveChangesAsync();
             return Ok(kho);
+        }
+
+        [HttpPut("warehouses/{id}")]
+        public async Task<IActionResult> UpdateWarehouse(int id, [FromBody] WarehouseDto dto)
+        {
+            var kho = await _ctx.KhoHangs.FindAsync(id);
+            if (kho == null) return NotFound();
+
+            kho.TenKho = dto.TenKho;
+            kho.LoaiKho = dto.LoaiKho;
+            kho.DiaChi = dto.DiaChi;
+            kho.GhiChu = dto.GhiChu;
+            kho.NgayCapNhat = DateTime.UtcNow;
+
+            await _ctx.SaveChangesAsync();
+            return Ok(kho);
+        }
+
+        [HttpDelete("warehouses/{id}")]
+        public async Task<IActionResult> DeleteWarehouse(int id)
+        {
+            var kho = await _ctx.KhoHangs.FindAsync(id);
+            if (kho == null) return NotFound();
+
+            // Kiểm tra xem kho có đang chứa hàng không
+            var hasInventory = await _ctx.CTKhoHangs.AnyAsync(c => c.MaKhoHang == id);
+            if (hasInventory) return BadRequest("Không thể xóa kho đang chứa hàng hóa. Vui lòng chuyển hàng hoặc xóa dữ liệu tồn kho trước.");
+
+            _ctx.KhoHangs.Remove(kho);
+            await _ctx.SaveChangesAsync();
+            return NoContent();
         }
         [HttpGet("{productId}/import-history")]
         public async Task<IActionResult> GetImportHistory(int productId)
@@ -108,6 +176,7 @@ namespace BuildingMaterialAPI.Controllers
                 .Where(c => c.MaSanPham == productId && c.SoLuongDaNhan > 0)
                 .OrderByDescending(c => c.PhieuNhap.NgayNhap)
                 .Select(c => new {
+                    idPhieuNhap = c.MaPhieuNhap,
                     maPhieuNhap = c.PhieuNhap.MaPN,
                     ngayNhap = c.PhieuNhap.NgayNhap,
                     tenNhaCungCap = c.PhieuNhap.NhaCungCap != null ? c.PhieuNhap.NhaCungCap.TenNCC : "Khác",
@@ -359,6 +428,90 @@ namespace BuildingMaterialAPI.Controllers
             }
         }
 
+        [HttpPost("sync-old-inbound")]
+        public async Task<IActionResult> SyncOldInbound()
+        {
+            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            try
+            {
+                int count = 0;
+                // Tìm các phiếu nhập đã hoàn thành/đã nhập kho nhưng có thể chưa được cộng vào CTKhoHang
+                // (Thường là các phiếu cũ hoặc được import từ Excel)
+                var pns = await _ctx.PhieuNhaps
+                    .Include(p => p.CTPNs)
+                    .Where(p => p.TrangThai == "Hoàn Thành" || p.TrangThai == "Đã Nhập Kho")
+                    .ToListAsync();
+
+                foreach (var p in pns)
+                {
+                    // Kiểm tra xem phiếu này đã từng được "Nghiệm thu" (cộng kho) qua log chưa
+                    bool alreadyReceived = await _ctx.LichSuPhieuNhaps.AnyAsync(l => l.MaPhieuNhap == p.MaPhieuNhap && l.NoiDungThayDoi.Contains("nghiệm thu"));
+                    
+                    // Nếu là phiếu import từ Excel (có ghi chú đặc thù) thì cũng coi như đã xong
+                    if (p.GhiChu != null && p.GhiChu.Contains("Khởi tạo tồn kho đầu kỳ")) alreadyReceived = true;
+
+                    if (!alreadyReceived)
+                    {
+                        foreach (var ct in p.CTPNs)
+                        {
+                            int maKhoTarget = ct.MaKhoHang ?? 1;
+                            var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
+                                      ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
+                            int slNhan = ct.SoLuongDaNhan > 0 ? ct.SoLuongDaNhan : ct.SoLuong;
+                            
+                            if (kho != null)
+                            {
+                                kho.SoLuong += slNhan;
+                                kho.SoLuongTon += slNhan;
+                                kho.SoLuongNhap += slNhan;
+                                kho.NgayNhapCuoi = p.NgayNhap;
+                            }
+                            else
+                            {
+                                _ctx.CTKhoHangs.Add(new CTKhoHang {
+                                    MaKhoHang = maKhoTarget,
+                                    MaSanPham = ct.MaSanPham,
+                                    SoLuong = slNhan,
+                                    SoLuongTon = slNhan,
+                                    SoLuongNhap = slNhan,
+                                    NgayNhapCuoi = p.NgayNhap,
+                                    NgayCapNhat = DateTime.UtcNow
+                                });
+                            }
+                        }
+                        
+                        // Đảm bảo MaNhanVien hợp lệ để tránh lỗi FK trong LichSu
+                        int? execId = p.MaNhanVien > 0 ? p.MaNhanVien : null;
+                        if (execId == null) {
+                            var firstManager = await _ctx.NhanViens.FirstOrDefaultAsync();
+                            execId = firstManager?.MaNhanVien;
+                        }
+
+                        // Đánh dấu log để không sync lại lần sau
+                        _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                            MaPhieuNhap = p.MaPhieuNhap,
+                            TrangThaiCu = p.TrangThai,
+                            TrangThaiMoi = p.TrangThai,
+                            NoiDungThayDoi = "Hệ thống đồng bộ dữ liệu tồn kho từ phiếu cũ.",
+                            MaNguoiThucHien = execId,
+                            NgayThayDoi = DateTime.UtcNow
+                        });
+                        count++;
+                    }
+                }
+
+                await _ctx.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return Ok(new { message = $"Đã đồng bộ tồn kho thành công cho {count} phiếu nhập cũ.", count });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Lỗi đồng bộ nhập kho: " + msg });
+            }
+        }
+
         public class OutboundActionRequest
         {
             public int managerId { get; set; }
@@ -374,51 +527,113 @@ namespace BuildingMaterialAPI.Controllers
             var staff = await _ctx.NhanViens.FindAsync(managerId);
             if (staff == null) return BadRequest("Nhân viên không tồn tại");
 
+            string oldStatus = p.TrangThai;
             p.TrangThai = "Chờ nhận"; 
             p.MaNguoiXuatKho = staff.MaNhanVien;
             p.ChuKyNguoiXuatKho = staff.ChuKy;
             
+            _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+            {
+                MaPhieuXK = id,
+                TrangThaiCu = oldStatus,
+                TrangThaiMoi = "Chờ nhận",
+                NoiDungThayDoi = $"Thủ kho {staff.TenNV} xác nhận đã soạn hàng xong.",
+                MaNguoiThucHien = staff.MaNhanVien,
+                NgayTao = DateTime.UtcNow
+            });
+
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Thủ kho đã xuất hàng. Đang chờ tài xế xác nhận nhận hàng." });
         }
 
         [HttpPost("{id}/confirm-receipt")]
-        public async Task<IActionResult> ConfirmReceipt(int id, [FromBody] OutboundActionRequest body)
+        public async Task<IActionResult> ConfirmReceipt(int id, [FromBody] ConfirmReceiptDto body)
         {
             var p = await _ctx.PhieuXuatKhos
+                .Include(x => x.ChiTiet).ThenInclude(c => c.SanPham)
                 .Include(x => x.PhieuGiaoHang)
                     .ThenInclude(gh => gh.CTPhieuGiaoHangs)
                 .FirstOrDefaultAsync(x => x.MaPhieuXK == id);
             
             if (p == null) return NotFound();
 
-            int driverId = body?.managerId ?? 0;
+            int driverId = body.ManagerId;
             var driver = await _ctx.NhanViens.FindAsync(driverId);
             if (driver == null) return BadRequest("Tài xế không tồn tại");
 
-            p.TrangThai = "Đã xuất";
+            bool isFull = true;
+            string shortageNote = "";
+
+            if (body.Items != null && body.Items.Any())
+            {
+                foreach (var item in body.Items)
+                {
+                    var ctxk = p.ChiTiet.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
+                    if (ctxk != null)
+                    {
+                        ctxk.SoLuongThucNhan = item.SoLuongNhan;
+                        ctxk.GhiChu = item.GhiChu;
+
+                        if (item.SoLuongNhan < ctxk.SoLuong)
+                        {
+                            isFull = false;
+                            shortageNote += $"Thiếu {ctxk.SanPham?.TenSP ?? "SP"}: {ctxk.SoLuong - item.SoLuongNhan}; ";
+                        }
+                    }
+                }
+            }
+
+            string oldStatus = p.TrangThai;
+            p.TrangThai = isFull ? "Đã xuất" : "Đã xuất (Thiếu hàng)";
             p.MaNguoiNhan = driverId;
             p.ChuKyNguoiNhan = driver.ChuKy;
 
+            _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+            {
+                MaPhieuXK = id,
+                TrangThaiCu = oldStatus,
+                TrangThaiMoi = p.TrangThai,
+                NoiDungThayDoi = isFull ? $"Tài xế {driver.TenNV} xác nhận nhận đủ hàng." : $"Tài xế {driver.TenNV} xác nhận nhận thiếu hàng. {shortageNote}",
+                MaNguoiThucHien = driver.MaNhanVien,
+                NgayTao = DateTime.UtcNow
+            });
+
             if (p.PhieuGiaoHang != null)
             {
-                p.PhieuGiaoHang.TrangThai = "Đang giao";
+                p.PhieuGiaoHang.TrangThai = isFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
                 p.PhieuGiaoHang.NgayCapNhat = DateTime.UtcNow;
 
                 if (p.PhieuGiaoHang.CTPhieuGiaoHangs != null)
                 {
                     foreach (var item in p.PhieuGiaoHang.CTPhieuGiaoHangs)
                     {
-                        if (string.IsNullOrEmpty(item.TrangThai) || item.TrangThai.Trim() == "Chờ giao")
+                        var receiptItem = body.Items?.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
+                        if (receiptItem != null)
                         {
-                            item.TrangThai = "Đang giao";
+                            if (receiptItem.SoLuongNhan >= item.SoLuongGiao)
+                                item.TrangThai = "Đang giao";
+                            else if (receiptItem.SoLuongNhan > 0)
+                                item.TrangThai = "Đang giao (Thiếu)";
+                            else
+                                item.TrangThai = "Chờ giao (Thiếu)";
                         }
                     }
+                }
+
+                // Cập nhật trạng thái Hóa đơn
+                var hd = await _ctx.HoaDons.FindAsync(p.MaHoaDon);
+                if (hd != null)
+                {
+                    hd.TrangThai = isFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
+                    hd.NgayCapNhat = DateTime.UtcNow;
                 }
             }
 
             await _ctx.SaveChangesAsync();
-            return Ok(new { message = "Tài xế đã nhận hàng thành công. Đơn hàng đang được đi giao." });
+            return Ok(new { 
+                message = isFull ? "Đã nhận hàng đầy đủ. Đang đi giao." : "Xác nhận nhận hàng một phần. " + shortageNote,
+                isFull = isFull
+            });
         }
 
         [HttpPost("{id}/approve")]
@@ -431,13 +646,44 @@ namespace BuildingMaterialAPI.Controllers
             var manager = await _ctx.NhanViens.FindAsync(managerId);
             if (manager == null) return BadRequest("Quản lý không tồn tại.");
 
+            string oldStatus = p.TrangThai;
             p.MaNguoiDuyet = managerId;
             p.NgayDuyet = DateTime.UtcNow;
             p.ChuKyQuanLy = manager.ChuKy;
-            p.TrangThai = "Chờ xuất"; 
+            p.TrangThai = "Đã duyệt"; 
+
+            _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+            {
+                MaPhieuXK = id,
+                TrangThaiCu = oldStatus,
+                TrangThaiMoi = "Đã duyệt",
+                NoiDungThayDoi = $"Quản lý {manager.TenNV} đã phê duyệt và ký số.",
+                MaNguoiThucHien = manager.MaNhanVien,
+                NgayTao = DateTime.UtcNow
+            });
 
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Đã phê duyệt và ký số phiếu xuất kho thành công." });
+        }
+
+        [HttpGet("{id}/history")]
+        public async Task<IActionResult> GetHistory(int id)
+        {
+            var history = await _ctx.LichSuPhieuXuatKhos
+                .Where(h => h.MaPhieuXK == id)
+                .Include(h => h.NhanVien)
+                .OrderByDescending(h => h.NgayTao)
+                .Select(h => new
+                {
+                    maLichSu = h.MaLichSu,
+                    trangThaiCu = h.TrangThaiCu,
+                    trangThaiMoi = h.TrangThaiMoi,
+                    noiDungThayDoi = h.NoiDungThayDoi,
+                    ngayTao = h.NgayTao,
+                    tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "Hệ thống"
+                })
+                .ToListAsync();
+            return Ok(history);
         }
 
 
@@ -551,42 +797,45 @@ namespace BuildingMaterialAPI.Controllers
                         // 4. Signatures
                         col.Item().PaddingTop(30).Row(row =>
                         {
+                            // CỘT 1: TÀI XẾ (NGƯỜI NHẬN HÀNG)
                             row.RelativeItem().AlignCenter().Column(c =>
                             {
-                                c.Item().Text("Người nhận").Bold();
-                                c.Item().Text("(Chữ ký số hoặc ký tên)").FontSize(9).Italic();
+                                c.Item().Text("Tài xế nhận hàng").Bold();
+                                c.Item().Text("(Ký khi nhận hàng)").FontSize(9).Italic();
                                 
-                                var receiverSig = !string.IsNullOrEmpty(p.ChuKyNguoiLap) ? p.ChuKyNguoiLap : p.NhanVien?.ChuKy;
+                                var driverSig = p.ChuKyNguoiNhan;
                                 
-                                if (!string.IsNullOrEmpty(receiverSig))
+                                if (!string.IsNullOrEmpty(driverSig))
                                 {
                                     try {
-                                        var fileName = Path.GetFileName(receiverSig.TrimStart('/'));
-                                        var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", receiverSig.TrimStart('/'));
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
+                                        var fileName = Path.GetFileName(driverSig.TrimStart('/'));
+                                        var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", driverSig.TrimStart('/'));
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
 
                                         if (System.IO.File.Exists(path))
                                             c.Item().PaddingTop(5).MaxHeight(50).Image(path);
                                         else
-                                            c.Item().PaddingTop(10).Text(p.NhanVien?.TenNV ?? "..........................");
+                                            c.Item().PaddingTop(10).Text(p.MaNguoiNhan.HasValue ? (_ctx.NhanViens.Find(p.MaNguoiNhan.Value)?.TenNV ?? "...") : "...");
                                     } catch {
-                                        c.Item().PaddingTop(10).Text(p.NhanVien?.TenNV ?? "..........................");
+                                        c.Item().PaddingTop(10).Text("...");
                                     }
                                 }
                                 else
                                 {
                                     c.Item().PaddingTop(40).Text("..........................");
                                 }
-                                c.Item().PaddingTop(5).Text(p.NhanVien?.TenNV ?? p.NguoiXuat).FontSize(10).Bold();
+                                if (p.MaNguoiNhan.HasValue) {
+                                    var driver = _ctx.NhanViens.Find(p.MaNguoiNhan.Value);
+                                    c.Item().PaddingTop(5).Text(driver?.TenNV ?? "").FontSize(10).Bold();
+                                }
                             });
 
+                            // CỘT 2: THỦ KHO (NGƯỜI XUẤT KHO)
                             row.RelativeItem().AlignCenter().Column(c =>
                             {
-                                c.Item().Text("Người xuất kho").Bold();
-                                c.Item().Text("(Thủ kho ký)").FontSize(9).Italic();
+                                c.Item().Text("Thủ kho").Bold();
+                                c.Item().Text("(Ký khi xuất kho)").FontSize(9).Italic();
 
                                 var keeperSig = p.ChuKyNguoiXuatKho;
                                 
@@ -595,17 +844,15 @@ namespace BuildingMaterialAPI.Controllers
                                     try {
                                         var fileName = Path.GetFileName(keeperSig.TrimStart('/'));
                                         var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", keeperSig.TrimStart('/'));
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
 
                                         if (System.IO.File.Exists(path))
                                             c.Item().PaddingTop(5).MaxHeight(50).Image(path);
                                         else
-                                            c.Item().PaddingTop(10).Text("..........................");
+                                            c.Item().PaddingTop(10).Text(p.MaNguoiXuatKho.HasValue ? (_ctx.NhanViens.Find(p.MaNguoiXuatKho.Value)?.TenNV ?? "...") : "...");
                                     } catch {
-                                        c.Item().PaddingTop(10).Text("..........................");
+                                        c.Item().PaddingTop(10).Text("...");
                                     }
                                 }
                                 else
@@ -615,46 +862,44 @@ namespace BuildingMaterialAPI.Controllers
                                 
                                 if (p.MaNguoiXuatKho.HasValue) {
                                     var keeper = _ctx.NhanViens.Find(p.MaNguoiXuatKho.Value);
-                                    c.Item().PaddingTop(5).Text(keeper?.TenNV ?? "..........................").FontSize(10).Bold();
-                                } else {
-                                    c.Item().PaddingTop(5).Text("..........................").FontSize(10).Bold();
+                                    c.Item().PaddingTop(5).Text(keeper?.TenNV ?? "").FontSize(10).Bold();
                                 }
                             });
 
+                            // CỘT 3: QUẢN LÝ (NGƯỜI PHÊ DUYỆT)
                             row.RelativeItem().AlignCenter().Column(c =>
                             {
                                 c.Item().Text("Quản lý phê duyệt").Bold();
-                                c.Item().Text("(Chữ ký số)").FontSize(9).Italic();
-                                // Fallback to current manager signature if record's signature is empty
-                                var managerSig = !string.IsNullOrEmpty(p.ChuKyQuanLy) ? p.ChuKyQuanLy : p.NguoiDuyet?.ChuKy;
+                                c.Item().Text("(Ký duyệt phiếu)").FontSize(9).Italic();
+                                
+                                var managerSig = p.ChuKyQuanLy;
 
-                                if (!string.IsNullOrEmpty(managerSig) && p.TrangThai == "Đã duyệt")
+                                if (!string.IsNullOrEmpty(managerSig))
                                 {
                                     try {
                                         var fileName = Path.GetFileName(managerSig.TrimStart('/'));
                                         var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", managerSig.TrimStart('/'));
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
-                                        if (!System.IO.File.Exists(path))
-                                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "signatures", fileName);
+                                        if (!System.IO.File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "signatures", fileName);
 
                                         if (System.IO.File.Exists(path))
                                             c.Item().PaddingTop(5).MaxHeight(50).Image(path);
                                         else
-                                            c.Item().PaddingTop(10).Text(p.NguoiDuyet?.TenNV ?? "..........................");
+                                            c.Item().PaddingTop(10).Text(p.NguoiDuyet?.TenNV ?? "Đã duyệt");
                                     } catch {
-                                        c.Item().PaddingTop(10).Text(p.NguoiDuyet?.TenNV ?? "..........................");
+                                        c.Item().PaddingTop(10).Text("Đã duyệt");
                                     }
                                 }
                                 else
                                 {
-                                    c.Item().PaddingTop(10).Text(p.TrangThai == "Đã duyệt" ? (p.NguoiDuyet?.TenNV ?? "Đã duyệt") : "Chưa phê duyệt").FontColor(QuestPDF.Helpers.Colors.Red.Medium).Bold();
+                                    c.Item().PaddingTop(10).Text("Chưa phê duyệt").FontColor(QuestPDF.Helpers.Colors.Red.Medium).Bold();
                                     c.Item().PaddingTop(40).Text("..........................");
                                 }
+                                if (p.NguoiDuyet != null)
+                                    c.Item().PaddingTop(5).Text(p.NguoiDuyet.TenNV).FontSize(10).Bold();
+                                
                                 if (p.NgayDuyet.HasValue)
                                     c.Item().Text($"Ngày: {p.NgayDuyet.Value.ToString("dd/MM/yyyy")}").FontSize(9);
-                                else if (p.TrangThai == "Đã duyệt")
-                                    c.Item().Text($"Ngày: {p.NgayXuat.ToString("dd/MM/yyyy")}").FontSize(9);
                             });
                         });
                     });
@@ -676,7 +921,27 @@ namespace BuildingMaterialAPI.Controllers
         public int SoLuong { get; set; }
         public int SoLuongNhap { get; set; }
         public int SoLuongTon { get; set; }
-        public string? ViTri { get; set; }
         public DateTime? NgayNhapCuoi { get; set; }
+    }
+
+    public class WarehouseDto
+    {
+        public string? TenKho { get; set; }
+        public string? LoaiKho { get; set; }
+        public string? DiaChi { get; set; }
+        public string? GhiChu { get; set; }
+    }
+
+    public class ConfirmReceiptDto
+    {
+        public int ManagerId { get; set; }
+        public List<ReceiptItemDto>? Items { get; set; }
+    }
+
+    public class ReceiptItemDto
+    {
+        public int MaSanPham { get; set; }
+        public int SoLuongNhan { get; set; }
+        public string? GhiChu { get; set; }
     }
 }

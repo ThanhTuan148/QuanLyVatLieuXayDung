@@ -9,6 +9,8 @@ function DeliveryStatusUpdateDialog({ open, onClose, delivery, onUpdated }) {
   const [status, setStatus] = useState('');
   const [notes, setNotes] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -16,17 +18,25 @@ function DeliveryStatusUpdateDialog({ open, onClose, delivery, onUpdated }) {
       setStatus(delivery.trangThai || 'Chờ giao');
       setNotes(delivery.ghiChu || '');
       setAmountPaid(''); // Reset amount on open
+      setPhoto(null);
+      setPhotoPreview(null);
     }
   }, [open, delivery]);
 
   const handleSubmit = async () => {
+    if (status === 'Đã giao' && !photoPreview) {
+      alert('⚠️ BẮT BUỘC: Vui lòng chụp ảnh xác nhận đã giao hàng để hoàn tất!');
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
         trangThai: status,
         ghiChu: notes,
         ngayGiaoThucTe: status === 'Đã giao' ? new Date().toISOString() : null,
-        soTienThu: amountPaid ? parseFloat(amountPaid) : 0
+        soTienThu: amountPaid ? parseFloat(amountPaid) : 0,
+        hinhAnhXacNhan: photoPreview, // Gửi base64 lên server
+        maNguoiThucHien: JSON.parse(localStorage.getItem('user'))?.maNhanVien || 0
       };
 
       await api.put(`/deliveries/${delivery.maPhieuGH}`, payload);
@@ -97,6 +107,44 @@ function DeliveryStatusUpdateDialog({ open, onClose, delivery, onUpdated }) {
               helperText="Nhập số tiền khách trả trong đợt này (nếu có)"
               autoFocus
             />
+          )}
+
+          {status === 'Đã giao' && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: 'primary.main' }}>
+                📸 CHỤP ẢNH XÁC NHẬN GIAO HÀNG *
+              </Typography>
+              <Button
+                variant="outlined"
+                component="label"
+                fullWidth
+                sx={{ height: 100, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: 1 }}
+              >
+                {photoPreview ? 'Thay đổi ảnh' : 'Chọn/Chụp ảnh xác nhận'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setPhoto(file);
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setPhotoPreview(reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </Button>
+              {photoPreview && (
+                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                  <img src={photoPreview} alt="Preview" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid #ddd' }} />
+                </Box>
+              )}
+            </Box>
           )}
 
           <TextField

@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Box, Typography, Button, Paper, Chip, LinearProgress, Card, CardContent, Grid, Dialog,
+  Box, Typography, Button, Chip, Card, CardContent, Grid, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, Switch, FormControlLabel,
   FormControl, InputLabel, Select, MenuItem, Avatar, Tooltip, IconButton, Alert,
-  Checkbox, Badge, Tabs, Tab
+  Tabs, Tab
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -17,21 +17,138 @@ import api from '../services/api';
 import DataTable from '../components/DataTable';
 import { usePermissions } from '../contexts/PermissionContext';
 
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+// const formatDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 
-// ─── Dialog Phân Quyền (Module CRUD) ──────────────────────────
-const MODULES = [
-  { key: 'products', label: '📦 Sản Phẩm' },
-  { key: 'categories', label: '🗂️ Loại Sản Phẩm' },
-  { key: 'inventory', label: '🏭 Kho Hàng' },
-  { key: 'orders', label: '🛒 Đơn Hàng' },
-  { key: 'customers', label: '👤 Khách Hàng' },
-  { key: 'suppliers', label: '🏢 Nhà Cung Cấp' },
-  { key: 'flashsales', label: '⚡ Flash Sales' },
-  { key: 'promotions', label: '🏷️ Khuyến Mãi' },
-  { key: 'deliveries', label: '🚚 Giao Hàng' },
-  { key: 'reports', label: '📊 Báo Cáo' },
-  { key: 'employees', label: '👥 Nhân Viên' },
+// ─── Cấu trúc phân quyền theo Danh mục → Tab → Thao tác ──────
+const ALL_MODULE_KEYS = [
+  'products','categories','inventory','orders','customers',
+  'suppliers','flashsales','promotions','deliveries','reports','employees'
+];
+
+const PERMISSION_CATEGORIES = [
+  {
+    key: 'products', label: '📦 Sản Phẩm', color: '#667eea',
+    tabs: [
+      { moduleKey: 'products', label: 'Sản Phẩm', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách sản phẩm' },
+        { field: 'coTheTao', label: 'Thêm sản phẩm / Nhập Excel' },
+        { field: 'coTheSua', label: 'Sửa thông tin sản phẩm' },
+        { field: 'coTheXoa', label: 'Xóa sản phẩm' },
+      ]},
+      { moduleKey: 'categories', label: 'Loại Sản Phẩm', ops: [
+        { field: 'coTheXem', label: 'Xem danh mục sản phẩm' },
+        { field: 'coTheTao', label: 'Thêm danh mục mới' },
+        { field: 'coTheSua', label: 'Sửa tên danh mục' },
+        { field: 'coTheXoa', label: 'Xóa danh mục' },
+      ]},
+    ]
+  },
+  {
+    key: 'orders', label: '🛒 Đơn Hàng', color: '#43e97b',
+    tabs: [
+      { moduleKey: 'orders', label: 'Đơn Hàng', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách đơn hàng' },
+        { field: 'coTheTao', label: 'Tạo đơn hàng mới' },
+        { field: 'coTheSua', label: 'Cập nhật trạng thái đơn' },
+        { field: 'coTheXoa', label: 'Hủy / Xóa đơn hàng' },
+      ]},
+      { moduleKey: 'deliveries', label: 'Giao Hàng', ops: [
+        { field: 'coTheXem', label: 'Xem lịch giao hàng' },
+        { field: 'coTheTao', label: 'Tạo phiếu giao hàng' },
+        { field: 'coTheSua', label: 'Cập nhật trạng thái giao' },
+        { field: 'coTheXoa', label: 'Hủy phiếu giao hàng' },
+      ]},
+    ]
+  },
+  {
+    key: 'customers', label: '👥 Khách Hàng', color: '#f5a623',
+    tabs: [
+      { moduleKey: 'customers', label: 'Khách Hàng', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách khách hàng' },
+        { field: 'coTheTao', label: 'Thêm khách hàng mới' },
+        { field: 'coTheSua', label: 'Sửa thông tin khách hàng' },
+        { field: 'coTheXoa', label: 'Xóa tài khoản khách hàng' },
+      ]},
+    ]
+  },
+  {
+    key: 'inventory', label: '🏭 Kho & Nhập Hàng', color: '#f5576c',
+    tabs: [
+      { moduleKey: 'inventory', label: 'Kho Hàng', ops: [
+        { field: 'coTheXem', label: 'Xem tồn kho & phiếu kho' },
+        { field: 'coTheTao', label: 'Tạo phiếu xuất / nhập kho' },
+        { field: 'coTheSua', label: 'Điều chỉnh số lượng tồn' },
+        { field: 'coTheXoa', label: 'Xóa phiếu kho' },
+      ]},
+      { moduleKey: 'inventory', label: 'Nhập Hàng', ops: [
+        { field: 'coTheXem', label: 'Xem đơn đặt hàng nhà cung cấp' },
+        { field: 'coTheTao', label: 'Tạo đơn nhập hàng mới' },
+        { field: 'coTheSua', label: 'Duyệt & cập nhật đơn nhập' },
+        { field: 'coTheXoa', label: 'Hủy đơn nhập hàng' },
+      ]},
+      { moduleKey: 'inventory', label: 'Đổi / Trả', ops: [
+        { field: 'coTheXem', label: 'Xem yêu cầu đổi trả' },
+        { field: 'coTheTao', label: 'Tạo phiếu đổi trả' },
+        { field: 'coTheSua', label: 'Duyệt / Từ chối yêu cầu' },
+        { field: 'coTheXoa', label: 'Xóa yêu cầu đổi trả' },
+      ]},
+      { moduleKey: 'suppliers', label: 'Nhà Cung Cấp', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách nhà cung cấp' },
+        { field: 'coTheTao', label: 'Thêm nhà cung cấp mới' },
+        { field: 'coTheSua', label: 'Sửa thông tin nhà cung cấp' },
+        { field: 'coTheXoa', label: 'Xóa nhà cung cấp' },
+      ]},
+    ]
+  },
+  {
+    key: 'promotions', label: '🏷️ Khuyến Mãi', color: '#fa709a',
+    tabs: [
+      { moduleKey: 'promotions', label: 'Khuyến Mãi SP', ops: [
+        { field: 'coTheXem', label: 'Xem chương trình khuyến mãi' },
+        { field: 'coTheTao', label: 'Tạo khuyến mãi sản phẩm' },
+        { field: 'coTheSua', label: 'Sửa thông tin khuyến mãi' },
+        { field: 'coTheXoa', label: 'Xóa khuyến mãi' },
+      ]},
+      { moduleKey: 'flashsales', label: 'Flash Sales', ops: [
+        { field: 'coTheXem', label: 'Xem chiến dịch Flash Sale' },
+        { field: 'coTheTao', label: 'Tạo Flash Sale mới' },
+        { field: 'coTheSua', label: 'Sửa Flash Sale' },
+        { field: 'coTheXoa', label: 'Xóa Flash Sale' },
+      ]},
+      { moduleKey: 'flashsales', label: 'Ưu Đãi Hệ Thống', ops: [
+        { field: 'coTheXem', label: 'Xem chương trình ưu đãi' },
+        { field: 'coTheTao', label: 'Tạo ưu đãi hệ thống' },
+        { field: 'coTheSua', label: 'Sửa ưu đãi' },
+        { field: 'coTheXoa', label: 'Xóa ưu đãi' },
+      ]},
+      { moduleKey: 'promotions', label: 'Coupon', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách coupon' },
+        { field: 'coTheTao', label: 'Tạo mã coupon mới' },
+        { field: 'coTheSua', label: 'Sửa coupon' },
+        { field: 'coTheXoa', label: 'Xóa coupon' },
+      ]},
+    ]
+  },
+  {
+    key: 'reports', label: '📊 Báo Cáo', color: '#4facfe',
+    tabs: [
+      { moduleKey: 'reports', label: 'Báo Cáo & Thống Kê', ops: [
+        { field: 'coTheXem', label: 'Xem báo cáo & biểu đồ' },
+        { field: 'coTheTao', label: 'Xuất báo cáo ra file' },
+      ]},
+    ]
+  },
+  {
+    key: 'employees', label: '👨‍💼 Nhân Viên', color: '#a18cd1',
+    tabs: [
+      { moduleKey: 'employees', label: 'Nhân Viên', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách nhân viên' },
+        { field: 'coTheTao', label: 'Thêm NV / Cấp tài khoản' },
+        { field: 'coTheSua', label: 'Sửa thông tin / Đổi vai trò' },
+        { field: 'coTheXoa', label: 'Xóa nhân viên' },
+      ]},
+    ]
+  },
 ];
 
 const autoMapGeneralToModule = (generalPerms) => {
@@ -65,9 +182,12 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
   const [generalQuyens, setGeneralQuyens] = useState([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [selectedCat, setSelectedCat] = useState(0);
+  const [selectedTab, setSelectedTab] = useState(0);
 
   useEffect(() => {
     if (open && employee) {
+      setSelectedCat(0); setSelectedTab(0);
       Promise.all([
         api.get(`/employees/${employee.maNhanVien}/permissions`),
         api.get(`/employees/${employee.maNhanVien}/module-permissions`)
@@ -80,96 +200,172 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
         } else {
           const map = {};
           modPerms.forEach(mq => {
-            map[mq.module] = {
-              coTheXem: mq.coTheXem,
-              coTheTao: mq.coTheTao,
-              coTheSua: mq.coTheSua,
-              coTheXoa: mq.coTheXoa
-            };
+            map[mq.module] = { coTheXem: mq.coTheXem, coTheTao: mq.coTheTao, coTheSua: mq.coTheSua, coTheXoa: mq.coTheXoa };
           });
           setModuleQuyens(map);
         }
-      }).catch(() => {
-        setModuleQuyens({});
-        setGeneralQuyens([]);
-      });
+      }).catch(() => { setModuleQuyens({}); setGeneralQuyens([]); });
     }
   }, [open, employee]);
 
-  const handleToggle = (modKey, action) => {
+  const handleToggle = (modKey, field) => {
     setModuleQuyens(prev => {
-      const current = prev[modKey] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
-      return { ...prev, [modKey]: { ...current, [action]: !current[action] } };
+      const cur = prev[modKey] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+      return { ...prev, [modKey]: { ...cur, [field]: !cur[field] } };
     });
   };
 
-  const setAllRow = (modKey, val) => {
+  const setAllForModule = (modKey, val) =>
     setModuleQuyens(prev => ({ ...prev, [modKey]: { coTheXem: val, coTheTao: val, coTheSua: val, coTheXoa: val } }));
-  };
+
+  const setAllForCategory = (cat, val) =>
+    [...new Set(cat.tabs.map(t => t.moduleKey))].forEach(k => setAllForModule(k, val));
 
   const handleSave = async () => {
     setSaving(true); setErr('');
     try {
-      const payload = MODULES.map(m => {
-        const q = moduleQuyens[m.key] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
-        return {
-          module: m.key,
-          tenModule: m.label,
-          coTheXem: q.coTheXem,
-          coTheTao: q.coTheTao,
-          coTheSua: q.coTheSua,
-          coTheXoa: q.coTheXoa
-        };
+      const payload = ALL_MODULE_KEYS.map(k => {
+        const q = moduleQuyens[k] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+        return { module: k, tenModule: k, coTheXem: q.coTheXem, coTheTao: q.coTheTao, coTheSua: q.coTheSua, coTheXoa: q.coTheXoa };
       });
       await api.put(`/employees/${employee.maNhanVien}/module-permissions`, payload);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setErr(e.response?.data?.message || 'Lưu thất bại');
-    } finally { setSaving(false); }
+      onSaved(); onClose();
+    } catch (e) { setErr(e.response?.data?.message || 'Lưu thất bại'); }
+    finally { setSaving(false); }
   };
 
   if (!employee) return null;
 
+  const cat = PERMISSION_CATEGORIES[selectedCat];
+  const currentTab = cat?.tabs[selectedTab] || cat?.tabs[0];
+
+  const countGranted = (c) => {
+    let granted = 0, total = 0;
+    c.tabs.forEach(tab => tab.ops.forEach(op => { total++; if (moduleQuyens[tab.moduleKey]?.[op.field]) granted++; }));
+    return { granted, total };
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg"
+      PaperProps={{ sx: { height: '85vh', display: 'flex', flexDirection: 'column' } }}>
+      <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', py: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <SecurityIcon />
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Phân Quyền Module (CRUD)</Typography>
+          <SecurityIcon sx={{ fontSize: 28 }} />
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" fontWeight="bold">🔐 Phân Quyền Chi Tiết</Typography>
             <Typography variant="caption" sx={{ opacity: 0.85 }}>{employee.tenNV} · Vai trò: {employee.tenVaiTro}</Typography>
           </Box>
+          {generalQuyens.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxWidth: 280 }}>
+              {generalQuyens.map(q => <Chip key={q.maQ} label={q.tenQ} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.65rem' }} />)}
+            </Box>
+          )}
         </Box>
       </DialogTitle>
-      <DialogContent dividers sx={{ p: 0 }}>
-        {err && <Alert severity="error" sx={{ m: 2 }}>{err}</Alert>}
-        <Box sx={{ p: 2, background: '#f8fafc' }}>
-          <Typography variant="subtitle2" fontWeight="bold">Quyền hiện tại:</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-            {generalQuyens.map(q => <Chip key={q.maQ} label={q.tenQ} size="small" variant="outlined" />)}
+      <DialogContent dividers sx={{ p: 0, flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
+        {err && <Alert severity="error" sx={{ position: 'absolute', top: 8, left: 8, right: 8, zIndex: 10 }}>{err}</Alert>}
+
+        {/* LEFT: Danh mục */}
+        <Box sx={{ width: 215, flexShrink: 0, borderRight: '1px solid #ebedf2', overflowY: 'auto', background: '#f8fafc' }}>
+          <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+            <Typography variant="caption" color="textSecondary" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Danh Mục</Typography>
           </Box>
+          {PERMISSION_CATEGORIES.map((c, ci) => {
+            const { granted, total } = countGranted(c);
+            const sel = selectedCat === ci;
+            return (
+              <Box key={c.key} onClick={() => { setSelectedCat(ci); setSelectedTab(0); }}
+                sx={{ mx: 1, mb: 0.5, p: 1.5, borderRadius: 2, cursor: 'pointer',
+                  background: sel ? `${c.color}18` : 'transparent',
+                  border: `2px solid ${sel ? c.color : 'transparent'}`,
+                  transition: 'all 0.2s', '&:hover': { background: `${c.color}12` } }}>
+                <Typography variant="body2" sx={{ fontWeight: sel ? 'bold' : 500, color: sel ? c.color : 'inherit', fontSize: '0.85rem' }}>{c.label}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  <Box sx={{ flexGrow: 1, height: 4, borderRadius: 2, bgcolor: '#e0e0e0', overflow: 'hidden' }}>
+                    <Box sx={{ height: '100%', width: `${total ? (granted / total) * 100 : 0}%`, bgcolor: c.color, borderRadius: 2, transition: 'width 0.3s' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: c.color, fontWeight: 'bold', fontSize: '0.65rem', minWidth: 30 }}>{granted}/{total}</Typography>
+                </Box>
+              </Box>
+            );
+          })}
         </Box>
-        <DataTable
-          rows={MODULES.map(m => ({ ...m, id: m.key }))}
-          hideFooter
-          columns={[
-            { field: 'label', headerName: 'Danh Mục', flex: 1.5 },
-            { field: 'coTheXem', headerName: 'Xem', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheXem} onChange={() => handleToggle(p.row.key, 'coTheXem')} /> },
-            { field: 'coTheTao', headerName: 'Thêm', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheTao} onChange={() => handleToggle(p.row.key, 'coTheTao')} /> },
-            { field: 'coTheSua', headerName: 'Sửa', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheSua} onChange={() => handleToggle(p.row.key, 'coTheSua')} /> },
-            { field: 'coTheXoa', headerName: 'Xóa', width: 80, align: 'center', renderCell: (p) => <Checkbox checked={moduleQuyens[p.row.key]?.coTheXoa} onChange={() => handleToggle(p.row.key, 'coTheXoa')} /> },
-            {
-              field: 'all', headerName: 'Tất Cả', width: 80, align: 'center', renderCell: (p) => {
-                const q = moduleQuyens[p.row.key] || {};
-                const all = q.coTheXem && q.coTheTao && q.coTheSua && q.coTheXoa;
-                return <Checkbox checked={!!all} color="secondary" onChange={(e) => setAllRow(p.row.key, e.target.checked)} />;
-              }
-            }
-          ]}
-        />
+
+        {/* RIGHT: Tab + Thao tác */}
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {cat && (
+            <>
+              <Box sx={{ px: 3, pt: 2, pb: 1, borderBottom: '1px solid #ebedf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ color: cat.color }}>{cat.label}</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button size="small" variant="outlined" sx={{ borderColor: cat.color, color: cat.color, fontSize: '0.75rem' }}
+                    onClick={() => setAllForCategory(cat, true)}>✅ Cấp Tất Cả</Button>
+                  <Button size="small" variant="outlined" color="error" sx={{ fontSize: '0.75rem' }}
+                    onClick={() => setAllForCategory(cat, false)}>❌ Thu Hồi Tất Cả</Button>
+                </Box>
+              </Box>
+              <Box sx={{ borderBottom: '1px solid #ebedf2', flexShrink: 0 }}>
+                <Tabs value={selectedTab} onChange={(_, v) => setSelectedTab(v)} sx={{ px: 2, minHeight: 44 }}
+                  TabIndicatorProps={{ style: { background: cat.color } }}>
+                  {cat.tabs.map((tab, ti) => {
+                    const q = moduleQuyens[tab.moduleKey] || {};
+                    const cnt = tab.ops.filter(op => q[op.field]).length;
+                    return (
+                      <Tab key={ti} sx={{ minHeight: 44, textTransform: 'none', fontSize: '0.85rem', fontWeight: selectedTab === ti ? 'bold' : 400, color: selectedTab === ti ? cat.color : 'text.secondary' }}
+                        label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><span>{tab.label}</span>
+                          <Chip label={`${cnt}/${tab.ops.length}`} size="small"
+                            sx={{ height: 17, fontSize: '0.6rem', bgcolor: cnt > 0 ? `${cat.color}22` : '#f0f0f0', color: cnt > 0 ? cat.color : '#aaa' }} />
+                        </Box>}
+                      />
+                    );
+                  })}
+                </Tabs>
+              </Box>
+              <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2.5 }}>
+                {currentTab && (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary">Thao tác cho tab <strong>{currentTab.label}</strong>:</Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button size="small" sx={{ fontSize: '0.72rem', color: cat.color }} onClick={() => setAllForModule(currentTab.moduleKey, true)}>Cấp hết</Button>
+                        <Button size="small" color="error" sx={{ fontSize: '0.72rem' }} onClick={() => setAllForModule(currentTab.moduleKey, false)}>Thu hồi</Button>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {currentTab.ops.map((op) => {
+                        const checked = !!moduleQuyens[currentTab.moduleKey]?.[op.field];
+                        return (
+                          <Box key={op.field} onClick={() => handleToggle(currentTab.moduleKey, op.field)}
+                            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderRadius: 2, cursor: 'pointer',
+                              border: `1.5px solid ${checked ? cat.color : '#e0e0e0'}`,
+                              background: checked ? `${cat.color}0d` : '#fafafa',
+                              transition: 'all 0.2s', '&:hover': { borderColor: cat.color, background: `${cat.color}10` } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: checked ? cat.color : '#ccc', flexShrink: 0 }} />
+                              <Typography variant="body2" sx={{ fontWeight: checked ? 600 : 400, color: checked ? cat.color : 'text.primary' }}>{op.label}</Typography>
+                            </Box>
+                            <Switch checked={checked} size="small"
+                              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: cat.color }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: cat.color } }}
+                              onClick={e => e.stopPropagation()} onChange={() => handleToggle(currentTab.moduleKey, op.field)} />
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </>
+                )}
+              </Box>
+            </>
+          )}
+        </Box>
       </DialogContent>
-      <DialogActions><Button onClick={onClose}>Hủy</Button><Button variant="contained" onClick={handleSave} disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</Button></DialogActions>
+
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={onClose} disabled={saving}>Hủy</Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}
+          sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
+          {saving ? 'Đang lưu...' : '💾 Lưu Phân Quyền'}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

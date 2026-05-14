@@ -19,14 +19,14 @@ namespace BuildingMaterialAPI.Utilities
             StringBuilder result = new StringBuilder();
             
             // Chia chuỗi thành các nhóm 3 chữ số từ phải sang trái
-            int numGroups = (len + 2) / 3;
-            string[] groups = new string[numGroups];
-            for (int i = 0; i < numGroups; i++)
+            var groups = new System.Collections.Generic.List<string>();
+            for (int i = len; i > 0; i -= 3)
             {
-                int groupLen = (i == numGroups - 1) ? (len % 3 == 0 ? 3 : len % 3) : 3;
-                groups[numGroups - 1 - i] = sNumber.Substring(pos, groupLen);
-                pos += groupLen;
+                int start = Math.Max(0, i - 3);
+                int length = i - start;
+                groups.Add(sNumber.Substring(start, length));
             }
+            int numGroups = groups.Count;
 
             for (int i = numGroups - 1; i >= 0; i--)
             {

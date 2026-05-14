@@ -27,13 +27,30 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   const [lat, setLat] = useState(null);
   const [lng, setLng] = useState(null);
   const [isGettingGPS, setIsGettingGPS] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const currentUser = authService.getUser();
 
   useEffect(() => {
     if (open && deliveryId) {
       fetchDetail();
+      fetchHistory();
     }
   }, [open, deliveryId]);
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await api.get(`/deliveries/${deliveryId}/history`);
+      setHistory(res.data || []);
+    } catch (err) {
+      console.error('Error fetching delivery history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const fetchDetail = async () => {
     setLoading(true);
@@ -44,6 +61,8 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
       setStatus(data.trangThai || 'Chờ giao');
       setNotes(data.ghiChu || '');
       setAmountPaid('');
+      setPhoto(null);
+      setPhotoPreview(null);
       setCurrentLocation(data.viTriHienTai || '');
       setLat(data.lat);
       setLng(data.lng);
@@ -95,6 +114,10 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   };
 
   const handleSaveStatus = async () => {
+    if (status === 'Đã giao' && !photoPreview) {
+      alert('⚠️ BẮT BUỘC: Vui lòng chụp ảnh xác nhận đã giao hàng để hoàn tất!');
+      return;
+    }
     setActionLoading(true);
     try {
       const payload = {
@@ -105,6 +128,8 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
         viTriHienTai: currentLocation,
         lat: lat,
         lng: lng,
+        hinhAnhXacNhan: photoPreview,
+        maNguoiThucHien: currentUserId,
         items: Object.values(itemUpdates)
       };
 
@@ -120,6 +145,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
       }
 
       await api.put(`/deliveries/${deliveryId}`, payload);
+      fetchHistory();
       if (onUpdated) onUpdated();
     } catch (err) {
       console.error('Error updating delivery status:', err);
@@ -340,7 +366,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                   </Grid>
                 )}
 
-                <Grid item xs={12} md={status === 'Đã giao' ? 4 : 8}>
+                <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth size="small"
                     label="Ghi chú cập nhật"
@@ -351,6 +377,42 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                     placeholder="Lý do nếu giao không thành công..."
                   />
                 </Grid>
+
+                {status === 'Đã giao' && (
+                  <Grid item xs={12}>
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: 'primary.main' }}>
+                        📸 CHỤP ẢNH XÁC NHẬN GIAO HÀNG *
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          sx={{ height: 100, width: 200, borderStyle: 'dashed', display: 'flex', flexDirection: 'column', gap: 1 }}
+                        >
+                          {photoPreview ? 'Thay đổi ảnh' : 'Chụp ảnh xác nhận'}
+                          <input
+                            type="file" accept="image/*" hidden capture="environment"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setPhoto(file);
+                                const reader = new FileReader();
+                                reader.onloadend = () => setPhotoPreview(reader.result);
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </Button>
+                        {photoPreview && (
+                          <Box sx={{ position: 'relative' }}>
+                            <img src={photoPreview} alt="Preview" style={{ height: 100, borderRadius: 8, border: '1px solid #ddd' }} />
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </Box>
 
@@ -391,6 +453,55 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                    </Box>
                 </Grid>
               </Grid>
+            </Box>
+
+            {/* LỊCH SỬ THEO DÕI GIAO HÀNG */}
+            <Box sx={{ mt: 4 }}>
+               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                 🕒 Lịch sử theo dõi giao hàng
+               </Typography>
+               {loadingHistory ? (
+                 <CircularProgress size={20} />
+               ) : history.length === 0 ? (
+                 <Typography variant="body2" color="textSecondary">Chưa có lịch sử cập nhật.</Typography>
+               ) : (
+                 <Box sx={{ position: 'relative', pl: 3, '&:before': { content: '""', position: 'absolute', left: 8, top: 0, bottom: 0, width: 2, bgcolor: '#eee' } }}>
+                    {history.map((h, i) => (
+                      <Box key={i} sx={{ mb: 3, position: 'relative' }}>
+                        <Box sx={{ 
+                          position: 'absolute', left: -28, top: 4, width: 12, height: 12, 
+                          borderRadius: '50%', bgcolor: i === 0 ? 'primary.main' : '#ddd',
+                          border: '2px solid #fff', zIndex: 1
+                        }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                           <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                              {h.trangThaiMoi}
+                           </Typography>
+                           <Typography variant="caption" color="textSecondary">
+                              {new Date(h.ngayTao).toLocaleString('vi-VN')}
+                           </Typography>
+                        </Box>
+                        <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>{h.noiDungThayDoi}</Typography>
+                        {h.viTriCapNhat && (
+                          <Typography variant="caption" sx={{ display: 'block', color: 'info.main', fontStyle: 'italic', mb: 1 }}>
+                            📍 {h.viTriCapNhat}
+                          </Typography>
+                        )}
+                        {h.hinhAnhXacNhan && (
+                          <Box sx={{ mt: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 0.5 }}>📸 Ảnh xác nhận:</Typography>
+                            <img 
+                              src={h.hinhAnhXacNhan} 
+                              alt="Xác nhận" 
+                              style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 4, cursor: 'pointer' }} 
+                              onClick={() => window.open(h.hinhAnhXacNhan, '_blank')}
+                            />
+                          </Box>
+                        )}
+                      </Box>
+                    ))}
+                 </Box>
+               )}
             </Box>
           </Box>
         ) : (

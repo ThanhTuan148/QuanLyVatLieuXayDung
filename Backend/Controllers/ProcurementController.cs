@@ -176,11 +176,11 @@ namespace BuildingMaterialAPI.Controllers
 
                 // Reload để lấy MaPN
                 var p = await _ctx.PhieuNhaps.FindAsync(phieu.MaPhieuNhap);
-                await _notificationService.SendNotificationAsync(
+                await _notificationService.SendToPermissionAsync(
+                    "inventory",
                     "Đề xuất nhập hàng mới",
                     $"Nhân viên kho vừa lập đề xuất nhập hàng mới {p?.MaPN ?? phieu.MaPhieuNhap.ToString()}. Vui lòng kiểm tra và duyệt.",
                     "DeXuat",
-                    null, 
                     "/procurement"
                 );
                 return Ok(new { message = "Đã tạo phiếu đề xuất thành công.", maPhieuNhap = phieu.MaPhieuNhap, maPN = p?.MaPN });
@@ -353,19 +353,30 @@ namespace BuildingMaterialAPI.Controllers
                 }
 
                 // Cập nhật lại tổng tiền phiếu gốc (nếu bị bớt item)
-                p.TongTien = p.CTPNs.Sum(c => c.ThanhTien ?? 0);
+                // Phải lọc theo MaPhieuNhap == p.MaPhieuNhap vì item.MaPhieuNhap đã bị thay đổi trong bộ nhớ
+                p.TongTien = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).Sum(c => c.ThanhTien ?? 0);
+
+                if (p.TongTien == 0 && !p.CTPNs.Any(c => c.MaPhieuNhap == p.MaPhieuNhap))
+                {
+                    // Nếu phiếu gốc không còn item nào (bị tách hết), đánh dấu là Đã Tách
+                    p.TrangThai = "Đã Tách";
+                }
 
                 await _ctx.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                // Notify warehouse staff
-                await _notificationService.SendNotificationAsync(
-                    "Đề xuất đã được duyệt",
-                    $"Đề xuất nhập hàng {p.MaPN} của bạn đã được quản lý phê duyệt {(splitCount > 0 ? $"và tách thành {splitCount + 1} đơn hàng" : "")}.",
-                    "HeThong",
-                    p.MaNhanVien.ToString(),
-                    link: "/procurement"
-                );
+                // Notify warehouse staff (requester)
+                var requester = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
+                if (requester != null && requester.MaTaiKhoan.HasValue)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        "Đề xuất đã được duyệt",
+                        $"Đề xuất nhập hàng {p.MaPN} của bạn đã được quản lý phê duyệt {(splitCount > 0 ? $"và tách thành {splitCount + 1} đơn hàng" : "")}.",
+                        "HeThong",
+                        requester.MaTaiKhoan.ToString(),
+                        link: "/procurement"
+                    );
+                }
 
                 // Auto send emails to suppliers
                 foreach (var phieuId in approvedPhieuIds)
@@ -403,14 +414,18 @@ namespace BuildingMaterialAPI.Controllers
 
             await _ctx.SaveChangesAsync();
 
-            // Notify warehouse staff
-            await _notificationService.SendNotificationAsync(
-                "Đề xuất bị từ chối",
-                $"Đề xuất nhập hàng {p.MaPN} đã bị từ chối. Lý do: {dto.LyDo}",
-                "HeThong",
-                p.MaNhanVien.ToString(),
-                link: "/procurement"
-            );
+            // Notify warehouse staff (requester)
+            var requesterReject = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
+            if (requesterReject != null && requesterReject.MaTaiKhoan.HasValue)
+            {
+                await _notificationService.SendNotificationAsync(
+                    "Đề xuất bị từ chối",
+                    $"Đề xuất nhập hàng {p.MaPN} đã bị từ chối. Lý do: {dto.LyDo}",
+                    "HeThong",
+                    requesterReject.MaTaiKhoan.ToString(),
+                    link: "/procurement"
+                );
+            }
 
             return Ok(new { message = "Đã từ chối phiếu đề xuất!" });
         }
@@ -436,7 +451,8 @@ namespace BuildingMaterialAPI.Controllers
                     // Chọn kho thực tế (ưu tiên kho được chọn trong chi tiết phiếu, nếu không có thì mặc định kho 1)
                     int maKhoTarget = ct.MaKhoHang ?? 1;
 
-                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
+                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
+                              ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
                     if (kho != null)
                     {
                         kho.SoLuong += ct.SoLuongDaNhan;
@@ -579,35 +595,10 @@ namespace BuildingMaterialAPI.Controllers
                 var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
                 if (p == null) return NotFound();
 
-                // 1. Thu hồi lại các item đã tách trước đó từ phiếu này (nếu đang xử lý lại)
-                var splitSlips = await _ctx.PhieuNhaps.Include(x => x.CTPNs)
-                    .Where(x => x.GhiChu != null && x.GhiChu.Contains($"[TáchTừPhiếu:{id}]"))
-                    .ToListAsync();
+                // 1. (ĐÃ BỎ LOGIC THU HỒI): Không thu hồi các phiếu đã tách. 
+                // Phiếu nào đã tách ra (Đã Duyệt) thì giữ nguyên, không xóa đi tạo lại để tránh gửi email 2 lần.
+                // Các item đã tách sẽ không nằm trong p.CTPNs nữa, nên sẽ tự động bị bỏ qua trong lần xử lý này.
 
-                foreach (var s in splitSlips)
-                {
-                    // Chỉ thu hồi nếu chưa có hàng nào được nhập thực tế
-                    if (s.CTPNs != null && !s.CTPNs.Any(c => c.SoLuongDaNhan > 0))
-                    {
-                        foreach (var item in s.CTPNs.ToList())
-                        {
-                            item.MaPhieuNhap = id; // Trả về phiếu gốc
-                            item.TrangThai = "Đề Xuất"; 
-                        }
-
-                        // Xóa lịch sử phiếu con trước để tránh lỗi FK constraint
-                        var lichSuConPhieu = await _ctx.LichSuPhieuNhaps
-                            .Where(ls => ls.MaPhieuNhap == s.MaPhieuNhap)
-                            .ToListAsync();
-                        _ctx.LichSuPhieuNhaps.RemoveRange(lichSuConPhieu);
-
-                        _ctx.PhieuNhaps.Remove(s);
-                    }
-                }
-                await _ctx.SaveChangesAsync();
-                
-                // Load lại danh sách item của phiếu sau khi đã thu hồi
-                await _ctx.Entry(p).Collection(x => x.CTPNs).LoadAsync();
 
                 var approvedItems = p.CTPNs.Where(c => dto.MacTPNDuyet.Contains(c.MaCTPN)).ToList();
                 var revisionItems = p.CTPNs.Where(c => dto.MacTPNSua.Contains(c.MaCTPN)).ToList();
@@ -659,6 +650,9 @@ namespace BuildingMaterialAPI.Controllers
                             NoiDungThayDoi = "Phiếu được duyệt trực tiếp (toàn bộ sản phẩm cùng 1 NCC).",
                             MaNguoiThucHien = dto.UserId
                         });
+                        
+                        // TỰ ĐỘNG GỬI EMAIL CHO NCC
+                        await SendEmailToSupplierInternal(id, dto.UserId);
                     }
                     else
                     {
@@ -694,6 +688,12 @@ namespace BuildingMaterialAPI.Controllers
                                 NoiDungThayDoi = $"Phiếu được duyệt và tách từ {p.MaPN} theo nhà cung cấp.",
                                 MaNguoiThucHien = dto.UserId
                             });
+
+                            // BẮT BUỘC SAVE CHANGES ĐỂ CÁC ITEM ĐƯỢC CHUYỂN SANG PHIẾU MỚI TRƯỚC KHI GỬI EMAIL
+                            await _ctx.SaveChangesAsync();
+
+                            // TỰ ĐỘNG GỬI EMAIL CHO NCC (TÁCH PHIẾU)
+                            await SendEmailToSupplierInternal(newApprovedPhieu.MaPhieuNhap, dto.UserId);
                         }
                     }
                 }
@@ -715,11 +715,20 @@ namespace BuildingMaterialAPI.Controllers
                 }
 
                 // Cập nhật trạng thái tổng quát cho phiếu gốc
-                if (revisionItems.Any()) p.TrangThai = "Yêu Cầu Sửa";
-                else if (approvedItems.Any()) p.TrangThai = "Đã Duyệt"; // Đã tách hết các món duyệt
-                else if (rejectedItems.Count == p.CTPNs.Count) p.TrangThai = "Từ Chối";
+                var remainingItems = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).ToList();
+                p.TongTien = remainingItems.Sum(c => c.ThanhTien ?? 0);
 
-                p.NgayCapNhat = DateTime.UtcNow;
+                if (remainingItems.Any())
+                {
+                    if (remainingItems.Any(c => c.TrangThai == "Yêu Cầu Sửa")) p.TrangThai = "Yêu Cầu Sửa";
+                    else if (remainingItems.All(c => c.TrangThai == "Từ Chối")) p.TrangThai = "Từ Chối";
+                    else if (remainingItems.All(c => c.TrangThai == "Đã Duyệt")) p.TrangThai = "Đã Duyệt";
+                    else p.TrangThai = "Đang xử lý"; // Mixed state
+                }
+                else
+                {
+                    p.TrangThai = "Đã Tách";
+                }
 
                 p.NgayCapNhat = DateTime.UtcNow;
 

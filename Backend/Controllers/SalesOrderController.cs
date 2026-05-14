@@ -473,7 +473,8 @@ namespace BuildingMaterialAPI.Controllers
                     // Kiểm tra tồn kho thấp
                     if (kho.SoLuongTon <= (kho.SanPham?.MucTonToiThieu ?? 5))
                     {
-                        await _notificationService.SendNotificationAsync(
+                        await _notificationService.SendToPermissionAsync(
+                            "inventory",
                             "Cảnh báo tồn kho thấp",
                             $"Sản phẩm {kho.SanPham?.TenSP} sắp hết hàng (Còn {kho.SoLuongTon} {kho.SanPham?.DonViTinh}).",
                             "HeThong",
@@ -489,12 +490,29 @@ namespace BuildingMaterialAPI.Controllers
                     await RecalculateCustomerTier(hd.MaKhachHang.Value);
 
                 // Gửi thông báo cho hệ thống/Admin về đơn hàng mới
-                await _notificationService.SendNotificationAsync(
+                await _notificationService.SendToPermissionAsync(
+                    "orders",
                     "Đơn hàng mới",
                     $"Có đơn hàng mới {hd.MaHD} từ {(string.IsNullOrEmpty(hd.TenNguoiNhan) ? "Khách hàng" : hd.TenNguoiNhan)}. Tổng tiền: {hd.TongTien:N0}đ",
                     "DonHang",
                     link: $"/orders"
                 );
+
+                // Gửi thông báo cho khách hàng
+                if (hd.MaKhachHang.HasValue)
+                {
+                    var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
+                    if (kh?.MaTaiKhoan.HasValue == true)
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            "Đặt hàng thành công",
+                            $"Đơn hàng {hd.MaHD} của bạn đã được đặt thành công. Chúng tôi sẽ sớm xử lý.",
+                            "DonHang",
+                            kh.MaTaiKhoan.Value.ToString(),
+                            link: $"/order-detail/{hd.MaHoaDon}"
+                        );
+                    }
+                }
 
                 await transaction.CommitAsync();
                 return Ok(new { maHoaDon = hd.MaHoaDon });
@@ -567,6 +585,15 @@ namespace BuildingMaterialAPI.Controllers
                     };
                     _ctx.PhieuXuatKhos.Add(pxk);
                     await _ctx.SaveChangesAsync();
+
+                    _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+                    {
+                        MaPhieuXK = pxk.MaPhieuXK,
+                        TrangThaiMoi = "Chờ duyệt",
+                        NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
+                        MaNguoiThucHien = staffId,
+                        NgayTao = DateTime.UtcNow
+                    });
                 }
             }
 
@@ -625,6 +652,49 @@ namespace BuildingMaterialAPI.Controllers
                 await SyncCongNoFromHoaDon(hd.MaHoaDon);
                 if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
                     await RecalculateCustomerTier(hd.MaKhachHang.Value);
+
+                // Gửi thông báo cho khách hàng
+                if (hd.MaKhachHang.HasValue && oldStatus != hd.TrangThai)
+                {
+                    var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
+                    if (kh?.MaTaiKhoan.HasValue == true)
+                    {
+                        string title = "";
+                        string content = "";
+                        if (hd.TrangThai == "Đã xác nhận")
+                        {
+                            title = "Đơn hàng đã được xác nhận";
+                            content = $"Đơn hàng {hd.MaHD} của bạn đã được quản lý xác nhận và đang chờ chuẩn bị.";
+                        }
+                        else if (hd.TrangThai == "Đã hủy")
+                        {
+                            title = "Đơn hàng đã bị hủy";
+                            content = $"Đơn hàng {hd.MaHD} của bạn đã bị hủy. Vui lòng liên hệ nếu có thắc mắc.";
+                        }
+                        else if (hd.TrangThai == "Hoàn thành")
+                        {
+                            title = "Đơn hàng hoàn tất";
+                            content = $"Đơn hàng {hd.MaHD} của bạn đã hoàn tất. Cảm ơn bạn đã tin tưởng chúng tôi!";
+                        }
+                        else if (hd.TrangThai == "Yêu cầu đổi/trả hàng")
+                        {
+                            title = "Đã nhận yêu cầu đổi trả";
+                            content = $"Yêu cầu đổi trả cho đơn hàng {hd.MaHD} của bạn đã được tiếp nhận.";
+                        }
+
+                        if (!string.IsNullOrEmpty(title))
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                title,
+                                content,
+                                "DonHang",
+                                kh.MaTaiKhoan.Value.ToString(),
+                                link: $"/order-detail/{hd.MaHoaDon}"
+                            );
+                        }
+                    }
+                }
+
                 return Ok(new { maHoaDon = hd.MaHoaDon });
             }
             catch (Exception ex) 

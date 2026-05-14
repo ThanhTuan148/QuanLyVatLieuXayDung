@@ -44,6 +44,8 @@ namespace BuildingMaterialAPI.Data
         public DbSet<CTPhieuGiaoHang> CTPhieuGiaoHangs { get; set; }
         public DbSet<PhieuXuatKho> PhieuXuatKhos { get; set; }
         public DbSet<CTPhieuXuatKho> CTPhieuXuatKhos { get; set; }
+        public DbSet<LichSuPhieuXuatKho> LichSuPhieuXuatKhos { get; set; }
+        public DbSet<LichSuGiaoHang> LichSuGiaoHangs { get; set; }
 
         // Công nợ
         public DbSet<CongNo> CongNos { get; set; }

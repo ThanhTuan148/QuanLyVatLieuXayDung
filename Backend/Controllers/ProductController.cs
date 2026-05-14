@@ -209,7 +209,6 @@ namespace BuildingMaterialAPI.Controllers
                 SoLuong = 0,
                 SoLuongNhap = 0,
                 SoLuongTon = 0,
-                ViTri = "Chưa xếp kệ",
                 NgayCapNhat = DateTime.UtcNow
             };
             _ctx.CTKhoHangs.Add(initialStock);
@@ -239,7 +238,8 @@ namespace BuildingMaterialAPI.Controllers
                 });
 
                 // Gửi thông báo hệ thống
-                await _notificationService.SendNotificationAsync(
+                await _notificationService.SendToPermissionAsync(
+                    "products",
                     "Biến động giá sản phẩm",
                     $"Sản phẩm {sp.TenSP} vừa thay đổi giá bán thành {dto.GiaBan:N0}đ.",
                     "HeThong",
@@ -314,7 +314,6 @@ namespace BuildingMaterialAPI.Controllers
             worksheet.Cells[1, 13].Value = "Thương Hiệu";
             worksheet.Cells[1, 14].Value = "Xuất Xứ";
             worksheet.Cells[1, 15].Value = "Số Lượng Tồn Ban Đầu";
-            worksheet.Cells[1, 16].Value = "Vị Trí Lưu Kho (VD: Kệ A)";
             worksheet.Cells["A1:P1"].Style.Font.Bold = true;
 
             for (int i = 0; i < list.Count; i++)
@@ -359,7 +358,7 @@ namespace BuildingMaterialAPI.Controllers
                 int updated = 0;
                 int skipped = 0;
                 int stockInitialized = 0;
-                var itemsToInitStock = new List<(SanPham sp, int qty, string location)>();
+                var itemsToInitStock = new List<(SanPham sp, int qty)>();
 
             for (int row = 2; row <= rowCount; row++)
             {
@@ -378,7 +377,6 @@ namespace BuildingMaterialAPI.Controllers
                 var thuongHieuStr = worksheet.Cells[row, 13].Value?.ToString();
                 var xuatXuStr = worksheet.Cells[row, 14].Value?.ToString();
                 int.TryParse(worksheet.Cells[row, 15].Value?.ToString(), out int slTonBanDau);
-                var viTriK = worksheet.Cells[row, 16].Value?.ToString();
 
                 if (string.IsNullOrWhiteSpace(ten)) {
                     skipped++;
@@ -400,7 +398,7 @@ namespace BuildingMaterialAPI.Controllers
                         existing.MucTonToiThieu = mucTonToiThieu; existing.GhiChu = ghiChu;
                         existing.TrangThai = trangThai; existing.NgayCapNhat = DateTime.UtcNow;
                         updated++;
-                        if (slTonBanDau > 0) itemsToInitStock.Add((existing, slTonBanDau, viTriK ?? ""));
+                        if (slTonBanDau > 0) itemsToInitStock.Add((existing, slTonBanDau));
                     }
                     else 
                     {
@@ -420,7 +418,7 @@ namespace BuildingMaterialAPI.Controllers
                     };
                     _ctx.SanPhams.Add(newSp);
                     inserted++;
-                    if (slTonBanDau > 0) itemsToInitStock.Add((newSp, slTonBanDau, viTriK ?? ""));
+                    if (slTonBanDau > 0) itemsToInitStock.Add((newSp, slTonBanDau));
                 }
             }
             await _ctx.SaveChangesAsync();
@@ -479,7 +477,6 @@ namespace BuildingMaterialAPI.Controllers
                             SoLuong = item.qty,
                             SoLuongNhap = item.qty,
                             SoLuongTon = item.qty,
-                            ViTri = item.location,
                             NgayNhapCuoi = DateTime.UtcNow,
                             NgayCapNhat = DateTime.UtcNow
                         };

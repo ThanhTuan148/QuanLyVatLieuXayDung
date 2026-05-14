@@ -39,7 +39,21 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import PriceHistoryPage from './pages/PriceHistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ShoppingLayout from './components/ShoppingLayout';
-import { PermissionProvider } from './contexts/PermissionContext';
+import { PermissionProvider, usePermissions } from './contexts/PermissionContext';
+
+// ─── Guard kiểm tra quyền module trước khi render trang ──────
+// moduleKeys: mảng các module key - cho phép nếu bất kỳ module nào có quyền xem
+function PermissionGuard({ moduleKeys, fallbackPath, children }) {
+  const { permissions, loading } = usePermissions();
+  if (loading) return null;
+  if (moduleKeys && moduleKeys.length > 0 && permissions !== null) {
+    const hasAnyAccess = moduleKeys.some(k => permissions?.[k]?.coTheXem);
+    if (!hasAnyAccess) {
+      return <Navigate to={fallbackPath || '/products'} replace />;
+    }
+  }
+  return children;
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -75,10 +89,17 @@ function App() {
     setLoading(false);
   }, []);
 
-  const AdminRoute = ({ children }) => {
+  const AdminRoute = ({ children, moduleKeys }) => {
     if (!isAuthenticated) return <Navigate to="/auth" />;
     if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
-    return <Layout>{children}</Layout>;
+    const fallback = getAdminHomeRoute(userRole);
+    return (
+      <Layout>
+        <PermissionGuard moduleKeys={moduleKeys} fallbackPath={fallback}>
+          {children}
+        </PermissionGuard>
+      </Layout>
+    );
   };
 
   const DashboardRoute = ({ children }) => {
@@ -135,6 +156,7 @@ function App() {
   }
 />
 
+<<<<<<< Updated upstream
 {/* /auth - redirect based on role if already logged in */}
 <Route
   path="/auth"
@@ -161,6 +183,26 @@ function App() {
 <Route path="/dashboard" element={<DashboardRoute><DashboardPage /></DashboardRoute>} />
 <Route path="/products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
 <Route path="/orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
+=======
+          {/* Admin / Staff routes - protected by token and role */}
+          <Route path="/dashboard" element={<DashboardRoute><DashboardPage /></DashboardRoute>} />
+          <Route path="/products" element={<AdminRoute moduleKeys={['products', 'categories']}><ProductsPage /></AdminRoute>} />
+          <Route path="/orders" element={<AdminRoute moduleKeys={['orders', 'deliveries']}><OrdersPage /></AdminRoute>} />
+
+          <Route path="/customers" element={<AdminRoute moduleKeys={['customers']}><CustomersPage /></AdminRoute>} />
+          <Route path="/promotions" element={<AdminRoute moduleKeys={['promotions', 'flashsales']}><PromotionsPage /></AdminRoute>} />
+          <Route path="/suppliers" element={<AdminRoute moduleKeys={['suppliers']}><SuppliersPage /></AdminRoute>} />
+          <Route path="/procurement" element={<AdminRoute moduleKeys={['inventory']}><ProcurementPage /></AdminRoute>} />
+          <Route path="/returns" element={<AdminRoute moduleKeys={['inventory']}><ReturnsPage /></AdminRoute>} />
+          <Route path="/inventory" element={<AdminRoute moduleKeys={['inventory']}><InventoryPage /></AdminRoute>} />
+          <Route path="/debts" element={<AdminRoute moduleKeys={['customers']}><DebtsPage /></AdminRoute>} />
+          <Route path="/deliveries" element={<AdminRoute moduleKeys={['deliveries']}><DeliveriesPage /></AdminRoute>} />
+
+          <Route path="/settings" element={<AdminRoute moduleKeys={['settings']}><SettingsPage /></AdminRoute>} />
+          <Route path="/employees" element={<AdminRoute moduleKeys={['employees']}><EmployeesPage /></AdminRoute>} />
+          <Route path="/price-history" element={<AdminRoute moduleKeys={['inventory']}><PriceHistoryPage /></AdminRoute>} />
+          <Route path="/reports" element={<AdminRoute moduleKeys={['reports']}><ReportsPage /></AdminRoute>} />
+>>>>>>> Stashed changes
 
             <Route path="/customers" element={<AdminRoute><CustomersPage /></AdminRoute>} />
             <Route path="/promotions" element={<AdminRoute><PromotionsPage /></AdminRoute>} />

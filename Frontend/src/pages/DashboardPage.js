@@ -16,10 +16,8 @@ import api from '../services/api';
 const COLORS = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#f5576c', '#00f2fe', '#38f9d7'];
 
 const formatVND = (value) => {
-  if (!value) return '₫0';
-  if (value >= 1000000) return `₫${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `₫${(value / 1000).toFixed(0)}K`;
-  return `₫${value.toLocaleString('vi-VN')}`;
+  if (!value) return '0 ₫';
+  return value.toLocaleString('vi-VN') + ' ₫';
 };
 
 function DashboardPage() {
@@ -112,23 +110,37 @@ function DashboardPage() {
       {/* Stats Cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {statCards.map((stat, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
+          <Grid item xs={12} sm={6} md={3} key={index} sx={{ display: 'flex' }}>
             <Card 
               onClick={() => navigate(stat.path)}
               sx={{
                 background: stat.bgColor, color: 'white', borderRadius: 2,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-              '&:hover': { transform: 'translateY(-6px)', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' },
-              cursor: 'pointer',
-            }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5, fontSize: '0.75rem' }}>{stat.title}</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{stat.value}</Typography>
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                transition: 'all 0.3s ease',
+                '&:hover': { transform: 'translateY(-6px)', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' },
+                cursor: 'pointer',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+              <CardContent sx={{ flexGrow: 1, p: '16px !important' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5, fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      {stat.title}
+                    </Typography>
+                    <Typography 
+                      sx={{ 
+                        fontWeight: 800, 
+                        fontSize: (typeof stat.value === 'string' && stat.value.length > 12) ? '1.25rem' : '1.75rem',
+                        lineHeight: 1.2,
+                        wordBreak: 'break-all'
+                      }}
+                    >
+                      {stat.value}
+                    </Typography>
                   </Box>
-                  <Typography variant="h3">{stat.icon}</Typography>
+                  <Typography variant="h3" sx={{ ml: 1, opacity: 0.8 }}>{stat.icon}</Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -163,7 +175,10 @@ function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis />
-                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Tooltip formatter={(value, name, props) => {
+                          if (props.dataKey === 'doanhThu') return [(value * 1000).toLocaleString('vi-VN') + ' ₫', 'Doanh thu'];
+                          return [value, 'Số lượng'];
+                        }} />
                         <Legend />
                         <Bar dataKey="soLuong" fill="#667eea" name="Số lượng bán" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="doanhThu" fill="#f093fb" name="Doanh thu (K)" radius={[4, 4, 0, 0]} />
@@ -173,7 +188,10 @@ function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis />
-                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Tooltip formatter={(value, name, props) => {
+                          if (props.dataKey === 'doanhThu') return [(value * 1000).toLocaleString('vi-VN') + ' ₫', 'Doanh thu'];
+                          return [value, 'Số lượng'];
+                        }} />
                         <Legend />
                         <Line type="monotone" dataKey="soLuong" stroke="#667eea" strokeWidth={3} name="Số lượng bán" dot={{ r: 6 }} />
                         <Line type="monotone" dataKey="doanhThu" stroke="#f093fb" strokeWidth={3} name="Doanh thu (K)" dot={{ r: 6 }} />
@@ -183,7 +201,10 @@ function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis />
-                        <Tooltip formatter={(value, name) => [name === 'doanhThu' ? `₫${value}K` : value, name === 'doanhThu' ? 'Doanh thu' : 'Số lượng']} />
+                        <Tooltip formatter={(value, name, props) => {
+                          if (props.dataKey === 'doanhThu') return [(value * 1000).toLocaleString('vi-VN') + ' ₫', 'Doanh thu'];
+                          return [value, 'Số lượng'];
+                        }} />
                         <Legend />
                         <Area type="monotone" dataKey="soLuong" fill="#667eea" stroke="#667eea" fillOpacity={0.2} name="Số lượng bán" />
                         <Area type="monotone" dataKey="doanhThu" fill="#f093fb" stroke="#f093fb" fillOpacity={0.2} name="Doanh thu (K)" />

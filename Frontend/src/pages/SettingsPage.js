@@ -341,12 +341,18 @@ function SignatureTab({ userId }) {
       const updateData = { ...employee, chuKy: signaturePath };
       await api.put(`/employees/${employeeId}`, updateData);
       
+      // CẬP NHẬT PHIÊN LÀM VIỆC (LOCAL SESSION)
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      currentUser.chuKy = signaturePath;
+      currentUser.ChuKy = signaturePath; // Đồng bộ cả 2 kiểu viết
+      localStorage.setItem('user', JSON.stringify(currentUser));
+
       alert("Đã cập nhật chữ ký số thành công!");
     } catch (e) {
       alert("Lỗi tải lên chữ ký: " + (e.response?.data?.message || e.message));
     } finally {
       setLoading(false);
-      window.location.reload(); // Reload để cập nhật
+      window.location.reload(); 
     }
   };
 

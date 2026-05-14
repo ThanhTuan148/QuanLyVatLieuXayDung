@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, Paper } from '@mui/material';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import FlashOnIcon from '@mui/icons-material/FlashOn';
@@ -8,6 +8,7 @@ import FlashSalesTab from '../components/FlashSalesTab';
 import CouponTab from '../components/CouponTab';
 import UuDaiTab from '../components/UuDaiTab';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import { usePermissions } from '../contexts/PermissionContext';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -19,11 +20,29 @@ function TabPanel(props) {
 }
 
 export default function PromotionsPage() {
+  const { permissions } = usePermissions();
   const [tabIndex, setTabIndex] = useState(0);
+
+  const allTabs = [
+    { label: "Khuyến mãi sản phẩm", icon: <LocalOfferIcon />, moduleKey: 'promotions', component: <ProductPromotionsTab /> },
+    { label: "Flash Sales", icon: <FlashOnIcon />, moduleKey: 'flashsales', component: <FlashSalesTab /> },
+    { label: "Ưu đãi hệ thống", icon: <CardGiftcardIcon />, moduleKey: 'promotions', component: <UuDaiTab /> },
+    { label: "Coupon (Nhập mã)", icon: <ConfirmationNumberIcon />, moduleKey: 'promotions', component: <CouponTab /> }
+  ];
+
+  const visibleTabs = allTabs.filter(tab => !tab.moduleKey || permissions?.[tab.moduleKey]?.coTheXem);
+
+  useEffect(() => {
+    if (tabIndex >= visibleTabs.length) {
+      setTabIndex(0);
+    }
+  }, [visibleTabs.length, tabIndex]);
 
   const handleTabChange = (event, newValue) => {
     setTabIndex(newValue);
   };
+
+  if (visibleTabs.length === 0) return null;
 
   return (
     <Box>
@@ -43,25 +62,22 @@ export default function PromotionsPage() {
           variant="fullWidth"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab icon={<LocalOfferIcon />} label="Khuyến mãi sản phẩm" iconPosition="start" />
-          <Tab icon={<FlashOnIcon />} label="Flash Sales" iconPosition="start" />
-          <Tab icon={<CardGiftcardIcon />} label="Ưu đãi hệ thống" iconPosition="start" />
-          <Tab icon={<ConfirmationNumberIcon />} label="Coupon (Nhập mã)" iconPosition="start" />
+          {visibleTabs.map((tab, index) => (
+            <Tab 
+              key={index} 
+              icon={tab.icon} 
+              label={tab.label} 
+              iconPosition="start" 
+            />
+          ))}
         </Tabs>
 
         <Box sx={{ px: 3 }}>
-          <TabPanel value={tabIndex} index={0}>
-            <ProductPromotionsTab />
-          </TabPanel>
-          <TabPanel value={tabIndex} index={1}>
-            <FlashSalesTab />
-          </TabPanel>
-          <TabPanel value={tabIndex} index={2}>
-            <UuDaiTab />
-          </TabPanel>
-          <TabPanel value={tabIndex} index={3}>
-            <CouponTab />
-          </TabPanel>
+          {visibleTabs.map((tab, index) => (
+            <TabPanel key={index} value={tabIndex} index={index}>
+              {tab.component}
+            </TabPanel>
+          ))}
         </Box>
       </Paper>
     </Box>

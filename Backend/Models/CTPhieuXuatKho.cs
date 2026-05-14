@@ -10,6 +10,8 @@ namespace BuildingMaterialAPI.Models
         [Column("MaPhieuXK")] public int MaPhieuXK { get; set; }
         [Column("MaSanPham")] public int MaSanPham { get; set; }
         [Column("SoLuong")] public int SoLuong { get; set; }
+        [Column("SoLuongThucNhan")] public int? SoLuongThucNhan { get; set; }
+        [Column("GhiChu")] public string? GhiChu { get; set; }
         [Column("MaKho")] public int? MaKho { get; set; }
         [Column("DonGiaVon")] public decimal? DonGiaVon { get; set; }
 

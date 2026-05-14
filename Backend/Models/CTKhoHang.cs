@@ -19,8 +19,6 @@ namespace BuildingMaterialAPI.Models
         public int SoLuongNhap { get; set; }
         [Column("SoLuongTon")]
         public int SoLuongTon { get; set; }
-        [Column("ViTri")]
-        public string? ViTri { get; set; }
         [Column("NgayNhapCuoi")]
         public DateTime? NgayNhapCuoi { get; set; }
         [Column("NgayCapNhat")]

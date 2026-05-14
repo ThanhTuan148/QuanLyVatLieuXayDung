@@ -65,7 +65,11 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
     setLoadingOrders(true);
     try {
       const res = await orderService.getAllOrders();
-      const eligible = res.data.filter(o => o.trangThai === 'Đã xác nhận' || o.trangThai === 'Đang giao' || o.trangThai === 'Chờ xử lý');
+      const eligible = res.data.filter(o => 
+        o.trangThai === 'Đã xác nhận' || 
+        o.trangThai === 'Chờ xử lý' || 
+        o.maHoaDon === initialOrderId
+      );
       setOrders(eligible);
     } catch (err) {
       console.error(err);
@@ -162,12 +166,17 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
       return;
     }
 
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const currentUserId = user?.maNhanVien || user?.id || 0;
+
     const payload = {
       nguoiGiao: formData.nguoiGiao,
       diaChi: formData.diaChi,
       ghiChu: formData.ghiChu,
       maHoaDon: formData.maHoaDon,
       maNhanVien: formData.maNhanVien,
+      maNguoiLap: currentUserId,
       items: deliverableItems.map(i => ({
         maSanPham: i.maSanPham,
         maCTHD: i.maCTHD,

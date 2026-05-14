@@ -12,8 +12,8 @@ namespace BuildingMaterialAPI.Models
         public int MaKhoHang { get; set; }
         [Column("MaKho")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaKho { get; set; }
-        [Column("TenKho")] public string TenKho { get; set; }
+        public string? MaKho { get; set; }
+        [Column("TenKho")] public string? TenKho { get; set; }
         [Column("LoaiKho")] public string? LoaiKho { get; set; }
         [Column("DiaChi")]
         public string? DiaChi { get; set; }
@@ -22,10 +22,10 @@ namespace BuildingMaterialAPI.Models
         [Column("TrangThai")]
         public bool TrangThai { get; set; }
         [Column("NgayTao")]
-        public DateTime NgayTao { get; set; }
+        public DateTime? NgayTao { get; set; }
         [Column("NgayCapNhat")]
-        public DateTime NgayCapNhat { get; set; }
+        public DateTime? NgayCapNhat { get; set; }
 
-        public virtual ICollection<CTKhoHang> CTKhoHangs { get; set; }
+        public virtual ICollection<CTKhoHang> CTKhoHangs { get; set; } = new List<CTKhoHang>();
     }
 }

@@ -2,6 +2,9 @@ using BuildingMaterialAPI.Data;
 using BuildingMaterialAPI.Models;
 using BuildingMaterialAPI.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingMaterialAPI.Utilities
 {
@@ -76,19 +79,33 @@ namespace BuildingMaterialAPI.Utilities
                         debt.NgayCapNhat = now;
                         
                         // Gửi thông báo hệ thống cho khách hàng
-                        await notifyService.SendNotificationAsync(
-                            "Nhắc nợ quá hạn",
-                            $"Đơn hàng {debt.HoaDon?.MaHD} đã quá hạn thanh toán. Vui lòng kiểm tra email và tất toán trong 5 ngày để tránh lãi phạt.",
-                            "System",
-                            debt.KhachHang.MaKhachHang.ToString(),
-                            link: "/my-debts"
-                        );
+                        if (debt.KhachHang.MaTaiKhoan.HasValue)
+                        {
+                            await notifyService.SendNotificationAsync(
+                                "Nhắc nợ quá hạn",
+                                $"Đơn hàng {debt.HoaDon?.MaHD} đã quá hạn thanh toán. Vui lòng kiểm tra email và tất toán trong 5 ngày để tránh lãi phạt.",
+                                "System",
+                                debt.KhachHang.MaTaiKhoan.ToString(),
+                                link: "/my-debts"
+                            );
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Lỗi khi gửi email nhắc nợ cho mã CN: {debt.MaCN}");
                 }
+            }
+
+            if (overdueDebts.Any())
+            {
+                await notifyService.SendToPermissionAsync(
+                    "reports",
+                    "Cảnh báo nợ quá hạn",
+                    $"Có {overdueDebts.Count} khoản nợ đã quá hạn 30 ngày. Vui lòng kiểm tra báo cáo công nợ.",
+                    "HeThong",
+                    link: "/reports"
+                );
             }
 
             // 2. Thông báo nhắc nhở khi SẮP đến hạn (còn 3 ngày)
@@ -101,13 +118,13 @@ namespace BuildingMaterialAPI.Utilities
             foreach (var debt in nearDueDebts)
             {
                 // Chỉ thông báo 1 lần khi sắp đến hạn (dùng Ghi chú để đánh dấu hoặc bỏ qua nếu đã thông báo gần đây)
-                if (debt.KhachHang != null)
+                if (debt.KhachHang != null && debt.KhachHang.MaTaiKhoan.HasValue)
                 {
                     await notifyService.SendNotificationAsync(
                         "Sắp đến hạn thanh toán",
                         $"Khoản nợ cho đơn hàng {debt.HoaDon?.MaHD} sẽ hết hạn vào ngày {debt.HanThanhToan?.ToString("dd/MM/yyyy")}. Quý khách vui lòng sắp xếp thanh toán.",
                         "System",
-                        debt.KhachHang.MaKhachHang.ToString(),
+                        debt.KhachHang.MaTaiKhoan.ToString(),
                         link: "/my-debts"
                     );
                 }
@@ -136,13 +153,13 @@ namespace BuildingMaterialAPI.Utilities
                 debt.NgayCapNhat = now;
                 debt.GhiChu = (debt.GhiChu ?? "") + $" [Hệ thống: Áp dụng lãi phạt 5% chậm thanh toán: +{penalty:N0}đ]";
 
-                if (debt.KhachHang != null)
+                if (debt.KhachHang != null && debt.KhachHang.MaTaiKhoan.HasValue)
                 {
                     await notifyService.SendNotificationAsync(
                         "Thông báo lãi phạt chậm trả",
                         $"Do quá hạn thanh toán 5 ngày kể từ ngày nhắc nhở, đơn hàng {debt.HoaDon?.MaHD} đã bị áp dụng lãi phạt 5% (+{penalty:N0}đ).",
                         "System",
-                        debt.KhachHang.MaKhachHang.ToString(),
+                        debt.KhachHang.MaTaiKhoan.ToString(),
                         link: "/my-debts"
                     );
                 }

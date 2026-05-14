@@ -76,7 +76,7 @@ function OrdersPage() {
         TrangThai: 'Đã xác nhận',
         GhiChu: fullOrder.ghiChu,
         MaKhachHang: fullOrder.maKhachHang,
-        MaNhanVien: fullOrder.maNhanVien,
+        MaNhanVien: JSON.parse(localStorage.getItem('user'))?.maNhanVien || fullOrder.maNhanVien,
         MaKhuyenMai: fullOrder.maKhuyenMai,
 
         TenNguoiNhan: fullOrder.tenNguoiNhan,

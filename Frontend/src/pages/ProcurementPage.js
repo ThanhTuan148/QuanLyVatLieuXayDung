@@ -24,7 +24,9 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import Warning from '@mui/icons-material/Warning';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import SyncIcon from '@mui/icons-material/Sync';
 import api from '../services/api';
+import inventoryService from '../services/inventoryService';
 import ProductForm from '../components/ProductForm';
 import DataTable from '../components/DataTable';
 
@@ -98,22 +100,31 @@ function ProcurementPage() {
   const userId = user?.id || user?.maNhanVien || 0;
 
   useEffect(() => {
-    loadData();
-    loadDependencies();
+    // Ưu tiên tải dữ liệu chính yếu trước để hiển thị giao diện ngay lập tức
+    loadData().then(() => {
+      // Tải các dữ liệu phụ (danh mục, sản phẩm) ở background sau khi data chính đã lên
+      setTimeout(loadDependencies, 100);
+    });
   }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resProc, resAlerts] = await Promise.all([
-        api.get('/procurement'),
-        api.get('/dashboard/inventory-alerts')
-      ]);
-      setProcurements(resProc.data);
-      setInventoryAlerts(resAlerts.data || []);
+      // Tách riêng 2 luồng để table hiện ra sớm nhất có thể
+      api.get('/procurement').then(res => {
+        setProcurements(res.data);
+        setLoading(false);
+      }).catch(e => {
+        console.error(e);
+        setLoading(false);
+      });
+
+      api.get('/dashboard/inventory-alerts').then(res => {
+        setInventoryAlerts(res.data || []);
+      }).catch(console.error);
+
     } catch (e) {
       console.error(e);
-    } finally {
       setLoading(false);
     }
   };
@@ -188,7 +199,7 @@ function ProcurementPage() {
         maSanPham: product.maSanPham,
         soLuong: config.qty,
         donGia: config.supplier.giaHienTai,
-        maNhaCungCap: config.supplier.maNCC || config.supplier.maNhaCungCap,
+        maNhaCungCap: Number(config.supplier.maNhaCungCap || config.supplier.maNCC || 0),
         maKhoHang: warehouses.find(w => w.tenKho === alert.tenKho)?.maKhoHang || 1
       };
     }).filter(Boolean);
@@ -363,7 +374,22 @@ function ProcurementPage() {
           }
       }
 
-      alert('Thao tác thành công!');
+      // Chỉ hiển thị gửi mail nếu có sản phẩm MỚI được duyệt (chưa bị tách)
+      const newlyApprovedItems = viewDialog.chiTiet.filter(c => 
+          itemActions[c.maCTPN] === 'approve' && 
+          (!c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+      );
+      
+      if (isQuanLy) {
+          if (newlyApprovedItems.length > 0 && targetStatus === 'processed') {
+             alert('Xử lý phiếu thành công! Đã phê duyệt và tự động gửi đơn hàng qua Email cho (các) nhà cung cấp.');
+          } else {
+             alert('Cập nhật trạng thái các sản phẩm thành công!');
+          }
+      } else {
+          alert('Cập nhật phiếu thành công!');
+      }
+
       loadData();
       const updated = await api.get(`/procurement/${viewDialog.maPhieuNhap}`);
       setViewDialog({ ...updated.data, mode: 'view' });
@@ -539,6 +565,7 @@ function ProcurementPage() {
   };
 
   const handleSendEmail = async (id, maPN) => {
+    if (!isQuanLy) return alert('Chỉ Quản lý mới có quyền gửi Email đơn hàng!');
     if (!window.confirm(`Gửi đơn hàng ${maPN} qua Email cho nhà cung cấp?`)) return;
     setActionLoading(true);
     try {
@@ -764,7 +791,7 @@ function ProcurementPage() {
                   width: 130,
                   renderCell: (params) => (
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {params.value?.toLocaleString()} đ
+                      {params.value?.toLocaleString('vi-VN')} đ
                     </Typography>
                   )
                 },
@@ -802,7 +829,7 @@ function ProcurementPage() {
                             }
                             return { ...prev, chiTiet: updated };
                           });
-                          alert(`Đã cập nhật mặt hàng sang NCC: ${h.tenNCC} với giá ${h.giaHienTai.toLocaleString()} đ`);
+                          alert(`Đã cập nhật mặt hàng sang NCC: ${h.tenNCC} với giá ${h.giaHienTai.toLocaleString('vi-VN')} đ`);
                           setShowPriceCompare(false);
                         }}
                       >
@@ -825,16 +852,42 @@ function ProcurementPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>📥 Quản Lý Nhập Hàng</Typography>
           <Typography color="textSecondary">Quy trình cấp phép và đối soát kho theo chuẩn ERP</Typography>
         </Box>
-        {isNhanVienKho && (
-          <Button
-            variant="contained"
-            startIcon={<AddShoppingCartIcon />}
-            onClick={() => setCreateDialog(true)}
-            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-          >
-            Lập Phiếu Đề Xuất Mới
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {isQuanLy && (
+            <Button
+              variant="outlined"
+              startIcon={<SyncIcon />}
+              onClick={async () => {
+                if (window.confirm('Hệ thống sẽ đồng bộ tồn kho từ các phiếu nhập/xuất cũ. Tiếp tục?')) {
+                  setActionLoading(true);
+                  try {
+                    const resIn = await inventoryService.syncOldInbound();
+                    const resOut = await inventoryService.syncOldOutbound();
+                    alert(`${resIn.data.message}\n${resOut.data.message}`);
+                    loadData();
+                  } catch (e) {
+                    alert('Lỗi đồng bộ: ' + (e.response?.data?.message || e.message));
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }
+              }}
+              disabled={actionLoading}
+            >
+              Đồng Bộ Dữ Liệu
+            </Button>
+          )}
+          {isNhanVienKho && (
+            <Button
+              variant="contained"
+              startIcon={<AddShoppingCartIcon />}
+              onClick={() => setCreateDialog(true)}
+              sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+            >
+              Lập Phiếu Đề Xuất Mới
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Inventory Alerts Panel */}
@@ -878,7 +931,7 @@ function ProcurementPage() {
             {inventoryAlerts.length > alertRowsPerPage && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                 <TablePagination
-                  rowsPerPageOptions={[3, 6, 12]}
+                  rowsPerPageOptions={[5, 10, 20]}
                   component="div"
                   count={inventoryAlerts.length}
                   rowsPerPage={alertRowsPerPage}
@@ -914,7 +967,7 @@ function ProcurementPage() {
             field: 'tongTien', 
             headerName: 'Tổng Tiền', 
             width: 150,
-            renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value?.toLocaleString()} đ</Typography>
+            renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value?.toLocaleString('vi-VN')} đ</Typography>
           },
           { field: 'tenNhanVien', headerName: 'Người Lập', flex: 1 },
           { 
@@ -1056,7 +1109,7 @@ function ProcurementPage() {
                       headerAlign: 'right',
                       renderCell: (params) => (
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                          {params.value?.toLocaleString()} đ
+                          {params.value?.toLocaleString('vi-VN')} đ
                         </Typography>
                       )
                     },
@@ -1138,10 +1191,10 @@ function ProcurementPage() {
                   </TableCell>
                   {/* Price - read only */}
                   <TableCell align="right" sx={{ color: 'text.primary' }}>
-                    {item.donGia?.toLocaleString()} đ
+                    {item.donGia?.toLocaleString('vi-VN')} đ
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', pt: 1.5 }}>
-                    {(item.soLuong * item.donGia).toLocaleString()} đ
+                    {(item.soLuong * item.donGia).toLocaleString('vi-VN')} đ
                   </TableCell>
                   <TableCell sx={{ pt: 1 }}>
                     <IconButton size="small" color="error" onClick={() => removeItem(item.itemKey)}><CancelOutlinedIcon /></IconButton>
@@ -1153,7 +1206,7 @@ function ProcurementPage() {
                 <TableRow sx={{ bgcolor: 'rgba(102,126,234,0.04)', fontWeight: 'bold' }}>
                   <TableCell colSpan={5} align="right" sx={{ fontWeight: 'bold' }}>Tổng cộng:</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '1rem' }}>
-                    {newProposal.items.reduce((s, x) => s + x.soLuong * x.donGia, 0).toLocaleString()} đ
+                    {newProposal.items.reduce((s, x) => s + x.soLuong * x.donGia, 0).toLocaleString('vi-VN')} đ
                   </TableCell>
                   <TableCell />
                 </TableRow>
@@ -1169,7 +1222,7 @@ function ProcurementPage() {
 
       {/* DIALOG: XEM CHI TIẾT HOẶC NGHIỆM THU HOẶC DUYỆT */}
       {viewDialog && (
-        <Dialog open={true} onClose={() => { setViewDialog(null); setItemActions({}); setItemSearch(''); }} maxWidth="md" fullWidth>
+        <Dialog open={true} onClose={() => { setViewDialog(null); setItemActions({}); setItemSearch(''); }} maxWidth="xl" fullWidth>
           <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="h6" fontWeight="bold">Phiếu: {viewDialog.maPN}</Typography>
@@ -1189,13 +1242,21 @@ function ProcurementPage() {
                     <GetAppIcon />
                   </IconButton>
                 </Tooltip>
+                {isQuanLy && (
+                  <Tooltip title="Gửi Email NCC">
+                    <IconButton size="small" color="primary" onClick={() => handleSendEmail(viewDialog.maPhieuNhap, viewDialog.maPN)}>
+                      <EmailIcon />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Box>
             )}
           </DialogTitle>
-          <DialogContent dividers>
-            <Box sx={{ mb: 3 }}>
+          <DialogContent dividers sx={{ p: 2 }}>
+            {/* Compact header info */}
+            <Box sx={{ display: 'flex', gap: 3, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
               {viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', flex: 1 }}>
                   <Autocomplete
                     options={suppliers}
                     getOptionLabel={(opt) => opt.tenNCC}
@@ -1203,60 +1264,45 @@ function ProcurementPage() {
                     onChange={(e, val) => {
                        if (val) setViewDialog({ ...viewDialog, maNhaCungCap: Number(val.maNhaCungCap || val.maNCC), tenNhaCungCap: val.tenNCC });
                     }}
-                    size="small"
+                    size="small" sx={{ minWidth: 220 }}
                     renderInput={(params) => <TextField {...params} label="Chọn Lại Nhà Cung Cấp" />}
                   />
-                  <Typography><b>Ngày lập:</b> {new Date(viewDialog.ngayNhap).toLocaleString('vi-VN')}</Typography>
                   <TextField 
-                    label="Ghi chú chỉnh sửa" fullWidth size="small" multiline rows={2}
+                    label="Ghi chú chỉnh sửa" size="small" sx={{ flex: 1, minWidth: 200 }}
                     value={viewDialog.ghiChu} 
                     onChange={(e) => setViewDialog({ ...viewDialog, ghiChu: e.target.value })}
                   />
                 </Box>
               ) : (
                 <>
-                  <Typography><b>Nhà cc:</b> {viewDialog.tenNhaCungCap}</Typography>
-                  <Typography><b>Ngày lập:</b> {new Date(viewDialog.ngayNhap).toLocaleString('vi-VN')}</Typography>
-                  <Typography><b>Ghi chú:</b> {viewDialog.ghiChu}</Typography>
+                  <Typography variant="body2"><b>Nhà CC:</b> {viewDialog.tenNhaCungCap}</Typography>
+                  <Typography variant="body2" color="text.secondary">{new Date(viewDialog.ngayNhap).toLocaleString('vi-VN')}</Typography>
+                  {viewDialog.ghiChu && <Typography variant="body2" color="text.secondary"><i>{viewDialog.ghiChu}</i></Typography>}
                 </>
               )}
+              <Box sx={{ ml: 'auto' }}>
+                <TextField
+                  size="small"
+                  placeholder="Tìm sản phẩm..."
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  sx={{ width: 220 }}
+                  InputProps={{
+                    startAdornment: (<InputAdornment position="start"><SearchIcon color="action" fontSize="small" /></InputAdornment>),
+                  }}
+                />
+              </Box>
             </Box>
 
-            <Alert severity="info" sx={{ mb: 2 }}>
-              {viewDialog.mode === 'receive'
-                ? '🔔 Tiến hành đếm và nghiệm thu hàng hóa thực tế do NCC giao tới.'
-                : isApprovalMode
-                  ? '🔔 Chọn quyết định Duyệt, Sửa hoặc Từ chối cho từng mặt hàng trước khi Lưu thay đổi.'
-                  : 'Chi tiết các mặt hàng yêu cầu'}
-            </Alert>
-
-            <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Tìm sản phẩm trong danh sách (Tên hoặc Mã)..."
-                value={itemSearch}
-                onChange={(e) => setItemSearch(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { md: '3fr 1fr' }, gap: 4 }}>
-              <Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '3fr 280px' }, gap: 2, minHeight: 0 }}>
+              <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
                 <Paper 
                   elevation={0} 
                   sx={{ 
-                    height: 600, 
-                    borderRadius: '16px', 
+                    height: 380, 
+                    borderRadius: '12px', 
                     border: '1px solid #eef2f6', 
-                    overflow: 'hidden',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.03)'
+                    overflow: 'auto',
                   }}
                 >
                   <DataTable 
@@ -1265,18 +1311,16 @@ function ProcurementPage() {
                       return matchSearch;
                     }).map((c, idx) => ({ ...c, id: c.maCTPN || `item-${idx}`, stt: idx + 1 }))}
                     columns={[
-                      { field: 'stt', headerName: 'STT', width: 60 },
+                      { field: 'stt', headerName: '#', width: 48 },
                       { 
                         field: 'tenSanPham', 
                         headerName: 'Tên Sản Phẩm', 
-                        flex: 2,
-                        minWidth: 250,
+                        flex: 1,
+                        minWidth: 160,
                         renderCell: (params) => (
-                          <Box sx={{ py: 1.5 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b', mb: 0.5 }}>{params.value}</Typography>
-                            <Typography variant="caption" sx={{ px: 1, py: 0.2, bgcolor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>
-                              mã: {params.row.maSanPham}
-                            </Typography>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>{params.value}</Typography>
+                            <Typography variant="caption" sx={{ color: '#94a3b8' }}>{params.row.maSanPham}</Typography>
                           </Box>
                         )
                       },
@@ -1318,7 +1362,7 @@ function ProcurementPage() {
                         renderCell: (params) => (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9' }}>
-                               {params.value?.toLocaleString()} đ
+                               {params.value?.toLocaleString('vi-VN')} đ
                             </Typography>
                             {(isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa')) && (
                               <IconButton 
@@ -1485,29 +1529,30 @@ function ProcurementPage() {
                         headerName: 'Thực Nhận',
                         width: 120,
                         hide: viewDialog.mode !== 'receive',
-                        renderCell: (params) => (
-                          <TextField
-                            size="small" type="number" 
-                            sx={{ 
-                              width: 80,
-                              filter: viewDialog.mode !== 'receive' ? 'blur(3px)' : 'none',
-                              opacity: viewDialog.mode !== 'receive' ? 0.3 : 1,
-                              pointerEvents: viewDialog.mode !== 'receive' ? 'none' : 'auto'
-                            }}
-                            value={receiveData.find(r => r.maCTPN === params.row.maCTPN)?.soLuongDaNhan || 0}
-                            onChange={(e) => handleReceiveChange(params.row.maCTPN, 'soLuongDaNhan', Number(e.target.value))}
-                          />
-                        )
+                        renderCell: (params) => {
+                          const isSplit = params.row.maPhieuHienTai && params.row.maPhieuHienTai !== viewDialog?.maPhieuNhap;
+                          if (isSplit) return <Typography variant="caption" color="error">Đã tách ra phiếu: {params.row.maPhieuHienTai}</Typography>;
+                          return (
+                            <TextField
+                              size="small" type="number" 
+                              sx={{ 
+                                width: 80,
+                                filter: viewDialog.mode !== 'receive' ? 'blur(3px)' : 'none',
+                                opacity: viewDialog.mode !== 'receive' ? 0.3 : 1,
+                                pointerEvents: viewDialog.mode !== 'receive' ? 'none' : 'auto'
+                              }}
+                              value={receiveData.find(r => r.maCTPN === params.row.maCTPN)?.soLuongDaNhan || 0}
+                              onChange={(e) => handleReceiveChange(params.row.maCTPN, 'soLuongDaNhan', Number(e.target.value))}
+                            />
+                          );
+                        }
                       }
                     ]}
                   />
                 </Paper>
 
                 {isApprovalMode && (
-                  <Paper 
-                    elevation={0} 
-                    sx={{ p: 2.5, mt: 3, borderRadius: '16px', bgcolor: '#f8fafc', border: '1px dashed #cbd5e1', display: 'flex', justifyContent: 'center', gap: 6 }}
-                  >
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mt: 1, p: 1.5, bgcolor: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
                     {(() => {
                       const approveCount = Object.values(itemActions).filter(v => v === 'approve').length;
                       const reviseCount  = Object.values(itemActions).filter(v => v === 'revise').length;
@@ -1515,51 +1560,31 @@ function ProcurementPage() {
                       return (
                         <>
                           <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#10b981' }}>{approveCount}</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>DUYET</Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#10b981', lineHeight: 1 }}>{approveCount}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>DUYỆT</Typography>
                           </Box>
                           <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#f59e0b' }}>{reviseCount}</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>CAN SUA</Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#f59e0b', lineHeight: 1 }}>{reviseCount}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>CẦN SỬA</Typography>
                           </Box>
                           <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#ef4444' }}>{rejectCount}</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>TU CHOI</Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: '#ef4444', lineHeight: 1 }}>{rejectCount}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>TỪ CHỐI</Typography>
                           </Box>
                         </>
                       );
                     })()}
-                  </Paper>
+                  </Box>
                 )}
 
-                {/* Management approval section */}
-                {isApprovalMode && (
-                  <Paper elevation={0} sx={{ mt: 3, p: 3, borderRadius: '16px', border: '1px solid #fee2e2', bgcolor: '#fff' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#ef4444', mb: 2 }}>KHU VUC QUAN LY</Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        fullWidth variant="contained" 
-                        sx={{ 
-                          borderRadius: '12px', py: 1.5, fontWeight: 800, 
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                          boxShadow: '0 8px 20px rgba(79, 70, 229, 0.3)'
-                        }}
-                        onClick={() => handleUpdateProposal('processed')}
-                        disabled={actionLoading}
-                      >
-                        XU LY PHIEU NGAY
-                      </Button>
-                    </Box>
-                  </Paper>
-                )}
               </Box>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #eef2f6', bgcolor: '#fff', flex: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e293b', mb: 4, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    LICH SU THAO TAC
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Paper elevation={0} sx={{ p: 2, borderRadius: '12px', border: '1px solid #eef2f6', bgcolor: '#fff', flex: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#1e293b', mb: 2, display: 'flex', alignItems: 'center', gap: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Lịch Sử Thao Tác
                   </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto' }}>
                     {statusHistory.length === 0 ? (
                       <Typography variant="caption" sx={{ fontStyle: 'italic', color: '#94a3b8' }}>Chua co lich su.</Typography>
                     ) : statusHistory.map((h, i) => (
@@ -1599,19 +1624,61 @@ function ProcurementPage() {
               </Box>
             </Box>
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Left: quick stats summary when in approval mode */}
+            {isApprovalMode ? (
+              <Box sx={{ display: 'flex', gap: 3 }}>
+                {(() => {
+                  const approveCount = Object.values(itemActions).filter(v => v === 'approve').length;
+                  const reviseCount  = Object.values(itemActions).filter(v => v === 'revise').length;
+                  const rejectCount  = Object.values(itemActions).filter(v => v === 'reject').length;
+                  return (
+                    <>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#10b981' }}>{approveCount}</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>DUYỆT</Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#f59e0b' }}>{reviseCount}</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>CẦN SỬA</Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#ef4444' }}>{rejectCount}</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>TỪ CHỐI</Typography>
+                      </Box>
+                    </>
+                  );
+                })()}
+              </Box>
+            ) : <Box />}
 
-            {viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && (
-              <Button variant="contained" color="warning" onClick={() => handleUpdateProposal()} disabled={actionLoading}>
-                GỬI LẠI ĐỀ XUẤT (ĐÃ CHỈNH SỬA)
-              </Button>
-            )}
-            <Button onClick={() => { setViewDialog(null); setItemActions({}); setItemSearch(''); }}>Đóng</Button>
-            {viewDialog.mode === 'receive' && isNhanVienKho && (
-              <Button variant="contained" color="success" onClick={() => handleReceiveItems(viewDialog.maPhieuNhap)} disabled={actionLoading}>
-                Hoàn Tất Nhập Kho (Cộng Tồn Kho)
-              </Button>
-            )}
+            {/* Right: action buttons */}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              {viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && (
+                <Button variant="contained" color="warning" onClick={() => handleUpdateProposal()} disabled={actionLoading}>
+                  GỬI LẠI ĐỀ XUẤT
+                </Button>
+              )}
+              {viewDialog.mode === 'receive' && isNhanVienKho && (
+                <Button variant="contained" color="success" onClick={() => handleReceiveItems(viewDialog.maPhieuNhap)} disabled={actionLoading || viewDialog.chiTiet.every(c => c.maPhieuHienTai && c.maPhieuHienTai !== viewDialog.maPhieuNhap)}>
+                  Hoàn Tất Nhập Kho
+                </Button>
+              )}
+              {isApprovalMode && (
+                <Button
+                  variant="contained"
+                  sx={{ 
+                    borderRadius: '10px', fontWeight: 800,
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  }}
+                  onClick={() => handleUpdateProposal('processed')}
+                  disabled={actionLoading}
+                >
+                  XỬ LÝ PHIẾU NGAY
+                </Button>
+              )}
+              <Button onClick={() => { setViewDialog(null); setItemActions({}); setItemSearch(''); }}>Đóng</Button>
+            </Box>
           </DialogActions>
         </Dialog>
       )}
@@ -1732,6 +1799,7 @@ function ProcurementPage() {
                           size="small" sx={{ width: 220 }}
                           options={suppliers}
                           getOptionLabel={(opt) => opt.tenNCC || opt.tenNhaCungCap || ''}
+                          isOptionEqualToValue={(option, value) => (option.maNhaCungCap || option.maNCC) === (value.maNhaCungCap || value.maNCC)}
                           value={config.supplier || null}
                           onChange={(e, val) => {
                             if (!val) {
@@ -1757,7 +1825,7 @@ function ProcurementPage() {
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                                   <Typography variant="body2">{opt.tenNCC || opt.tenNhaCungCap}</Typography>
                                   <Typography variant="caption" sx={{ color: quoted ? 'primary.main' : 'text.secondary', fontWeight: quoted ? 'bold' : 'normal' }}>
-                                    {price > 0 ? `${price.toLocaleString()} đ` : 'Chưa có giá'}
+                                    {price > 0 ? `${price.toLocaleString('vi-VN')} đ` : 'Chưa có giá'}
                                   </Typography>
                                 </Box>
                               </li>
@@ -1766,7 +1834,7 @@ function ProcurementPage() {
                         />
                         <TextField 
                           label="Đơn giá" size="small" type="text" sx={{ width: 140 }}
-                          value={config.supplier?.giaHienTai ? `${config.supplier.giaHienTai.toLocaleString()} đ` : ''}
+                          value={config.supplier?.giaHienTai ? `${config.supplier.giaHienTai.toLocaleString('vi-VN')} đ` : ''}
                           disabled
                           InputProps={{ readOnly: true }}
                         />

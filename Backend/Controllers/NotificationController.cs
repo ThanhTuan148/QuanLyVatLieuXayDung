@@ -23,7 +23,7 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetNotifications(string? userId)
         {
             var notifications = await _ctx.ThongBaos
-                .Where(n => n.MaNguoiNhan == null || n.MaNguoiNhan == userId)
+                .Where(n => n.MaNguoiNhan == userId)
                 .OrderByDescending(n => n.NgayTao)
                 .Take(50) // Giới hạn 50 cái gần nhất
                 .ToListAsync();
@@ -48,7 +48,7 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> MarkAllAsRead(string userId)
         {
             var unread = await _ctx.ThongBaos
-                .Where(n => (n.MaNguoiNhan == null || n.MaNguoiNhan == userId) && !n.DaDoc)
+                .Where(n => n.MaNguoiNhan == userId && !n.DaDoc)
                 .ToListAsync();
 
             foreach (var n in unread) n.DaDoc = true;
@@ -63,7 +63,7 @@ namespace BuildingMaterialAPI.Controllers
             await _notificationService.SendNotificationAsync(
                 notification.TieuDe, 
                 notification.NoiDung, 
-                notification.LoaiThongBao, 
+                notification.LoaiThongBao ?? "HeThong", 
                 notification.MaNguoiNhan, 
                 notification.LienKet
             );

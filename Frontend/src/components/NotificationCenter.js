@@ -26,7 +26,7 @@ export default function NotificationCenter() {
   const connectionRef = useRef(null);
 
   const user = authService.getUser();
-  const userId = user?.username || user?.UserId || user?.id || '';
+  const userId = user?.id?.toString() || '';
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
@@ -47,6 +47,7 @@ export default function NotificationCenter() {
   useEffect(() => {
     if (!userId) return;
 
+    let isMounted = true;
     fetchNotifications();
 
     const connection = new signalR.HubConnectionBuilder()
@@ -55,7 +56,19 @@ export default function NotificationCenter() {
       .build();
 
       connection.on("ReceiveNotification", (notification) => {
-      setNotifications(prev => [notification, ...prev].slice(0, 50));
+      if (!isMounted) return;
+      
+      // Chỉ nhận nếu MaNguoiNhan khớp với userId hiện tại
+      if (notification.maNguoiNhan && notification.maNguoiNhan !== userId) return;
+
+      setNotifications(prev => {
+        // Tránh trùng lặp nếu thông báo này đã tồn tại trong danh sách (check theo maThongBao)
+        const exists = prev.some(n => n.maThongBao === notification.maThongBao);
+        if (exists) return prev;
+        
+        return [notification, ...prev].slice(0, 50);
+      });
+      
       setUnreadCount(prev => prev + 1);
       setLastNotification(notification);
       setToastOpen(true);
@@ -77,37 +90,34 @@ export default function NotificationCenter() {
 
     const joinGroups = (conn) => {
       if (conn.state === signalR.HubConnectionState.Connected) {
-        // 1. Nhóm cá nhân
         conn.invoke("JoinGroup", `User_${userId}`).catch(console.error);
-        
-        // 2. Nhóm nhân viên (nếu là admin/staff)
-        const isStaff = user?.employeeId || 
-                       ['admin', 'staff', 'nhanvien', 'quanly'].some(r => 
-                         (user?.role || user?.roleName || '').toLowerCase().includes(r)
-                       );
-        if (isStaff) {
-          conn.invoke("JoinGroup", "Staff").catch(console.error);
-          console.log("Joined Staff group");
-        }
+        console.log(`Joined notification group: User_${userId}`);
       }
     };
 
     connection.onreconnected(() => {
-      console.log("SignalR Reconnected. Re-joining groups...");
-      joinGroups(connection);
+      if (isMounted) joinGroups(connection);
     });
 
     connection.start()
       .then(() => {
-        console.log("Connected to Notification Hub");
+        if (!isMounted) {
+            connection.stop();
+            return;
+        }
         connectionRef.current = connection;
         joinGroups(connection);
       })
-      .catch(err => console.error("SignalR Connection Error: ", err));
+      .catch(err => {
+          if (isMounted) console.error("SignalR Connection Error: ", err);
+      });
 
     return () => {
+      isMounted = false;
       if (connectionRef.current) {
         connectionRef.current.stop();
+      } else {
+        connection.stop();
       }
     };
   }, [userId, fetchNotifications]);
