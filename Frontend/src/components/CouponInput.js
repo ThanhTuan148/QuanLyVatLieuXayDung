@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -8,6 +8,7 @@ import {
   Typography,
   Alert,
   Stack,
+  Chip
 } from '@mui/material';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import couponService from '../services/couponService';
@@ -18,6 +19,12 @@ function CouponInput({ orderAmount, onCouponApply }) {
   const [message, setMessage] = useState('');
   const [discount, setDiscount] = useState(0);
   const [isError, setIsError] = useState(false);
+  const [savedCoupons, setSavedCoupons] = useState([]);
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('savedVouchers') || '[]');
+    setSavedCoupons(saved);
+  }, []);
 
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) {
@@ -87,6 +94,28 @@ function CouponInput({ orderAmount, onCouponApply }) {
               {loading ? '...' : 'Áp dụng'}
             </Button>
           </Box>
+
+          {savedCoupons.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', mr: 1 }}>
+                Mã đã lưu:
+              </Typography>
+              {savedCoupons.map((code) => (
+                <Chip 
+                  key={code} 
+                  label={code} 
+                  size="small" 
+                  onClick={() => setCouponCode(code)}
+                  sx={{ 
+                    bgcolor: couponCode === code ? '#e68c55' : '#f0f0f0',
+                    color: couponCode === code ? '#fff' : 'inherit',
+                    fontWeight: couponCode === code ? 'bold' : 'normal',
+                    '&:hover': { bgcolor: couponCode === code ? '#cc7a4a' : '#e0e0e0' }
+                  }}
+                />
+              ))}
+            </Box>
+          )}
 
           {message && (
             <Alert severity={isError ? 'error' : 'success'}>

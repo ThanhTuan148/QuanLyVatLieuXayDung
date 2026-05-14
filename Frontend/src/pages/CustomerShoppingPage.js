@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Container, Grid, Card, CardContent, Button, Typography, Box, Chip, Skeleton, IconButton, Dialog, Snackbar, Alert
 } from '@mui/material';
@@ -274,6 +274,27 @@ const CustomerShoppingPage = () => {
     return () => clearInterval(interval);
   }, [activeFlashSale]);
 
+  const brandList = useMemo(() => {
+    const brandMap = new Map();
+    const colors = ['#607d8b', '#8d8276', '#7b9071', '#727382', '#867676', '#5c6bc0', '#8d6e63', '#a1887f'];
+    let colorIndex = 0;
+
+    products.forEach(p => {
+      const name = p.thuongHieu;
+      if (name && name.trim() !== '' && !brandMap.has(name)) {
+        brandMap.set(name, {
+          name: name,
+          loc: p.xuatXu || 'Việt Nam',
+          bg: colors[colorIndex % colors.length],
+          logo: name.substring(0, 3).toUpperCase()
+        });
+        colorIndex++;
+      }
+    });
+    
+    return Array.from(brandMap.values()).slice(0, 5);
+  }, [products]);
+
   return (
     <Box sx={{ width: '100%', overflowX: 'hidden' }}>
 
@@ -512,9 +533,20 @@ const CustomerShoppingPage = () => {
           <Typography variant="h3" sx={{ color: '#333', fontWeight: 700, mb: 1 }}>Danh mục vật liệu</Typography>
           <Typography variant="body1" sx={{ color: '#888', mb: 6 }}>Khám phá đa dạng vật liệu xây dựng chất lượng cao</Typography>
 
-          <Grid container spacing={3}>
-            {(loading ? Array(8).fill(null) : categories.slice(0, 8)).map((cat, index) => (
-              <Grid item xs={6} sm={4} md={3} key={cat?.maLoaiSanPham ?? index}>
+          <Box sx={{
+            display: 'flex',
+            gap: 3,
+            overflowX: 'auto',
+            pb: 4, // More padding for the scrollbar
+            px: 1, // Slight padding to not cut off box shadows
+            '&::-webkit-scrollbar': { height: '8px' },
+            '&::-webkit-scrollbar-track': { bgcolor: 'rgba(0,0,0,0.05)', borderRadius: '4px' },
+            '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.2)', borderRadius: '4px' },
+            '&::-webkit-scrollbar-thumb:hover': { bgcolor: 'rgba(0,0,0,0.3)' },
+            scrollbarWidth: 'thin'
+          }}>
+            {(loading ? Array(8).fill(null) : categories).map((cat, index) => (
+              <Box key={cat?.maLoaiSanPham ?? index} sx={{ minWidth: { xs: 160, sm: 220, md: 280 }, flexShrink: 0 }}>
                 {loading ? (
                   <Skeleton variant="rectangular" height={170} sx={{ borderRadius: '12px' }} />
                 ) : (
@@ -597,9 +629,9 @@ const CustomerShoppingPage = () => {
                     </Box>
                   </Box>
                 )}
-              </Grid>
+              </Box>
             ))}
-          </Grid>
+          </Box>
         </Container>
       </Box>
 
@@ -788,38 +820,38 @@ const CustomerShoppingPage = () => {
           <Typography variant="h3" sx={{ color: '#333', fontWeight: 700, mb: 1 }}>Mua sắm theo thương hiệu</Typography>
           <Typography variant="body1" sx={{ color: '#888', mb: 4 }}>Khám phá nhiều sản phẩm từ các thương hiệu nổi tiếng</Typography>
 
-          <Grid container spacing={3}>
-            {[
-              { name: 'Elitis', loc: 'Talosa / France', bg: '#abc', logo: 'ELITIS' },
-              { name: 'Hay', loc: 'Barcelona / Spain', bg: '#cba', logo: 'HAY' },
-              { name: 'Kettal', loc: 'Barcelona / Spain', bg: '#bca', logo: 'kettal' },
-              { name: 'Llardo', loc: 'Valencia / Spain', bg: '#aab', logo: 'Llardo' },
-              { name: 'Poliform', loc: 'Como / Italy', bg: '#baa', logo: 'Poliform' }
-            ].map((brand, i) => (
-              <Grid item xs={12} sm={6} md={4} lg={2.4} key={i}>
-                <Box sx={{
-                  height: 350,
-                  borderRadius: '12px',
-                  bgcolor: brand.bg,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  '&:hover': { '& > .overlay': { bgcolor: 'rgba(0,0,0,0.5)' } }
-                }}>
-                  <Box className="overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', transition: 'background-color 0.3s' }} />
-                  <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Box sx={{ width: 50, height: 50, borderRadius: '50%', bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7rem', color: '#000' }}>
-                      {brand.logo}
-                    </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>{brand.name}</Typography>
-                      <Typography variant="caption" sx={{ color: '#eee' }}>{brand.loc}</Typography>
+          {brandList.length > 0 ? (
+            <Grid container spacing={3}>
+              {brandList.map((brand, i) => (
+                <Grid item xs={12} sm={6} md={4} lg={2.4} key={i}>
+                  <Box 
+                    onClick={() => navigate(`/shopping?keyword=${encodeURIComponent(brand.name)}`)}
+                    sx={{
+                    height: 350,
+                    borderRadius: '12px',
+                    bgcolor: brand.bg,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    '&:hover': { '& > .overlay': { bgcolor: 'rgba(0,0,0,0.5)' } }
+                  }}>
+                    <Box className="overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', transition: 'background-color 0.3s' }} />
+                    <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box sx={{ width: 50, height: 50, borderRadius: '50%', bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7rem', color: '#000' }}>
+                        {brand.logo}
+                      </Box>
+                      <Box>
+                        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>{brand.name}</Typography>
+                        <Typography variant="caption" sx={{ color: '#eee' }}>{brand.loc}</Typography>
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Typography sx={{ color: '#888' }}>Hệ thống chưa có dữ liệu thương hiệu nào.</Typography>
+          )}
         </Container>
       </Box>
 

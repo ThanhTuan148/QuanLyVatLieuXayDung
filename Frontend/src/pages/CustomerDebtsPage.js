@@ -89,8 +89,8 @@ const CustomerDebtsPage = () => {
         {/* Header Section */}
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
-            <Typography variant="h4" fontWeight="bold" sx={{ color: '#1a237e', mb: 1 }}>
-              Quản Lý Công Nợ
+            <Typography variant="h4" fontWeight="bold" sx={{ color: '#1a237e', mb: 1, fontFamily: '"Inter", "Roboto", sans-serif' }}>
+              Quản lý công nợ
             </Typography>
             <Typography variant="body1" color="text.secondary">
               Theo dõi và tất toán các khoản nợ đơn hàng của bạn

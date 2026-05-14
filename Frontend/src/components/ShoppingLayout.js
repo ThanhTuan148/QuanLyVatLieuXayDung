@@ -23,28 +23,30 @@ const ShoppingLayout = ({ children }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [customer, setCustomer] = useState(null);
+  const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
+  const openCategoryMenu = Boolean(categoryAnchorEl);
   const openMenu = Boolean(anchorEl);
 
   const getRankStyle = (rankName) => {
     switch (rankName) {
-      case 'Kim Cương': return { 
-        gradient: 'linear-gradient(135deg, #2196F3 0%, #00BCD4 100%)', 
+      case 'Kim Cương': return {
+        gradient: 'linear-gradient(135deg, #2196F3 0%, #00BCD4 100%)',
         label: 'Kim Cương',
         badgeBg: '#00BCD4'
       };
-      case 'Vàng': return { 
-        gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)', 
+      case 'Vàng': return {
+        gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
         label: 'Vàng',
         badgeBg: '#FFA500'
       };
-      case 'Bạc': return { 
-        gradient: 'linear-gradient(135deg, #C0C0C0 0%, #808080 100%)', 
+      case 'Bạc': return {
+        gradient: 'linear-gradient(135deg, #C0C0C0 0%, #808080 100%)',
         label: 'Bạc',
         badgeBg: '#9E9E9E'
       };
-      case 'Đồng': 
-      default: return { 
-        gradient: 'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)', 
+      case 'Đồng':
+      default: return {
+        gradient: 'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)',
         label: 'Đồng',
         badgeBg: '#CD7F32'
       };
@@ -72,7 +74,7 @@ const ShoppingLayout = ({ children }) => {
         ]);
         const prods = Array.isArray(productsRes?.data) ? productsRes.data : (Array.isArray(productsRes) ? productsRes : []);
         const cats = Array.isArray(categoriesRes) ? categoriesRes : (Array.isArray(categoriesRes?.data) ? categoriesRes.data : []);
-        
+
         setAllProducts(prods);
         setCategories(cats);
 
@@ -83,7 +85,7 @@ const ShoppingLayout = ({ children }) => {
           const res = await customerService.getCustomerById(id);
           setCustomer(res.data || res);
         }
-      } catch (err) {}
+      } catch (err) { }
     };
     fetchData();
     fetchCartInfo();
@@ -104,8 +106,8 @@ const ShoppingLayout = ({ children }) => {
   useEffect(() => {
     if (searchTerm.trim()) {
       const lowerSearch = searchTerm.toLowerCase();
-      const filtered = allProducts.filter(p => 
-        p.tenSP?.toLowerCase().includes(lowerSearch) || 
+      const filtered = allProducts.filter(p =>
+        p.tenSP?.toLowerCase().includes(lowerSearch) ||
         p.moTa?.toLowerCase().includes(lowerSearch) ||
         p.tenLoai?.toLowerCase().includes(lowerSearch)
       ).slice(0, 8);
@@ -125,30 +127,18 @@ const ShoppingLayout = ({ children }) => {
     <ThemeProvider theme={shoppingTheme}>
       <CssBaseline />
       <Box className="customer-portal" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'transparent' }}>
-        
+
         {/* Top Bar */}
         <Box sx={{ bgcolor: '#f4f4f4', py: 0.5, borderBottom: '1px solid #eaeaea' }}>
           <Container maxWidth="xl" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: { xs: 4, md: 8, lg: 12 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="body2" sx={{ cursor: 'pointer', fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: '5px' }}>🇪🇺</span> EUR ▾
-              </Typography>
-              <Typography variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover':{color:'primary.main'} }}>Thẻ quà tặng</Typography>
-              <Typography variant="body2" sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover':{color:'primary.main'} }}>Hệ thống cửa hàng</Typography>
-              <Typography variant="body2" onClick={() => navigate('/about')} sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover':{color:'primary.main'} }}>Về chúng tôi</Typography>
+              <Typography variant="body2" onClick={() => navigate('/customer-promotions')} sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>Mã ưu đãi</Typography>
+              <Typography variant="body2" onClick={() => { navigate('/shopping'); window.scrollTo(0, 0); }} sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>Hệ thống cửa hàng</Typography>
+              <Typography variant="body2" onClick={() => navigate('/about')} sx={{ cursor: 'pointer', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>Về chúng tôi</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary', fontWeight: 500 }}>
-                <PhoneOutlined sx={{ fontSize: 16, mr: 0.5 }} /> (686) 492-1044
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
-                <Box component="span" sx={{ display: 'flex', mr: 1 }}>
-                  {/* Fake avatars */}
-                  <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: '#ccc', mr: -1, zIndex: 3, border: '1px solid #fff' }} />
-                  <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: '#bbb', mr: -1, zIndex: 2, border: '1px solid #fff' }} />
-                  <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: '#aaa', zIndex: 1, border: '1px solid #fff' }} />
-                </Box>
-                Kết nối với chuyên gia
+                <PhoneOutlined sx={{ fontSize: 16, mr: 0.5 }} /> (Hotline) 0934186354
               </Typography>
             </Box>
           </Container>
@@ -158,33 +148,33 @@ const ShoppingLayout = ({ children }) => {
         <Container maxWidth="xl" sx={{ py: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: { xs: 4, md: 8, lg: 12 } }}>
           {/* Logo */}
           <Box sx={{ cursor: 'pointer' }} onClick={() => navigate('/shopping')}>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#e68c55', display: 'flex', alignItems: 'center' }}>
-              🏗️ MuabanVatlieu.com
+            <Typography variant="h5" sx={{ fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 700, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+              🏗️ VLXD Thành Đạt
             </Typography>
           </Box>
 
           {/* Search Bar */}
           <ClickAwayListener onClickAway={() => setShowPopup(false)}>
             <Box sx={{ position: 'relative', width: '40%' }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                bgcolor: '#f1f1f1', 
-                borderRadius: '50px', 
-                px: 2, 
-                py: 0.5, 
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                bgcolor: '#f1f1f1',
+                borderRadius: '50px',
+                px: 2,
+                py: 0.5,
                 width: '100%',
                 border: '2px solid transparent',
                 transition: 'border 0.2s',
                 '&:hover': { border: '2px solid #e1e1e1' }
               }}>
                 <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
-                <InputBase 
-                  placeholder="Tìm kiếm sản phẩm (Nhấn Enter)..." 
+                <InputBase
+                  placeholder="Tìm kiếm sản phẩm (Nhấn Enter)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onFocus={() => { if(searchTerm.trim()) setShowPopup(true); }}
-                  sx={{ flex: 1, fontSize: '0.95rem' }} 
+                  onFocus={() => { if (searchTerm.trim()) setShowPopup(true); }}
+                  sx={{ flex: 1, fontSize: '0.95rem' }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && searchTerm.trim()) {
                       handleSearchCommit(searchTerm.trim());
@@ -195,10 +185,10 @@ const ShoppingLayout = ({ children }) => {
 
               {/* Popup Results */}
               {showPopup && popupResults.length > 0 && (
-                <Paper 
-                  elevation={6} 
-                  sx={{ 
-                    position: 'absolute', top: '110%', left: 0, width: '100%', 
+                <Paper
+                  elevation={6}
+                  sx={{
+                    position: 'absolute', top: '110%', left: 0, width: '100%',
                     borderRadius: '12px', zIndex: 9999, maxHeight: '400px', overflowY: 'auto',
                     border: '1px solid #eaeaea', bgcolor: '#fff',
                     boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
@@ -206,13 +196,13 @@ const ShoppingLayout = ({ children }) => {
                 >
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                     {popupResults.map((prod, idx) => (
-                      <Box 
-                        key={idx} 
+                      <Box
+                        key={idx}
                         onClick={() => {
-                           handleSearchCommit(prod.tenSP);
-                           setSearchTerm(prod.tenSP);
+                          handleSearchCommit(prod.tenSP);
+                          setSearchTerm(prod.tenSP);
                         }}
-                        sx={{ 
+                        sx={{
                           display: 'flex', alignItems: 'center', p: 2, cursor: 'pointer',
                           borderBottom: '1px solid #f0f0f0', borderRight: idx % 2 === 0 ? '1px solid #f0f0f0' : 'none',
                           '&:hover': { bgcolor: '#fafafa' }
@@ -237,20 +227,20 @@ const ShoppingLayout = ({ children }) => {
 
           {/* Icons Context */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton sx={{ bgcolor: '#f5f5f5', '&:hover':{bgcolor:'#eee'} }}><CompareIcon /></IconButton>
-            <IconButton sx={{ bgcolor: '#f5f5f5', '&:hover':{bgcolor:'#eee'} }} onClick={() => navigate('/favorites')}><FavoriteIcon /></IconButton>
-            
+            <IconButton sx={{ bgcolor: '#f5f5f5', '&:hover': { bgcolor: '#eee' } }}><CompareIcon /></IconButton>
+            <IconButton sx={{ bgcolor: '#f5f5f5', '&:hover': { bgcolor: '#eee' } }} onClick={() => navigate('/favorites')}><FavoriteIcon /></IconButton>
+
             {authService.isAuthenticated() && <NotificationCenter />}
 
             {authService.isAuthenticated() ? (
-              <Box 
+              <Box
                 sx={{ display: 'flex', alignItems: 'center', ml: 1, position: 'relative' }}
                 onMouseEnter={(e) => setAnchorEl(e.currentTarget)}
                 onMouseLeave={() => setAnchorEl(null)}
               >
-                <Box 
-                  sx={{ 
-                    display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', 
+                <Box
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
                     px: 1.5, py: 0.5, borderRadius: '50px', border: '1px solid #eee',
                     transition: 'all 0.2s',
                     '&:hover': { bgcolor: '#f9f9f9', borderColor: '#e68c55' }
@@ -268,12 +258,12 @@ const ShoppingLayout = ({ children }) => {
                 >
                   {/* Header Avatar with Rank Frame */}
                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Box sx={{ 
+                    <Box sx={{
                       width: 38, height: 38, borderRadius: '50%', p: '2px',
                       background: getRankStyle(customer?.hangThanhVien).gradient,
                       display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
-                      <Avatar 
+                      <Avatar
                         src={customer?.anhDaiDien}
                         sx={{ width: '100%', height: '100%', border: '2px solid #fff', bgcolor: '#f0f0f0' }}
                       >
@@ -281,10 +271,10 @@ const ShoppingLayout = ({ children }) => {
                       </Avatar>
                     </Box>
                     {customer?.hangThanhVien && (
-                      <Box sx={{ 
-                        position: 'absolute', top: -5, right: -10, 
-                        background: getRankStyle(customer?.hangThanhVien).badgeBg, 
-                        color: '#fff', fontSize: '8px', fontWeight: 900, px: 1, py: 0.2, 
+                      <Box sx={{
+                        position: 'absolute', top: -5, right: -10,
+                        background: getRankStyle(customer?.hangThanhVien).badgeBg,
+                        color: '#fff', fontSize: '8px', fontWeight: 900, px: 1, py: 0.2,
                         borderRadius: '10px', border: '1px solid #fff', zIndex: 10,
                         textTransform: 'uppercase',
                         minWidth: '40px',
@@ -346,11 +336,11 @@ const ShoppingLayout = ({ children }) => {
                     <Typography variant="body2" fontWeight={500}>Quản lý nợ</Typography>
                   </MenuItem>
                   <Divider sx={{ my: 0.5 }} />
-                  <MenuItem 
+                  <MenuItem
                     onClick={() => {
                       authService.logout();
                       window.location.reload();
-                    }} 
+                    }}
                     sx={{ py: 1.5, gap: 1.5, color: 'error.main' }}
                   >
                     <LogoutOutlined fontSize="small" color="error" />
@@ -359,8 +349,8 @@ const ShoppingLayout = ({ children }) => {
                 </Menu>
               </Box>
             ) : (
-              <Box 
-                sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', ml: 1, px: 2, py: 1, borderRadius: '50px', '&:hover':{bgcolor:'#f9f9f9'} }}
+              <Box
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', ml: 1, px: 2, py: 1, borderRadius: '50px', '&:hover': { bgcolor: '#f9f9f9' } }}
                 onClick={() => navigate('/auth')}
               >
                 <PersonIcon />
@@ -368,8 +358,8 @@ const ShoppingLayout = ({ children }) => {
               </Box>
             )}
 
-            <Box 
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', ml: 1, bgcolor: '#111', color: '#fff', px: 2, py: 1, borderRadius: '50px', '&:hover':{bgcolor:'#333'} }}
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', ml: 1, bgcolor: '#111', color: '#fff', px: 2, py: 1, borderRadius: '50px', '&:hover': { bgcolor: '#333' } }}
               onClick={() => navigate('/shopping-cart')}
             >
               <Badge badgeContent={cartCount} color="error">
@@ -384,12 +374,12 @@ const ShoppingLayout = ({ children }) => {
 
         {/* Lower Navigation Menu */}
         <Container maxWidth="xl" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, px: { xs: 4, md: 8, lg: 12 } }}>
-          <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
-            <Typography 
-              variant="body2" 
+          <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            <Typography
+              variant="body2"
               onClick={() => navigate('/shopping')}
-              sx={{ 
-                fontWeight: 700, 
+              sx={{
+                fontWeight: 700,
                 color: 'primary.main',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap'
@@ -397,13 +387,13 @@ const ShoppingLayout = ({ children }) => {
             >
               Trang chủ
             </Typography>
-            {categories.slice(0, 10).map((cat, index) => (
-              <Typography 
-                key={index} 
-                variant="body2" 
+            {categories.slice(0, 8).map((cat, index) => (
+              <Typography
+                key={index}
+                variant="body2"
                 onClick={() => navigate(`/category/${cat.maLoaiSanPham || ''}`)}
-                sx={{ 
-                  fontWeight: 600, 
+                sx={{
+                  fontWeight: 600,
                   color: 'text.primary',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
@@ -413,6 +403,49 @@ const ShoppingLayout = ({ children }) => {
                 {cat.tenLoai}
               </Typography>
             ))}
+            {categories.length > 8 && (
+              <Box>
+                <Typography
+                  variant="body2"
+                  onClick={(e) => setCategoryAnchorEl(e.currentTarget)}
+                  sx={{
+                    fontWeight: 600,
+                    color: 'text.primary',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    '&:hover': { color: 'primary.main' }
+                  }}
+                >
+                  Khác ▾
+                </Typography>
+                <Menu
+                  anchorEl={categoryAnchorEl}
+                  open={openCategoryMenu}
+                  onClose={() => setCategoryAnchorEl(null)}
+                  MenuListProps={{ onMouseLeave: () => setCategoryAnchorEl(null) }}
+                  elevation={3}
+                  sx={{ mt: 1, '& .MuiPaper-root': { borderRadius: '8px' } }}
+                >
+                  {categories.slice(8).map((cat, index) => (
+                    <MenuItem
+                      key={index}
+                      onClick={() => {
+                        navigate(`/category/${cat.maLoaiSanPham || ''}`);
+                        setCategoryAnchorEl(null);
+                      }}
+                      sx={{ py: 1.5, px: 3, '&:hover': { bgcolor: '#f5f5f5' } }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', '&:hover': { color: 'primary.main' } }}>
+                        {cat.tenLoai}
+                      </Typography>
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </Box>
+            )}
           </Box>
           <Box sx={{ bgcolor: '#eef2f5', px: 2, py: 0.5, borderRadius: '20px', ml: 2, flexShrink: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.8rem' }}>
@@ -433,26 +466,26 @@ const ShoppingLayout = ({ children }) => {
           <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>MuabanVatlieu.com</Typography>
+                <Typography variant="h6" sx={{ fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 700, mb: 2 }}>VLXD Thành Đạt</Typography>
                 <Typography variant="body2" sx={{ color: '#aaa', mb: 2 }}>
-                  We provide the best selection of construction and home decoration materials with the highest standard of quality.
+                  Chúng tôi cung cấp sự lựa chọn tốt nhất về vật liệu xây dựng và trang trí nội thất với tiêu chuẩn chất lượng cao.
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>Liên kết hữu ích</Typography>
-                <Typography variant="body2" sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover':{color:'#fff'} }}>Về chúng tôi</Typography>
-                <Typography variant="body2" sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover':{color:'#fff'} }}>Liên hệ</Typography>
-                <Typography variant="body2" sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover':{color:'#fff'} }}>Hệ thống cửa hàng</Typography>
-                <Typography variant="body2" sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover':{color:'#fff'} }}>Tin tức</Typography>
+                <Typography variant="body2" onClick={() => { navigate('/about'); window.scrollTo(0, 0); }} sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover': { color: '#fff' } }}>Về chúng tôi</Typography>
+                <Typography variant="body2" onClick={() => { navigate('/contact'); window.scrollTo(0, 0); }} sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover': { color: '#fff' } }}>Liên hệ</Typography>
+                <Typography variant="body2" onClick={() => { navigate('/shopping'); window.scrollTo(0, 0); }} sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover': { color: '#fff' } }}>Hệ thống cửa hàng</Typography>
+                <Typography variant="body2" onClick={() => { navigate('/news'); window.scrollTo(0, 0); }} sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover': { color: '#fff' } }}>Tin tức</Typography>
               </Box>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>Categories</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, fontFamily: '"Inter", "Roboto", sans-serif' }}>Các danh mục</Typography>
                 {categories.slice(0, 4).map((cat, index) => (
-                  <Typography 
-                    key={index} 
-                    variant="body2" 
+                  <Typography
+                    key={index}
+                    variant="body2"
                     onClick={() => navigate(`/category/${cat.maLoaiSanPham || ''}`)}
-                    sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover':{color:'#fff'} }}
+                    sx={{ color: '#aaa', mb: 1, cursor: 'pointer', '&:hover': { color: '#fff' } }}
                   >
                     {cat.tenLoai}
                   </Typography>

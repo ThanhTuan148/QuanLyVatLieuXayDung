@@ -85,19 +85,19 @@ const CustomerAboutPage = () => {
         </Box>
 
         <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, position: 'relative', zIndex: 1 }}>
-          <Typography variant="h2" sx={{ color: '#fff', fontWeight: 700, mb: 1.5, fontSize: { xs: '2.5rem', md: '3.5rem' } }}>
-            About us
+          <Typography variant="h2" sx={{ color: '#fff', fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 700, mb: 1.5, fontSize: { xs: '2.5rem', md: '3.5rem' } }}>
+            Về chúng tôi
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography
               variant="body2"
-              sx={{ color: 'rgba(255,255,255,0.8)', cursor: 'pointer', '&:hover': { color: '#fff' } }}
+              sx={{ color: 'rgba(255,255,255,0.8)', fontFamily: '"Inter", "Roboto", sans-serif', cursor: 'pointer', '&:hover': { color: '#fff' } }}
               onClick={() => navigate('/shopping')}
             >
-              Home
+              Trang chủ
             </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>/</Typography>
-            <Typography variant="body2" sx={{ color: '#fff', fontWeight: 600 }}>About us</Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', fontFamily: '"Inter", "Roboto", sans-serif' }}>/</Typography>
+            <Typography variant="body2" sx={{ color: '#fff', fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 600 }}>Về chúng tôi</Typography>
           </Box>
         </Container>
       </Box>
@@ -123,8 +123,8 @@ const CustomerAboutPage = () => {
 
           {/* Right: text */}
           <Grid item xs={12} md={6}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#222', mb: 1.5 }}>
-              About our online store
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#222', mb: 1.5, fontFamily: '"Inter", "Roboto", sans-serif' }}>
+              Về cửa hàng trực tuyến của chúng tôi
             </Typography>
             <Typography variant="body2" sx={{ color: '#e68c55', fontStyle: 'italic', mb: 3, lineHeight: 1.7 }}>
               Cung cấp vật liệu xây dựng chất lượng cao,
@@ -149,8 +149,7 @@ const CustomerAboutPage = () => {
       <Box sx={{ py: 8 }}>
         <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
           <Box sx={{ textAlign: 'center', mb: 7 }}>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: '#222', mb: 1 }}>Teammembers</Typography>
-            <Typography variant="body1" sx={{ color: '#999' }}>Explore product collections from our vendors</Typography>
+            <Typography variant="h3" sx={{ fontWeight: 700, color: '#222', mb: 1, fontFamily: '"Inter", "Roboto", sans-serif' }}>Thành viên nhóm</Typography>
           </Box>
 
           <Grid container spacing={6} justifyContent="center">
@@ -262,7 +261,7 @@ const CustomerAboutPage = () => {
               onClick={() => setReadMore(r => !r)}
               sx={{ mt: 3, color: '#333', fontWeight: 700, borderBottom: '2px solid #333', borderRadius: 0, px: 0, textTransform: 'none', '&:hover': { bgcolor: 'transparent', color: '#e68c55', borderColor: '#e68c55' } }}
             >
-              {readMore ? 'Thu gọn' : 'Read More'}
+              {readMore ? 'Thu gọn' : 'Đọc thêm'}
             </Button>
           </Grid>
         </Grid>
