@@ -48,31 +48,31 @@ const PromotionSection = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
       {/* 1. KHUYẾN MÃI CARD */}
       <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
-        <CardContent sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <CardContent sx={{ p: 1.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <VoucherIcon sx={{ color: '#1976d2' }} />
-              <Typography variant="subtitle2" fontWeight={700} color="#1976d2" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
+              <VoucherIcon sx={{ color: '#1976d2', fontSize: 18 }} />
+              <Typography fontSize={12} fontWeight={700} color="#1976d2" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
             </Box>
             <Button 
-                endIcon={<ChevronRightIcon />} 
+                endIcon={<ChevronRightIcon sx={{ fontSize: 16 }} />} 
                 onClick={onOpenCoupons}
                 size="small" 
-                sx={{ textTransform: 'none', fontWeight: 600, color: '#1976d2' }}
+                sx={{ textTransform: 'none', fontWeight: 600, color: '#1976d2', fontSize: 11 }}
             >
               Xem thêm
             </Button>
           </Box>
 
-          <Box sx={{ position: 'relative', mb: 2 }}>
+          <Box sx={{ position: 'relative', mb: 1.5 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                <Box sx={{ flex: 1 }}>
-                 <Typography variant="body2" fontWeight={800} sx={{ mb: 0.5, color: appliedCode ? '#4caf50' : 'inherit' }}>
+                 <Typography fontSize={13} fontWeight={800} sx={{ mb: 0.5, color: appliedCode ? '#4caf50' : 'inherit' }}>
                    {appliedCode 
                     ? `Đã áp dụng mã: ${appliedCode}` 
                     : (bestCoupon ? (bestCoupon.tenKM || bestCoupon.maApDung) : 'Tuyệt vời! Bạn đã đạt mức ưu đãi cao nhất')}
                  </Typography>
-                 <Typography variant="caption" color="text.secondary" display="block" sx={{ maxWidth: '200px' }}>
+                 <Typography fontSize={11} color="text.secondary" display="block" sx={{ maxWidth: '220px', lineHeight: 1.3 }}>
                    {appliedCode 
                     ? 'Ưu đãi đang được áp dụng cho đơn hàng của bạn.' 
                     : (bestCoupon 
@@ -81,22 +81,22 @@ const PromotionSection = ({
                    }
                  </Typography>
                  {bestCoupon && !appliedCode && (
-                   <Typography fontSize={11} sx={{ mt: 1, color: '#1976d2', textDecoration: 'underline', cursor: 'pointer' }}>
+                   <Typography fontSize={10} sx={{ mt: 0.5, color: '#1976d2', textDecoration: 'underline', cursor: 'pointer' }}>
                      HSD: {new Date(bestCoupon.thoiGianKetThuc).toLocaleDateString('vi-VN')}
                    </Typography>
                  )}
                </Box>
-               <IconButton size="small" sx={{ color: '#1976d2' }}><InfoIcon fontSize="small" /></IconButton>
+               <IconButton size="small" sx={{ color: '#1976d2', p: 0.5 }}><InfoIcon sx={{ fontSize: 16 }} /></IconButton>
             </Box>
 
-            <Box sx={{ mt: 2 }}>
+            <Box sx={{ mt: 1.5 }}>
                 <LinearProgress 
                     variant="determinate" 
                     value={progress} 
-                    sx={{ height: 6, borderRadius: 3, bgcolor: '#e3f2fd', '& .MuiLinearProgress-bar': { bgcolor: '#42a5f5' } }} 
+                    sx={{ height: 5, borderRadius: 2.5, bgcolor: '#e3f2fd', '& .MuiLinearProgress-bar': { bgcolor: '#42a5f5' } }} 
                 />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                    <Typography variant="caption" fontWeight={600} color="text.secondary">
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                    <Typography fontSize={11} fontWeight={600} color="text.secondary">
                       {remaining > 0 ? `Mua thêm ₫${remaining.toLocaleString('vi-VN')}` : 'Đã đủ điều kiện!'}
                     </Typography>
                     {remaining > 0 && (
@@ -104,7 +104,7 @@ const PromotionSection = ({
                           size="small" 
                           variant="contained" 
                           onClick={onBuyMore}
-                          sx={{ textTransform: 'none', borderRadius: '8px', bgcolor: '#1976d2', fontSize: '0.75rem', px: 2 }}
+                          sx={{ textTransform: 'none', borderRadius: '6px', bgcolor: '#1976d2', fontSize: 10, py: 0.2, px: 1.5 }}
                         >
                           Mua thêm
                         </Button>
@@ -113,41 +113,41 @@ const PromotionSection = ({
             </Box>
           </Box>
 
-          <Divider sx={{ my: 2 }} />
+          <Divider sx={{ my: 1.5 }} />
 
           {/* Qualified Promo count bar */}
           <Box 
             onClick={onOpenCoupons}
             sx={{ 
-                bgcolor: '#e3f2fd', p: 1.5, borderRadius: '8px', 
+                bgcolor: '#e3f2fd', p: 1, px: 1.5, borderRadius: '8px', 
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                 cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#bbdefb'} 
             }}
           >
-            <Typography variant="body2" color="#1976d2" fontWeight={600}>{eligibleCount} ưu đãi đủ điều kiện</Typography>
-            <ChevronRightIcon sx={{ color: '#1976d2' }} />
+            <Typography fontSize={12} color="#1976d2" fontWeight={600}>{eligibleCount} ưu đãi đủ điều kiện</Typography>
+            <ChevronRightIcon sx={{ color: '#1976d2', fontSize: 18 }} />
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            Hướng dẫn sử dụng Gift Card <InfoIcon sx={{ fontSize: 14 }} />
+          <Typography fontSize={11} color="text.secondary" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            Hướng dẫn sử dụng Gift Card <InfoIcon sx={{ fontSize: 13 }} />
           </Typography>
         </CardContent>
       </Card>
 
       {/* 2. NHẬN QUÀ CARD */}
       <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
-        <CardContent sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <CardContent sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ bgcolor: '#d32f2f', p: 0.5, borderRadius: '6px', display: 'flex' }}>
-              <GiftIcon sx={{ color: '#fff', fontSize: 20 }} />
+              <GiftIcon sx={{ color: '#fff', fontSize: 18 }} />
             </Box>
-            <Typography variant="body2" fontWeight={700}>Nhận quà ({selectedGiftsCount}/{giftLimit})</Typography>
+            <Typography fontSize={13} fontWeight={700}>Nhận quà ({selectedGiftsCount}/{giftLimit})</Typography>
           </Box>
           <Button 
             onClick={onOpenGifts}
-            endIcon={<ChevronRightIcon />} 
-            sx={{ textTransform: 'none', color: '#1976d2', fontWeight: 600, fontSize: '0.85rem' }}
+            endIcon={<ChevronRightIcon sx={{ fontSize: 16 }} />} 
+            sx={{ textTransform: 'none', color: '#1976d2', fontWeight: 600, fontSize: 12 }}
           >
-            Chọn quà <Box component="span" sx={{ bgcolor: '#d32f2f', color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ml: 1, fontSize: 11 }}>{giftLimit}</Box>
+            Chọn quà <Box component="span" sx={{ bgcolor: '#d32f2f', color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ml: 0.5, fontSize: 10 }}>{giftLimit}</Box>
           </Button>
         </CardContent>
       </Card>

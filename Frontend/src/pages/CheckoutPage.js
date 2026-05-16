@@ -937,7 +937,7 @@ const CheckoutPage = () => {
 
   return (
     <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', pb: 10 }}>
-      <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Container maxWidth="lg" sx={{ pt: 1, pb: 3 }}>
 
         {/* Warning / Login Prompt */}
         {!isLoggedIn && (
@@ -950,10 +950,10 @@ const CheckoutPage = () => {
           </Alert>
         )}
 
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           {/* Progress Header */}
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4, gap: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: currentStep === 0 ? '#c92127' : '#4caf50', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>1</Box>
                 <Typography variant="body2" sx={{ fontWeight: currentStep === 0 ? 'bold' : 'normal' }}>Thông tin giao hàng</Typography>
@@ -1478,23 +1478,23 @@ const CheckoutPage = () => {
             ) : currentStep === 1 ? (
               <Box>
                 {/* STEP 1: REVIEW ORDER */}
-                <Paper elevation={0} sx={{ p: 4, mb: 3, borderRadius: '4px' }}>
-                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, textAlign: 'center', color: '#c92127' }}>
+                <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: '4px' }}>
+                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 1.5, textAlign: 'center', color: '#c92127' }}>
                     KIỂM TRA ĐƠN HÀNG
                   </Typography>
-                  <Divider sx={{ mb: 4 }} />
+                  <Divider sx={{ mb: 2.5 }} />
 
-                  <Grid container spacing={4}>
+                  <Grid container spacing={3}>
                     {/* Summary Info */}
                     <Grid item xs={12} md={6}>
-                      <Box sx={{ mb: 3 }}>
+                      <Box sx={{ mb: 2 }}>
                         <Typography variant="subtitle1" fontWeight="bold" gutterBottom>👤 NGƯỜI NHẬN</Typography>
                         <Box sx={{ pl: 2 }}>
                           <Typography variant="body2">{addressForm.fullName} - {addressForm.phone}</Typography>
                           <Typography variant="body2" color="text.secondary">{addressForm.email}</Typography>
                         </Box>
                       </Box>
-                      <Box sx={{ mb: 3 }}>
+                      <Box sx={{ mb: 2 }}>
                         <Typography variant="subtitle1" fontWeight="bold" gutterBottom>📍 ĐỊA CHỈ GIAO</Typography>
                         <Box sx={{ pl: 2 }}>
                           <Typography variant="body2">{addressForm.address}, {addressForm.ward}, {addressForm.district}, {addressForm.province}</Typography>
@@ -1506,22 +1506,22 @@ const CheckoutPage = () => {
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Box sx={{ p: 2, bgcolor: '#f8f9fa', borderRadius: 2 }}>
-                        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
                           TỔNG KẾT CHI PHÍ
                         </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                           <Typography variant="body2" color="text.secondary">Tạm tính:</Typography>
                           <Typography variant="body2" fontWeight="500">{formatVND(initialTotal)}</Typography>
                         </Box>
 
                         {actualDiscountAmount > 0 && (
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                             <Typography variant="body2" color="text.secondary">Giảm giá sản phẩm:</Typography>
                             <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 600 }}>-{formatVND(actualDiscountAmount)}</Typography>
                           </Box>
                         )}
 
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                           <Typography variant="body2" color="text.secondary">Phí vận chuyển:</Typography>
                           <Box sx={{ textAlign: 'right' }}>
                             {currentShippingFee > 0 ? (
@@ -1541,7 +1541,7 @@ const CheckoutPage = () => {
                           </Box>
                         </Box>
 
-                        <Divider sx={{ my: 1.5 }} />
+                        <Divider sx={{ my: 1 }} />
 
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="subtitle1" fontWeight="bold">Tổng cộng:</Typography>
@@ -1551,8 +1551,8 @@ const CheckoutPage = () => {
                     </Grid>
                   </Grid>
 
-                  <Box sx={{ mt: 4 }}>
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>📦 DANH SÁCH SẢN PHẨM</Typography>
+                  <Box sx={{ mt: 2.5 }}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1.5 }}>📦 DANH SÁCH SẢN PHẨM</Typography>
                     <TableContainer component={Paper} variant="outlined">
                       <Table size="small">
                         <TableHead sx={{ bgcolor: '#f5f5f5' }}>

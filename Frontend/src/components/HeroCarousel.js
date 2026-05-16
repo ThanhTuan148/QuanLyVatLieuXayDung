@@ -144,6 +144,13 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
 
   const getRole = (i) => i === center ? 'center' : i === left ? 'left' : i === right ? 'right' : 'hidden';
 
+  const renderTeamName = (fullName) => {
+    if (!fullName) return 'CHÚNG TÔI';
+    const allParts = fullName.trim().split(' ');
+    const parts = allParts.length >= 2 ? allParts.slice(-2) : allParts;
+    return parts.join(' ');
+  };
+
   return (
     <div style={{
       backgroundColor: slides[active]?.bg || '#F4845F',
@@ -162,10 +169,10 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
           backgroundSize: '200px 200px'
         }} />
 
-        {/* Ghost text — fluid size to always fit viewport */}
-        <div style={{ position: 'absolute', inset: 0, top: '18%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', pointerEvents: 'none', userSelect: 'none', zIndex: 2 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(40px, 12vw, 150px)', fontWeight: 900, color: mode === "shopping" ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.22)', lineHeight: 1, letterSpacing: '0.05em', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
-            {mode === "shopping" ? (slides[active]?.shortName || 'SHOPPING') : 'CHÚNG TÔI'}
+        {/* Ghost text BEHIND character */}
+        <div style={{ position: 'absolute', inset: 0, top: '16%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', pointerEvents: 'none', userSelect: 'none', zIndex: 2 }}>
+          <span style={{ fontFamily: "'Kanit', sans-serif", fontSize: 'clamp(42px, 12vw, 150px)', fontWeight: 900, color: mode === "shopping" ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.25)', lineHeight: 1, letterSpacing: '0.08em', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+            {mode === "shopping" ? (slides[active]?.shortName || 'SHOPPING') : renderTeamName(slides[active]?.name)}
           </span>
         </div>
 
@@ -195,7 +202,7 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
               <div key={i} style={roleStyle(role)}>
                 <img src={s.img} alt={s.name} draggable={false}
                   style={{ width: '100%', height: '100%', objectFit: mode === "shopping" ? 'cover' : 'contain', objectPosition: mode === "shopping" ? 'center' : 'bottom center' }} />
-                
+
                 {/* Overlay gradient & Text for Center Card in Shopping Mode */}
                 {mode === "shopping" && isCenter && (
                   <>
@@ -281,13 +288,6 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="m12 5 7 7-7 7" /><path d="M5 12h14" /></svg>
                 </button>
               </div>
-            </div>
-
-            <div style={{ position: 'absolute', bottom: mobile ? 16 : 32, right: mobile ? 16 : 40, zIndex: 60 }}>
-              <a href={ctaLink} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Anton', sans-serif", fontSize: 'clamp(16px, 3vw, 36px)', fontWeight: 400, color: 'rgba(255,255,255,0.95)', letterSpacing: '-0.02em', textDecoration: 'none', textTransform: 'uppercase', transition: 'opacity 200ms' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-              >{ctaLabel}</a>
             </div>
           </>
         )}

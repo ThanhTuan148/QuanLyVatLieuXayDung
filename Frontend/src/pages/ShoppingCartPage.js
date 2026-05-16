@@ -56,10 +56,12 @@ const ShoppingCartPage = () => {
   const [couponsOpen, setCouponsOpen] = useState(false);
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [selectedGifts, setSelectedGifts] = useState([]);
+  const [rightTab, setRightTab] = useState(0);
+  const [openClearConfirm, setOpenClearConfirm] = useState(false);
   
   // Pagination state
   const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
+  const rowsPerPage = 4;
   
   // Fetch cart items
   const fetchCart = async () => {
@@ -211,15 +213,18 @@ const ShoppingCartPage = () => {
   };
 
   // Handle clear cart
-  const handleClearCart = async () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng?')) {
-      try {
-        await cartService.clearUserCart();
-        setCartItems([]);
-        setSelectedIds([]);
-      } catch (error) {
-        console.error('Error clearing cart:', error);
-      }
+  const handleClearCart = () => {
+    setOpenClearConfirm(true);
+  };
+
+  const confirmClearCart = async () => {
+    try {
+      await cartService.clearUserCart();
+      setCartItems([]);
+      setSelectedIds([]);
+      setOpenClearConfirm(false);
+    } catch (error) {
+      console.error('Error clearing cart:', error);
     }
   };
 
@@ -327,13 +332,13 @@ const ShoppingCartPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ pt: 0.5, pb: 2 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800, color: '#1976d2', display: 'flex', alignItems: 'center', gap: 1 }}>
           🛒 Giỏ Hàng Của Bạn
         </Typography>
-        <Button variant="outlined" startIcon={<HomeIcon />} href="/shopping">
+        <Button variant="outlined" size="small" startIcon={<HomeIcon />} href="/shopping" sx={{ borderRadius: '20px', fontWeight: 600 }}>
           Tiếp Tục Mua Sắm
         </Button>
       </Box>
@@ -342,25 +347,26 @@ const ShoppingCartPage = () => {
         <Grid container spacing={3}>
           {/* Cart Items Table */}
           <Grid item xs={12} md={8}>
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead sx={{ backgroundColor: '#f8f9fa' }}>
-                  <TableRow>
-                    <TableCell padding="checkbox">
-                      <Checkbox 
-                        checked={cartItems.length > 0 && selectedIds.length === cartItems.length}
-                        indeterminate={selectedIds.length > 0 && selectedIds.length < cartItems.length}
-                        onChange={handleToggleSelectAll}
-                        color="primary"
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Sản Phẩm</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>Giá</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Số Lượng</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>Thành Tiền</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Hành Động</TableCell>
-                  </TableRow>
-                </TableHead>
+            <Paper sx={{ p: 1, borderRadius: '16px', border: '1px solid #e8e8e8', boxShadow: '0 12px 36px -12px rgba(0,0,0,0.05)', height: '520px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <TableContainer sx={{ height: '440px', overflow: 'hidden' }}>
+                <Table stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox" sx={{ backgroundColor: '#f8f9fa' }}>
+                        <Checkbox 
+                          checked={cartItems.length > 0 && selectedIds.length === cartItems.length}
+                          indeterminate={selectedIds.length > 0 && selectedIds.length < cartItems.length}
+                          onChange={handleToggleSelectAll}
+                          color="primary"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ backgroundColor: '#f8f9fa', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Sản Phẩm</TableCell>
+                      <TableCell align="right" sx={{ backgroundColor: '#f8f9fa', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Giá</TableCell>
+                      <TableCell align="center" sx={{ backgroundColor: '#f8f9fa', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Số Lượng</TableCell>
+                      <TableCell align="right" sx={{ backgroundColor: '#f8f9fa', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Thành Tiền</TableCell>
+                      <TableCell align="center" sx={{ backgroundColor: '#f8f9fa', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Hành Động</TableCell>
+                    </TableRow>
+                  </TableHead>
                 <TableBody>
                   {cartItems.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((item) => (
                     <TableRow key={item.cartId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
@@ -452,122 +458,163 @@ const ShoppingCartPage = () => {
               </Table>
             </TableContainer>
 
-            {cartItems.length > rowsPerPage && (
-              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
+              {cartItems.length > rowsPerPage ? (
                 <Pagination 
                   count={Math.ceil(cartItems.length / rowsPerPage)} 
                   page={page} 
                   onChange={(e, v) => setPage(v)} 
                   color="primary" 
+                  size="small"
                 />
-              </Box>
-            )}
-
-            <Box sx={{ mt: 2, textAlign: 'right' }}>
-              <Button color="error" onClick={handleClearCart}>
+              ) : <Box />}
+              <Button color="error" size="small" onClick={handleClearCart} sx={{ fontWeight: 600 }}>
                 🗑️ Xóa Toàn Bộ Giỏ Hàng
               </Button>
             </Box>
+            </Paper>
           </Grid>
 
           {/* Order Summary & Rewards */}
           <Grid item xs={12} md={4} sx={{ alignSelf: 'start' }}>
             <Box sx={{ position: 'sticky', top: 20 }}>
+              <Card sx={{ borderRadius: '16px', border: '1px solid #e8e8e8', boxShadow: '0 12px 36px -12px rgba(0,0,0,0.1)', overflow: 'hidden', height: '520px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                
+                {/* Custom Tabs Header */}
+                <Box sx={{ display: 'flex', borderBottom: '1px solid #eee', bgcolor: '#f5f5f5' }}>
+                  <Button 
+                    fullWidth 
+                    onClick={() => setRightTab(0)}
+                    sx={{ 
+                      py: 1.5, 
+                      borderRadius: 0, 
+                      color: rightTab === 0 ? '#fff' : '#777', 
+                      fontWeight: rightTab === 0 ? 800 : 600,
+                      bgcolor: rightTab === 0 ? '#e68c55' : '#f5f5f5',
+                      '&:hover': { bgcolor: rightTab === 0 ? '#e68c55' : '#ebebeb' },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    🎁 Ưu Đãi & Quà
+                  </Button>
+                  <Button 
+                    fullWidth 
+                    onClick={() => setRightTab(1)}
+                    sx={{ 
+                      py: 1.5, 
+                      borderRadius: 0, 
+                      color: rightTab === 1 ? '#fff' : '#777', 
+                      fontWeight: rightTab === 1 ? 800 : 600,
+                      bgcolor: rightTab === 1 ? '#e68c55' : '#f5f5f5',
+                      '&:hover': { bgcolor: rightTab === 1 ? '#e68c55' : '#ebebeb' },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    💳 Thanh Toán
+                  </Button>
+                </Box>
 
-              {/* Rewards Section */}
-              <PromotionSection
-                currentTotal={currentBaseTotal}
-                appliedCode={appliedCoupon?.code}
-                onOpenCoupons={() => setCouponsOpen(true)}
-                onOpenGifts={() => setGiftsOpen(true)}
-                bestCoupon={nextVoucher}
-                eligibleCount={eligibleVouchersCount}
-                selectedGiftsCount={selectedGifts.length}
-                giftLimit={giftLimit}
-                label="Ưu đãi hệ thống"
-              />
-
-              <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-                    📋 Tóm Tắt Đơn Hàng
-                  </Typography>
-
-                  <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #e0e0e0' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography color="text.secondary">Tạm tính ({selectedIds.length} món):</Typography>
-                      <Typography sx={{ fontWeight: 600 }}>
-                        ₫{subtotalSelected.toLocaleString('vi-VN')}
+                <CardContent sx={{ p: 2, flex: '1 1 0px', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+                  {rightTab === 0 ? (
+                    <Box sx={{ animation: 'fadeIn 300ms ease-in-out' }}>
+                      {/* Rewards Section */}
+                      <PromotionSection
+                        currentTotal={currentBaseTotal}
+                        appliedCode={appliedCoupon?.code}
+                        onOpenCoupons={() => setCouponsOpen(true)}
+                        onOpenGifts={() => setGiftsOpen(true)}
+                        bestCoupon={nextVoucher}
+                        eligibleCount={eligibleVouchersCount}
+                        selectedGiftsCount={selectedGifts.length}
+                        giftLimit={giftLimit}
+                        label="Ưu đãi hệ thống"
+                      />
+                    </Box>
+                  ) : (
+                    <Box sx={{ animation: 'fadeIn 300ms ease-in-out' }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                        📋 Tóm Tắt Đơn Hàng
                       </Typography>
-                    </Box>
-                    {productDiscount > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Giảm giá sản phẩm:</Typography>
-                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                          -₫{productDiscount.toLocaleString('vi-VN')}
-                        </Typography>
-                      </Box>
-                    )}
-                    {currentDynamicDiscount > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Mã giảm giá ({appliedCoupon?.code}):</Typography>
-                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                          -₫{currentDynamicDiscount.toLocaleString('vi-VN')}
-                        </Typography>
-                      </Box>
-                    )}
-                    
-                    {/* Phí ship row */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography color="text.secondary">Phí vận chuyển:</Typography>
-                      <Box sx={{ textAlign: 'right' }}>
-                         {currentShippingFee > 0 ? (
-                           <>
-                             <Typography sx={{ fontWeight: 600 }}>₫{currentShippingFee.toLocaleString('vi-VN')}</Typography>
-                             {shippingDiscount > 0 && (
-                               <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block' }}>
-                                 Mã Freeship: -₫{shippingDiscount.toLocaleString('vi-VN')}
-                               </Typography>
-                             )}
-                           </>
-                         ) : (
-                           <Typography sx={{ color: '#4caf50', fontWeight: 700 }}>Miễn phí</Typography>
-                         )}
-                      </Box>
-                    </Box>
-                  </Box>
 
-                  <Box sx={{ mb: 3, p: 2, backgroundColor: '#fff5f0', borderRadius: '8px', border: '1px solid #ffe8db' }}>
+                      <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #e0e0e0' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography color="text.secondary">Tạm tính ({selectedIds.length} món):</Typography>
+                          <Typography sx={{ fontWeight: 600 }}>
+                            ₫{subtotalSelected.toLocaleString('vi-VN')}
+                          </Typography>
+                        </Box>
+                        {productDiscount > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography color="text.secondary">Giảm giá sản phẩm:</Typography>
+                            <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
+                              -₫{productDiscount.toLocaleString('vi-VN')}
+                            </Typography>
+                          </Box>
+                        )}
+                        {currentDynamicDiscount > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography color="text.secondary">Mã giảm giá ({appliedCoupon?.code}):</Typography>
+                            <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
+                              -₫{currentDynamicDiscount.toLocaleString('vi-VN')}
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {/* Phí ship row */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography color="text.secondary">Phí vận chuyển:</Typography>
+                          <Box sx={{ textAlign: 'right' }}>
+                             {currentShippingFee > 0 ? (
+                               <>
+                                 <Typography sx={{ fontWeight: 600 }}>₫{currentShippingFee.toLocaleString('vi-VN')}</Typography>
+                                 {shippingDiscount > 0 && (
+                                   <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block' }}>
+                                     Mã Freeship: -₫{shippingDiscount.toLocaleString('vi-VN')}
+                                   </Typography>
+                                 )}
+                               </>
+                             ) : (
+                               <Typography sx={{ color: '#4caf50', fontWeight: 700 }}>Miễn phí</Typography>
+                             )}
+                          </Box>
+                        </Box>
+                      </Box>
+
+                      {/* Coupon Section */}
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                          🎟️ Mã Giảm Giá
+                        </Typography>
+                        <CouponInput
+                          orderAmount={subtotalSelected - productDiscount}
+                          onCouponApply={handleApplyManualCoupon}
+                          systemVoucherCodes={allVouchers.map(v => v.maApDung)}
+                        />
+                      </Box>
+                    </Box>
+                  )}
+                </CardContent>
+
+                {/* Always visible sticky footer inside Card */}
+                <Box sx={{ p: 1.5, bgcolor: '#fff', borderTop: '1px solid #f0f0f0', boxShadow: '0 -4px 12px rgba(0,0,0,0.03)' }}>
+                  <Box sx={{ mb: 1.5, p: 1.5, backgroundColor: '#fff5f0', borderRadius: '12px', border: '1px solid #ffe8db' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography sx={{ fontWeight: 700 }}>Tổng cộng:</Typography>
-                      <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: '#e68c55' }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Tổng cộng:</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', color: '#e68c55' }}>
                         ₫{total.toLocaleString('vi-VN')}
                       </Typography>
                     </Box>
-                    <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.2 }}>
                       (Tiết kiệm được ₫{(productDiscount + currentDynamicDiscount + shippingDiscount).toLocaleString('vi-VN')})
                     </Typography>
-                  </Box>
-
-                  {/* Coupon Section */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
-                      🎟️ Mã Giảm Giá
-                    </Typography>
-                    <CouponInput
-                      orderAmount={subtotalSelected - productDiscount}
-                      onCouponApply={handleApplyManualCoupon}
-                      systemVoucherCodes={allVouchers.map(v => v.maApDung)}
-                    />
                   </Box>
 
                   <Button
                     variant="contained"
                     fullWidth
-                    size="large"
+                    size="medium"
                     disabled={selectedIds.length === 0}
                     onClick={() => {
-                      // Final stock validation before checkout
                       const outOfStockItems = selectedItems.filter(item => item.quantity > item.soLuongTon);
                       if (outOfStockItems.length > 0) {
                         const names = outOfStockItems.map(i => {
@@ -582,7 +629,8 @@ const ShoppingCartPage = () => {
 
                       if (selectedGifts.length < giftLimit) {
                         alert(`🎁 Bạn chưa chọn đủ quà tặng! Vui lòng chọn đủ ${giftLimit} món quà để tiếp tục thanh toán.`);
-                        setGiftsOpen(true); // Auto-open gifts modal for convenience
+                        setRightTab(0); // Switch to Gifts tab
+                        setGiftsOpen(true);
                       } else {
                         navigate('/checkout', {
                           state: {
@@ -600,14 +648,14 @@ const ShoppingCartPage = () => {
                       }
                     }}
                     sx={{
-                      bgcolor: '#e68c55', py: 1.5, borderRadius: '30px', fontWeight: 700,
+                      bgcolor: '#e68c55', py: 1, borderRadius: '30px', fontWeight: 700,
                       '&:hover': { bgcolor: '#cc7a4a' },
                       boxShadow: '0 4px 14px rgba(230, 140, 85, 0.3)'
                     }}
                   >
                     🚀 Thanh Toán Ngay ({selectedIds.length})
                   </Button>
-                </CardContent>
+                </Box>
               </Card>
             </Box>
           </Grid>
@@ -643,6 +691,39 @@ const ShoppingCartPage = () => {
         selectedGifts={selectedGifts}
         onSelect={(gifts) => setSelectedGifts(gifts)}
       />
+
+      {/* Clear Cart Confirmation Modal */}
+      <Dialog 
+        open={openClearConfirm} 
+        onClose={() => setOpenClearConfirm(false)}
+        PaperProps={{ sx: { borderRadius: '16px', p: 1, maxWidth: '400px' } }}
+      >
+        <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800, color: '#d32f2f' }}>
+          🗑️ Xác Nhận Xóa Giỏ Hàng
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1, fontSize: '0.95rem' }}>
+            Bạn có chắc chắn muốn xóa toàn bộ sản phẩm khỏi giỏ hàng? Hành động này không thể hoàn tác.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            variant="outlined" 
+            onClick={() => setOpenClearConfirm(false)}
+            sx={{ borderRadius: '8px', fontWeight: 600, color: '#777', borderColor: '#ccc' }}
+          >
+            Hủy Bỏ
+          </Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={confirmClearCart}
+            sx={{ borderRadius: '8px', fontWeight: 600, px: 3 }}
+          >
+            Xác Nhận Xóa
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

@@ -136,7 +136,7 @@ const ShoppingLayout = ({ children }) => {
               <Typography variant="body2" onClick={() => navigate('/customer-promotions')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Mã ưu đãi</Typography>
               <Typography variant="body2" onClick={() => { navigate('/shopping'); window.scrollTo(0, 0); }} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Hệ thống cửa hàng</Typography>
               <Typography variant="body2" onClick={() => navigate('/about')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Về chúng tôi</Typography>
-              <Typography variant="body2" onClick={() => navigate('/contact')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Liên hệ với chúng tôi</Typography>
+              <Typography variant="body2" onClick={() => navigate('/contact')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Liên hệ</Typography>
             </Box>
             <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, bgcolor: '#e68c55', color: '#fff', px: 2.5, py: 0.5, borderRadius: 999, boxShadow: '0 2px 8px rgba(230,140,85,0.3)' }}>
               <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 1 }}>

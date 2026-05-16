@@ -148,8 +148,10 @@ export default function CustomerAboutPage() {
         .sym-card:hover { transform: translateY(-6px); background: #fff; border-color: #e68c55; box-shadow: 0 16px 32px rgba(230,140,85,.15); }
         @media(max-width: 1024px) { .sym-card { width: calc(50% - 0.75rem); } }
         @media(max-width: 640px) { .sym-card { width: 100%; } }
-        .team-card{transition:transform .4s cubic-bezier(.4,0,.2,1),box-shadow .4s}
-        .team-card:hover{transform:translateY(-12px);box-shadow:0 24px 50px rgba(230,140,85,.25)!important}
+        .team-card{transition:all .5s cubic-bezier(.4,0,.2,1) !important}
+        .team-card:hover{transform:translateY(-12px) !important;box-shadow:0 24px 50px rgba(230,140,85,.25)!important;border-color:#e68c55 !important}
+        .team-card img{transition:transform .5s cubic-bezier(.4,0,.2,1)}
+        .team-card:hover img{transform:scale(1.15) translateY(-6px)!important}
         .cta-btn{background:linear-gradient(135deg,${ORG},#d4743a);border:none;color:#fff;font-family:'Kanit',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.12em;padding:10px 32px;border-radius:999px;cursor:pointer;font-size:clamp(.8rem,1.2vw,.95rem);box-shadow:0 8px 28px rgba(230,140,85,.4);transition:transform .2s,box-shadow .2s}
         .cta-btn:hover{transform:scale(1.04);box-shadow:0 12px 40px rgba(230,140,85,.6)}
         .ghost-btn2{background:transparent;border:2px solid rgba(230,140,85,.7);color:${DARK};font-family:'Kanit',sans-serif;font-weight:500;text-transform:uppercase;letter-spacing:.1em;padding:10px 32px;border-radius:999px;cursor:pointer;font-size:clamp(.8rem,1.2vw,.95rem);transition:all .2s}
@@ -171,14 +173,14 @@ export default function CustomerAboutPage() {
 
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '4rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
           <div style={{ opacity: sV ? 1 : 0, transform: sV ? 'translateX(0)' : 'translateX(-50px)', transition: 'all .9s ease' }}>
-            <p style={{ color: ORG, fontWeight: 600, letterSpacing: '.25em', textTransform: 'uppercase', fontSize: '.85rem', marginBottom: '1rem' }}>VLXD Thành Đạt — Từ 2009</p>
+            <p style={{ color: ORG, fontWeight: 600, letterSpacing: '.25em', textTransform: 'uppercase', fontSize: '.85rem', marginBottom: '1rem' }}>VLXD Thành Đạt — Từ 2018</p>
             <h2 style={{ fontWeight: 900, fontSize: 'clamp(1.6rem,4.5vw,3rem)', lineHeight: 1.1, color: DARK, marginBottom: '1.2rem' }}>
               Kiến tạo<br />
               <span style={{ color: ORG }}>công trình</span><br />
               của bạn
             </h2>
             <p style={{ color: MID, fontWeight: 300, lineHeight: 1.85, fontSize: 'clamp(.95rem,1.6vw,1.15rem)', marginBottom: '2rem' }}>
-              Hơn <strong style={{ color: DARK, fontWeight: 700 }}>15 năm</strong> đồng hành cùng hàng chục nghìn công trình — từ những nền móng đầu tiên đến những công trình hoàn thiện ấn tượng nhất.
+              Hơn <strong style={{ color: DARK, fontWeight: 700 }}>8 năm</strong> đồng hành cùng hàng chục nghìn công trình — từ những nền móng đầu tiên đến những công trình hoàn thiện ấn tượng nhất.
             </p>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <button className="cta-btn" onClick={() => navigate('/contact')}>Liên hệ ngay</button>
@@ -237,17 +239,17 @@ export default function CustomerAboutPage() {
         <h2 style={{ fontFamily: "'Kanit',sans-serif", fontWeight: 900, textTransform: 'uppercase', textAlign: 'center', color: DARK, fontSize: 'clamp(1.8rem,5vw,3.5rem)', lineHeight: 1.15, marginBottom: 'clamp(1.5rem,3vw,2.5rem)' }}>
           <span style={{ color: ORG }}>Đội</span> ngũ
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1.25rem', maxWidth: 820, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '2rem', maxWidth: 1000, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           {teamMembers.map((m, i) => (
-            <div key={i} className="team-card" style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', border: `1px solid rgba(230,140,85,.2)`, boxShadow: '0 4px 20px rgba(0,0,0,.06)', opacity: tV ? 1 : 0, transform: tV ? 'translateY(0)' : 'translateY(30px)', transition: `all .8s ${i * .15}s ease` }}>
+            <div key={i} className="team-card" style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', border: `1px solid rgba(230,140,85,.2)`, boxShadow: '0 8px 30px rgba(0,0,0,.08)', opacity: tV ? 1 : 0, transform: tV ? 'translateY(0)' : 'translateY(30px)', transition: `all .8s ${i * .15}s ease` }}>
               {/* Character image with pastel bg */}
-              <div style={{ background: m.bg, height: 155, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-                <img src={m.avatar} alt={m.name} style={{ height: 145, objectFit: 'contain', objectPosition: 'bottom' }} />
+              <div style={{ background: m.bg, height: 180, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
+                <img src={m.avatar} alt={m.name} style={{ height: 170, objectFit: 'contain', objectPosition: 'bottom' }} />
               </div>
               {/* Info */}
-              <div style={{ padding: '0.8rem 1.2rem', textAlign: 'center' }}>
-                <p style={{ fontWeight: 700, fontSize: '1rem', color: DARK, marginBottom: '.15rem' }}>{m.name}</p>
-                <p style={{ fontWeight: 400, fontSize: '.75rem', color: ORG, letterSpacing: '.05em' }}>MSSV: {m.id || m.studentId}</p>
+              <div style={{ padding: '1rem 1.2rem', textAlign: 'center' }}>
+                <p style={{ fontWeight: 700, fontSize: '1.1rem', color: DARK, marginBottom: '.2rem' }}>{m.name}</p>
+                <p style={{ fontWeight: 500, fontSize: '.8rem', color: ORG, letterSpacing: '.05em' }}>MSSV: {m.id || m.studentId}</p>
               </div>
             </div>
           ))}
@@ -262,7 +264,7 @@ export default function CustomerAboutPage() {
           Bắt đầu <span style={{ color: ORG }}>ngay</span>
         </h2>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
-          <button className="cta-btn" onClick={() => navigate('/contact')}>Liên hệ với chúng tôi</button>
+          <button className="cta-btn" onClick={() => navigate('/contact')}>Liên hệ</button>
           <button style={{ background: 'transparent', border: '2px solid rgba(230,140,85,.6)', color: '#fff', fontFamily: "'Kanit',sans-serif", fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.1em', padding: '10px 32px', borderRadius: 999, cursor: 'pointer', fontSize: 'clamp(.8rem,1.2vw,.95rem)', transition: 'all .2s' }} onClick={() => navigate('/shopping')}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(230,140,85,.15)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
