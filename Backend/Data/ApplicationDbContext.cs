@@ -66,6 +66,9 @@ namespace BuildingMaterialAPI.Data
         public DbSet<DanhGia> DanhGias { get; set; }
         public DbSet<LichSuThangHang> LichSuThangHangs { get; set; }
         public DbSet<LichHenTraNo> LichHenTraNos { get; set; }
+        public DbSet<Banner> Banners { get; set; }
+        public DbSet<TeamMember> TeamMembers { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

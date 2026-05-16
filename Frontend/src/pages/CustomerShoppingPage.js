@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Container, Grid, Card, CardContent, Button, Typography, Box, Chip, Skeleton, IconButton, Dialog, Snackbar, Alert
 } from '@mui/material';
@@ -12,6 +12,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import bannerService from '../services/bannerService';
 import storageHelper from '../services/storageHelper';
 import ProductCard from '../components/ProductCard';
+import HeroCarousel from '../components/HeroCarousel';
 
 const slideInLeft = keyframes`
   0% { opacity: 0; transform: translateX(-50px); }
@@ -30,42 +31,16 @@ const scrollMarquee = keyframes`
 
 
 
-const defaultBanners = [
-  {
-    tag: "Khám phá các sản phẩm trong danh mục vật liệu",
-    title: (
-      <>Sắt thép & <br /><span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>Xi măng 🏗️</span> xây dựng</>
-    ),
-    btnText: "Mua ngay",
-    subText: "Giá tốt nhất",
-    bgColor: "#aebdb5",
-    rightImg: "/images/banner-right-1.png" // User will supply this later
-  },
-  {
-    tag: "Đa dạng lựa chọn cho mọi công trình",
-    title: (
-      <>Gạch ốp lát & <br /><span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>Trang trí 🎨</span> cao cấp</>
-    ),
-    btnText: "Khám phá",
-    subText: "Nhiều ưu đãi lớn",
-    bgColor: "#d1c2ab",
-    rightImg: "/images/banner-right-2.png"
-  },
-  {
-    tag: "Chất lượng đảm bảo, chứng nhận quốc tế",
-    title: (
-      <>Thiết bị điện & <br /><span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>Chiếu sáng 💡</span> an toàn</>
-    ),
-    btnText: "Xem ngay",
-    subText: "Bảo hành dài hạn",
-    bgColor: "#aab8c2",
-    rightImg: "/images/banner-right-3.png"
-  }
+const DEFAULT_SHOPPING_BANNERS = [
+  { src: 'https://fifth-gentle-45902158.figma.site/_components/v2/4de492f6d9cf8244ad5293233e5c6f52407d42fc/1.02464a56.png', bg: '#F4845F', panel: '#F79B7F', title: 'TOONHUB FIGURINES', desc: 'The artwork is stunning, shipped fully prepared. The finish is a vision, the 3D craft is flawless. Many thanks! Wishing you the win. Order now.' },
+  { src: 'https://fifth-gentle-45902158.figma.site/_components/v2/4de492f6d9cf8244ad5293233e5c6f52407d42fc/2.b977faab.png', bg: '#6BBF7A', panel: '#85CC92', title: 'TOONHUB FIGURINES', desc: 'The artwork is stunning, shipped fully prepared. The finish is a vision, the 3D craft is flawless. Many thanks! Wishing you the win. Order now.' },
+  { src: 'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', bg: '#5A9BD5', panel: '#7CB3E5', title: 'TOONHUB FIGURINES', desc: 'The artwork is stunning, shipped fully prepared. The finish is a vision, the 3D craft is flawless. Many thanks! Wishing you the win. Order now.' }
 ];
 
 let cachedData = null;
 
 const CustomerShoppingPage = () => {
+  const [shoppingBanners, setShoppingBanners] = useState(DEFAULT_SHOPPING_BANNERS);
   const [products, setProducts] = useState(cachedData ? cachedData.products : []);
   const [loading, setLoading] = useState(!cachedData);
   const [quickViewOpen, setQuickViewOpen] = useState(false);
@@ -192,18 +167,67 @@ const CustomerShoppingPage = () => {
     navigate('/shopping-cart');
   };
 
-  const [bannerIndex, setBannerIndex] = useState(0);
+  const [bannerActive, setBannerActive] = useState(0);
+  const [bannerAnimating, setBannerAnimating] = useState(false);
+  const [bannerMobile, setBannerMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBannerIndex((prev) => (prev + 1) % defaultBanners.length);
-    }, 5000);
-    return () => clearInterval(interval);
+    const fetchBanners = async () => {
+      try {
+        const active = await bannerService.getActiveBanners();
+        if (active && active.length > 0) {
+          setShoppingBanners(active);
+        }
+      } catch (err) {
+        console.error('Error fetching banners:', err);
+      }
+    };
+    fetchBanners();
   }, []);
 
-  const handleNextBanner = () => setBannerIndex((prev) => (prev + 1) % defaultBanners.length);
-  const handlePrevBanner = () => setBannerIndex((prev) => (prev - 1 + defaultBanners.length) % defaultBanners.length);
+  useEffect(() => {
+    shoppingBanners.forEach(s => { const i = new Image(); i.src = s.src; });
+    const onResize = () => setBannerMobile(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [shoppingBanners]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!bannerAnimating) {
+        setBannerAnimating(true);
+        setBannerActive(p => (p + 1) % shoppingBanners.length);
+        setTimeout(() => setBannerAnimating(false), 650);
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [bannerAnimating, shoppingBanners.length]);
+
+  const goBanner = useCallback((dir) => {
+    if (bannerAnimating) return;
+    setBannerAnimating(true);
+    setBannerActive(p => dir === 'next' ? (p + 1) % shoppingBanners.length : (p + shoppingBanners.length - 1) % shoppingBanners.length);
+    setTimeout(() => setBannerAnimating(false), 650);
+  }, [bannerAnimating, shoppingBanners.length]);
+
+  const len = shoppingBanners.length || 4;
+  const bannerCenter = bannerActive % len;
+  const bannerLeft = (bannerActive + len - 1) % len;
+  const bannerRight = (bannerActive + 1) % len;
+  const bannerBack = (bannerActive + 2) % len;
+
+
+  const getBannerRole = (i) => i === bannerCenter ? 'center' : i === bannerLeft ? 'left' : i === bannerRight ? 'right' : 'back';
+
+  const bannerRoleStyle = (role) => {
+    const T = 'transform 650ms cubic-bezier(0.4,0,0.2,1), filter 650ms cubic-bezier(0.4,0,0.2,1), opacity 650ms cubic-bezier(0.4,0,0.2,1), left 650ms cubic-bezier(0.4,0,0.2,1), bottom 650ms cubic-bezier(0.4,0,0.2,1), height 650ms cubic-bezier(0.4,0,0.2,1)';
+    const base = { position: 'absolute', aspectRatio: '0.6/1', transition: T, willChange: 'transform,filter,opacity' };
+    if (role === 'center') return { ...base, left: '50%', height: bannerMobile ? '60%' : '92%', bottom: bannerMobile ? '22%' : 0, transform: `translateX(-50%) scale(${bannerMobile ? 1.25 : 1.68})`, filter: 'none', opacity: 1, zIndex: 20 };
+    if (role === 'left') return { ...base, left: bannerMobile ? '20%' : '30%', height: bannerMobile ? '16%' : '28%', bottom: bannerMobile ? '32%' : '12%', transform: 'translateX(-50%) scale(1)', filter: 'blur(2px)', opacity: 0.85, zIndex: 10 };
+    if (role === 'right') return { ...base, left: bannerMobile ? '80%' : '70%', height: bannerMobile ? '16%' : '28%', bottom: bannerMobile ? '32%' : '12%', transform: 'translateX(-50%) scale(1)', filter: 'blur(2px)', opacity: 0.85, zIndex: 10 };
+    if (role === 'back') return { ...base, left: '50%', height: bannerMobile ? '13%' : '22%', bottom: bannerMobile ? '32%' : '12%', transform: 'translateX(-50%) scale(1)', filter: 'blur(4px)', opacity: 1, zIndex: 5 };
+    return base;
+  };
 
   const handleOpenQuickView = (prod) => {
     setSelectedProduct(prod);
@@ -299,7 +323,7 @@ const CustomerShoppingPage = () => {
         colorIndex++;
       }
     });
-    
+
     return Array.from(brandMap.values()).slice(0, 5);
   }, [products]);
 
@@ -307,145 +331,8 @@ const CustomerShoppingPage = () => {
     <Box sx={{ width: '100%', overflowX: 'hidden' }}>
 
       {/* Hero Section Carousel Replicating the Screenshot with Animation */}
-      <Box sx={{
-        bgcolor: defaultBanners[bannerIndex].bgColor,
-        position: 'relative',
-        minHeight: '450px',
-        display: 'flex',
-        alignItems: 'center',
-        overflow: 'hidden',
-        transition: 'background-color 0.8s ease'
-      }}>
-        {/* Abstract Background Shapes */}
-        <Box sx={{ position: 'absolute', right: '10%', top: '5%', width: '30%', height: '80%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '50%', filter: 'blur(60px)', zIndex: 0 }} />
-        <Box sx={{ position: 'absolute', right: '5%', top: '20%', width: '300px', height: '300px', borderRadius: '50%', border: '15px solid rgba(255,255,255,0.1)', zIndex: 0 }} />
+      <HeroCarousel ctaLink="#products" ctaLabel="SẢN PHẨM →" mode="shopping" />
 
-        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, px: { xs: 4, md: 8, lg: 12 } }}>
-          <Grid container spacing={4} alignItems="center">
-
-            {/* Left Content with Slide In Left Animation */}
-            <Grid item xs={12} md={6}>
-              <Box key={`text-${bannerIndex}`} sx={{ animation: `${slideInLeft} 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) both` }}>
-                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ width: 40, height: 40, border: '2px solid rgba(0,0,0,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {bannerIndex === 0 ? '🏗️' : bannerIndex === 1 ? '🎨' : '💡'}
-                  </Box>
-                  <Typography variant="body1" sx={{ color: '#333', fontWeight: 600 }}>
-                    {defaultBanners[bannerIndex].tag.split('vật liệu')[0]}
-                    {defaultBanners[bannerIndex].tag.includes('vật liệu') && <span style={{ borderBottom: '2px solid #e68c55' }}>vật liệu</span>}
-                    {defaultBanners[bannerIndex].tag.split('vật liệu')[1]}
-                  </Typography>
-                </Box>
-
-                <Typography variant="h1" sx={{ fontSize: '3rem', color: '#333', lineHeight: 1.1, mb: 1 }}>
-                  {defaultBanners[bannerIndex].title}
-                </Typography>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mt: 4 }}>
-                  <Button variant="contained" sx={{ bgcolor: '#fff', color: '#000', px: 4, py: 1.5, fontSize: '1rem', '&:hover': { bgcolor: '#f4f4f4' }, borderRadius: 8, fontWeight: 'bold' }}>
-                    {defaultBanners[bannerIndex].btnText}
-                  </Button>
-                  <Typography variant="h3" sx={{ color: '#333' }}>
-                    {defaultBanners[bannerIndex].subText}
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-
-            {/* Right Content with Slide In Right Animation */}
-            <Grid item xs={12} md={6}>
-              <Box key={`img-${bannerIndex}`} sx={{ position: 'relative', height: '333px', width: '100%', animation: `${slideInRight} 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.2s both` }}>
-                <Box
-                  component="img"
-                  src={defaultBanners[bannerIndex].rightImg}
-                  alt="Banner Decor"
-                  sx={{
-                    maxHeight: '100%',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    filter: 'drop-shadow(-10px 10px 15px rgba(0,0,0,0.2))',
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    zIndex: 2
-                  }}
-                  onError={(e) => {
-                    // Fallback to fake blocks if image is not found
-                    e.target.style.display = 'none';
-                    e.target.nextElementSibling.style.display = 'flex';
-                  }}
-                />
-
-                {/* Fake blocks placeholder if image not loaded yet */}
-                <Box className="fallback-blocks" sx={{ position: 'absolute', bottom: 0, right: 0, width: '100%', height: '250px', bgcolor: 'rgba(0,0,0,0.15)', borderRadius: '8px 8px 0 0', display: 'flex', p: 4 }}>
-                  <Box sx={{ width: '40px', height: '120px', bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '40px 40px 10px 10px', mr: 2, alignSelf: 'flex-end' }}></Box>
-                  <Box sx={{ width: '60px', height: '100px', bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '40px 40px 10px 10px', mr: 2, alignSelf: 'flex-end' }}></Box>
-                  <Box sx={{ width: '80px', height: '70px', bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '40px 40px 10px 10px', alignSelf: 'flex-end' }}></Box>
-                </Box>
-              </Box>
-            </Grid>
-          </Grid>
-        </Container>
-
-        {/* Navigation Arrows */}
-        <IconButton
-          onClick={handlePrevBanner}
-          sx={{
-            position: 'absolute',
-            left: { xs: 8, md: 32 },
-            top: '50%',
-            transform: 'translateY(-50%)',
-            backgroundColor: 'rgba(255,255,255,0.4)',
-            color: '#333',
-            zIndex: 10,
-            '&:hover': {
-              backgroundColor: 'rgba(255,255,255,0.8)',
-              transform: 'translateY(-50%) scale(1.1)',
-            },
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <ArrowBackIosNewIcon />
-        </IconButton>
-
-        <IconButton
-          onClick={handleNextBanner}
-          sx={{
-            position: 'absolute',
-            right: { xs: 8, md: 32 },
-            top: '50%',
-            transform: 'translateY(-50%)',
-            backgroundColor: 'rgba(255,255,255,0.4)',
-            color: '#333',
-            zIndex: 10,
-            '&:hover': {
-              backgroundColor: 'rgba(255,255,255,0.8)',
-              transform: 'translateY(-50%) scale(1.1)',
-            },
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <ArrowForwardIosIcon />
-        </IconButton>
-
-        {/* Carousel Indicators */}
-        <Box sx={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 1, p: 1, borderRadius: '20px', zIndex: 10 }}>
-          {defaultBanners.map((_, idx) => (
-            <Box
-              key={idx}
-              onClick={() => setBannerIndex(idx)}
-              sx={{
-                width: bannerIndex === idx ? 24 : 10,
-                height: 10,
-                borderRadius: '5px',
-                bgcolor: bannerIndex === idx ? '#000' : 'rgba(0,0,0,0.3)',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-              }}
-            />
-          ))}
-        </Box>
-      </Box>
 
       {/* Fahasa-style Flash Sale Section */}
       {!loading && activeFlashSale && (
@@ -752,10 +639,10 @@ const CustomerShoppingPage = () => {
                 }
                 <IconButton sx={{ position: 'absolute', right: -10 }}><Typography sx={{ fontSize: '1.5rem', color: '#999' }}>{'>'}</Typography></IconButton>
               </Box>
-              <Button 
-                variant="contained" 
-                fullWidth 
-                disableElevation 
+              <Button
+                variant="contained"
+                fullWidth
+                disableElevation
                 onClick={() => navigate(`/product/${selectedProduct.maSanPham || selectedProduct.maSP}`)}
                 sx={{ mt: 3, bgcolor: '#f0a06c', color: '#fff', borderRadius: '4px', textTransform: 'none', '&:hover': { bgcolor: '#cc7a4a' } }}
               >
@@ -848,24 +735,24 @@ const CustomerShoppingPage = () => {
             <Grid container spacing={3}>
               {brandList.map((brand, i) => (
                 <Grid item xs={12} sm={6} md={4} lg={2.4} key={i}>
-                  <Box 
+                  <Box
                     onClick={() => navigate(`/search?brand=${encodeURIComponent(brand.name)}`)}
                     sx={{
-                    height: 350,
-                    borderRadius: '12px',
-                    bgcolor: brand.bg,
-                    backgroundImage: brand.image ? `url(${brand.image})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    transition: 'transform 0.3s ease',
-                    '&:hover': { 
-                      transform: 'translateY(-5px)',
-                      '& .overlay': { bgcolor: 'rgba(0,0,0,0.6)' } 
-                    }
-                  }}>
+                      height: 350,
+                      borderRadius: '12px',
+                      bgcolor: brand.bg,
+                      backgroundImage: brand.image ? `url(${brand.image})` : 'none',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      transition: 'transform 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateY(-5px)',
+                        '& .overlay': { bgcolor: 'rgba(0,0,0,0.6)' }
+                      }
+                    }}>
                     <Box className="overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', transition: 'background-color 0.3s', zIndex: 0 }} />
                     <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 2, zIndex: 1 }}>
                       <Box sx={{ width: 50, height: 50, borderRadius: '50%', bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7rem', color: '#000' }}>
@@ -921,14 +808,15 @@ const CustomerShoppingPage = () => {
                 minHeight: 400,
                 borderRadius: '12px',
                 bgcolor: '#444',
-                backgroundImage: 'url(https://via.placeholder.com/600x400.png?text=Room+Interior)',
+                backgroundImage: 'url(https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=800&q=80)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                position: 'relative'
+                position: 'relative',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
               }}>
                 {/* Hotspot indicator (Hover tooltips like the image) */}
-                <Box sx={{ position: 'absolute', top: '40%', left: '30%', width: 20, height: 20, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 0 0 5px rgba(255,255,255,0.2)' }}>
-                  <Box sx={{ width: 6, height: 6, bgcolor: '#000', borderRadius: '50%' }} />
+                <Box sx={{ position: 'absolute', top: '40%', left: '30%', width: 20, height: 20, bgcolor: 'rgba(255,255,255,0.85)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 0 0 5px rgba(255,255,255,0.3)' }}>
+                  <Box sx={{ width: 6, height: 6, bgcolor: '#ef4d23', borderRadius: '50%' }} />
                 </Box>
               </Box>
             </Grid>
