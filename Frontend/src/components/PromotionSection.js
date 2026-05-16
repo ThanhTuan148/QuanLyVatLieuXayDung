@@ -24,7 +24,8 @@ const PromotionSection = ({
   bestCoupon, 
   eligibleCount,
   selectedGiftsCount,
-  giftLimit
+  giftLimit,
+  label = "Khuyến mãi"
 }) => {
   // Free shipping logic
   const freeShipThreshold = 500000;
@@ -43,7 +44,7 @@ const PromotionSection = ({
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <VoucherIcon sx={{ color: '#1976d2' }} />
-              <Typography variant="subtitle2" fontWeight={700} color="#1976d2" sx={{ textTransform: 'uppercase' }}>KHUYẾN MÃI</Typography>
+              <Typography variant="subtitle2" fontWeight={700} color="#1976d2" sx={{ textTransform: 'uppercase' }}>{label}</Typography>
             </Box>
             <Button 
                 endIcon={<ChevronRightIcon />} 
@@ -59,7 +60,7 @@ const PromotionSection = ({
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                <Box>
                  <Typography variant="body2" fontWeight={800} sx={{ mb: 0.5 }}>
-                   {bestCoupon ? (bestCoupon.tenUuDai || bestCoupon.code) : 'Tuyệt vời! Bạn đã đạt mức ưu đãi cao nhất'}
+                   {bestCoupon ? (bestCoupon.tenKM || bestCoupon.maApDung) : 'Tuyệt vời! Bạn đã đạt mức ưu đãi cao nhất'}
                  </Typography>
                  <Typography variant="caption" color="text.secondary" display="block" sx={{ maxWidth: '200px' }}>
                    {bestCoupon 
@@ -67,7 +68,7 @@ const PromotionSection = ({
                     : 'Tiếp tục mua sắm để nhận thêm nhiều quà tặng hấp dẫn.'}
                  </Typography>
                  <Typography fontSize={11} sx={{ mt: 1, color: '#1976d2', textDecoration: 'underline', cursor: 'pointer' }}>
-                   {bestCoupon ? `HSD: ${new Date(bestCoupon.ngayKetThuc).toLocaleDateString('vi-VN')}` : ''}
+                   {bestCoupon ? `HSD: ${new Date(bestCoupon.thoiGianKetThuc).toLocaleDateString('vi-VN')}` : ''}
                  </Typography>
                </Box>
                <IconButton size="small" sx={{ color: '#1976d2' }}><InfoIcon fontSize="small" /></IconButton>
@@ -103,7 +104,7 @@ const PromotionSection = ({
                 cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#bbdefb'} 
             }}
           >
-            <Typography variant="body2" color="#1976d2" fontWeight={600}>{eligibleCount} khuyến mãi đủ điều kiện</Typography>
+            <Typography variant="body2" color="#1976d2" fontWeight={600}>{eligibleCount} ưu đãi đủ điều kiện</Typography>
             <ChevronRightIcon sx={{ color: '#1976d2' }} />
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', display: 'flex', alignItems: 'center', gap: 0.5 }}>

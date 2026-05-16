@@ -539,8 +539,8 @@ function ProcurementPage() {
       setViewDialog({ ...detail.data, mode: 'receive' });
       setReceiveData(detail.data.chiTiet.map(c => ({
         maCTPN: c.maCTPN,
-        soLuongDaNhan: c.soLuong,
-        maKhoHang: c.maKhoHang || 1 // Mặc định kho 1
+        soLuongDaNhan: c.soLuongDaNhan > 0 ? c.soLuongDaNhan : c.soLuong,
+        maKhoHang: c.maKhoHang || 1
       })));
     } catch (e) {
       alert('Lỗi tải chi tiết');
@@ -620,7 +620,11 @@ function ProcurementPage() {
     if (!window.confirm('Xác nhận đã nhận hàng thực tế và Cộng Tồn Kho? Lưu ý hành động này không thể hoàn tác!')) return;
     setActionLoading(true);
     try {
-      const payload = receiveData.map(r => ({ ...r, userId: userId }));
+      const payload = receiveData.map(r => ({ 
+          ...r, 
+          userId: userId,
+          soLuongDaNhan: r.soLuongDaNhan === '' ? 0 : Number(r.soLuongDaNhan)
+      }));
       const res = await api.put(`/procurement/${id}/receive`, payload);
       alert(res.data.message);
       loadData();
@@ -633,7 +637,22 @@ function ProcurementPage() {
   };
 
   const handleReceiveChange = (maCTPN, field, value) => {
-    setReceiveData(prev => prev.map(p => p.maCTPN === maCTPN ? { ...p, [field]: value } : p));
+    let val = value;
+    if (field === 'soLuongDaNhan') {
+       val = value === '' ? '' : Number(value);
+       if (val !== '' && val < 0) val = 0;
+    }
+    setReceiveData(prev => prev.map(p => p.maCTPN === maCTPN ? { ...p, [field]: val } : p));
+  };
+
+  const handleReceiveBlur = (maCTPN, field, maxVal) => {
+    setReceiveData(prev => prev.map(p => {
+      if (p.maCTPN !== maCTPN) return p;
+      let val = p[field];
+      if (val === '') val = 0;
+      if (maxVal !== undefined && val > maxVal) val = maxVal;
+      return { ...p, [field]: val };
+    }));
   };
 
   // Checkbox = Chọn để Yêu Cầu Sửa
@@ -1512,6 +1531,20 @@ function ProcurementPage() {
                         }
                       },
                       {
+                        field: 'maKhoHang',
+                        headerName: 'Kho Nhập',
+                        width: 150,
+                        hide: viewDialog.mode !== 'receive',
+                        renderCell: (params) => {
+                          const name = params.row.tenKhoHang || warehouses.find(w => w.maKhoHang === params.row.maKhoHang)?.tenKho;
+                          return (
+                            <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#64748b' }}>
+                              {name || 'Chưa gán'}
+                            </Typography>
+                          );
+                        }
+                      },
+                      {
                         field: 'daNhan',
                         headerName: 'Đã Nhận',
                         width: 120,
@@ -1541,8 +1574,11 @@ function ProcurementPage() {
                                 opacity: viewDialog.mode !== 'receive' ? 0.3 : 1,
                                 pointerEvents: viewDialog.mode !== 'receive' ? 'none' : 'auto'
                               }}
-                              value={receiveData.find(r => r.maCTPN === params.row.maCTPN)?.soLuongDaNhan || 0}
-                              onChange={(e) => handleReceiveChange(params.row.maCTPN, 'soLuongDaNhan', Number(e.target.value))}
+                              value={receiveData.find(r => r.maCTPN === params.row.maCTPN)?.soLuongDaNhan ?? ''}
+                              inputProps={{ min: 0, max: params.row.soLuong }}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => handleReceiveChange(params.row.maCTPN, 'soLuongDaNhan', e.target.value)}
+                              onBlur={(e) => handleReceiveBlur(params.row.maCTPN, 'soLuongDaNhan', params.row.soLuong)}
                             />
                           );
                         }

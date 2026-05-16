@@ -18,6 +18,7 @@ namespace BuildingMaterialAPI.Controllers
             var query = _context.KhuyenMais
                 .Include(km => km.KhuyenMaiDoiTuongs)
                     .ThenInclude(kdt => kdt.SanPham)
+                        .ThenInclude(sp => sp.CTKhoHangs)
                 .Include(km => km.KhuyenMaiDoiTuongs)
                     .ThenInclude(kdt => kdt.LoaiSanPham)
                 .AsQueryable();
@@ -56,7 +57,10 @@ namespace BuildingMaterialAPI.Controllers
                     giaBan = kdt.SanPham?.GiaBan ?? 0,
                     maLoaiSP = kdt.MaLoaiSP,
                     tenLoaiSP = kdt.LoaiSanPham?.TenLoai,
-                    giaKhuyenMai = kdt.GiaKhuyenMai
+                    giaKhuyenMai = kdt.GiaKhuyenMai,
+                    soLuongBanDau = kdt.SoLuongKhuyenMai ?? 100,
+                    daBan = kdt.SoLuongDaBan,
+                    soLuongTon = kdt.SanPham?.CTKhoHangs?.Sum(k => (int?)k.SoLuong) ?? 0
                 }).ToList()
 
             }).ToList();
@@ -80,7 +84,7 @@ namespace BuildingMaterialAPI.Controllers
             var voucher = await _context.KhuyenMais
                 .FirstOrDefaultAsync(km => km.MaApDung == code && 
                                           km.TrangThai && 
- 
+                                          km.LoaiKM == "Coupon" &&
                                           km.ThoiGianBatDau <= now && 
                                           km.ThoiGianKetThuc >= now);
 
@@ -143,7 +147,9 @@ namespace BuildingMaterialAPI.Controllers
                             MaKhuyenMai = km.MaKhuyenMai,
                             MaSanPham = dt.MaSanPham,
                             MaLoaiSP = dt.MaLoaiSP,
-                            GiaKhuyenMai = dt.GiaKhuyenMai
+                            GiaKhuyenMai = dt.GiaKhuyenMai,
+                            SoLuongKhuyenMai = dt.SoLuong,
+                            SoLuongDaBan = 0
                         });
                     }
                     await _context.SaveChangesAsync();
@@ -214,7 +220,9 @@ namespace BuildingMaterialAPI.Controllers
                             MaKhuyenMai = km.MaKhuyenMai,
                             MaSanPham = dt.MaSanPham,
                             MaLoaiSP = dt.MaLoaiSP,
-                            GiaKhuyenMai = dt.GiaKhuyenMai
+                            GiaKhuyenMai = dt.GiaKhuyenMai,
+                            SoLuongKhuyenMai = dt.SoLuong,
+                            SoLuongDaBan = 0
                         });
                     }
                 }
@@ -281,6 +289,7 @@ namespace BuildingMaterialAPI.Controllers
         public int? MaSanPham { get; set; }
         public int? MaLoaiSP { get; set; }
         public decimal? GiaKhuyenMai { get; set; }
+        public int? SoLuong { get; set; }
     }
 }
 

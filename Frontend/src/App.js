@@ -39,21 +39,23 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import PriceHistoryPage from './pages/PriceHistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ShoppingLayout from './components/ShoppingLayout';
-import { PermissionProvider, usePermissions } from './contexts/PermissionContext';
+import ScrollToTop from './components/ScrollToTop';
+import { PermissionProvider } from './contexts/PermissionContext';
 
-// ─── Guard kiểm tra quyền module trước khi render trang ──────
-// moduleKeys: mảng các module key - cho phép nếu bất kỳ module nào có quyền xem
-function PermissionGuard({ moduleKeys, fallbackPath, children }) {
-  const { permissions, loading } = usePermissions();
-  if (loading) return null;
-  if (moduleKeys && moduleKeys.length > 0 && permissions !== null) {
-    const hasAnyAccess = moduleKeys.some(k => permissions?.[k]?.coTheXem);
-    if (!hasAnyAccess) {
-      return <Navigate to={fallbackPath || '/products'} replace />;
-    }
-  }
-  return children;
-}
+const AdminRoute = ({ children, isAuthenticated, userRole, isAdminUser }) => {
+  if (!isAuthenticated) return <Navigate to="/auth" />;
+  if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
+  return <Layout>{children}</Layout>;
+};
+
+const DashboardRoute = ({ children, isAuthenticated, userRole, isAdminUser, getAdminHomeRoute }) => {
+  if (!isAuthenticated) return <Navigate to="/auth" />;
+  if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
+  const roleStr = String(userRole?.role || userRole?.Role || userRole?.roleName || '').toLowerCase();
+  const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
+  if (!isHighManager) return <Navigate to={getAdminHomeRoute(userRole)} />;
+  return <Layout>{children}</Layout>;
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -76,7 +78,7 @@ function App() {
     if (roleStr.includes('thủ kho')) return '/inventory';
     if (roleStr.includes('admin') || roleStr.includes('quản trị')) return '/customers'; // SysAdmin goes to Customers management
     if (roleStr.includes('quản lý') || roleStr.includes('giám đốc')) return '/dashboard';
-    return '/products'; 
+    return '/products';
   };
 
   useEffect(() => {
@@ -89,27 +91,7 @@ function App() {
     setLoading(false);
   }, []);
 
-  const AdminRoute = ({ children, moduleKeys }) => {
-    if (!isAuthenticated) return <Navigate to="/auth" />;
-    if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
-    const fallback = getAdminHomeRoute(userRole);
-    return (
-      <Layout>
-        <PermissionGuard moduleKeys={moduleKeys} fallbackPath={fallback}>
-          {children}
-        </PermissionGuard>
-      </Layout>
-    );
-  };
-
-  const DashboardRoute = ({ children }) => {
-    if (!isAuthenticated) return <Navigate to="/auth" />;
-    if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
-    const roleStr = String(userRole?.role || userRole?.Role || userRole?.roleName || '').toLowerCase();
-    const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
-    if (!isHighManager) return <Navigate to={getAdminHomeRoute(userRole)} />;
-    return <Layout>{children}</Layout>;
-  };
+  // AdminRoute and DashboardRoute moved outside
 
 
   if (loading) {
@@ -120,103 +102,83 @@ function App() {
     <Provider store={store}>
       <PermissionProvider>
         <Router>
+          <ScrollToTop />
           <Routes>
-{/* Default: redirect root based on role */}
-<Route
-  path="/"
-  element={
-    isAuthenticated
-      ? (
-          isAdminUser(userRole)
-            ? <Navigate to={getAdminHomeRoute(userRole)} />
-            : <Navigate to="/shopping" />
-        )
-      : <Navigate to="/shopping" />
-  }
-/>
+            {/* Default: redirect root based on role */}
+            <Route
+              path="/"
+              element={
+                isAuthenticated
+                  ? (
+                    isAdminUser(userRole)
+                      ? <Navigate to={getAdminHomeRoute(userRole)} />
+                      : <Navigate to="/shopping" />
+                  )
+                  : <Navigate to="/shopping" />
+              }
+            />
 
-{/* /login redirects to /auth (old page removed) */}
-<Route path="/login" element={<Navigate to="/auth" />} />
+            {/* /login redirects to /auth (old page removed) */}
+            <Route path="/login" element={<Navigate to="/auth" />} />
 
-{/* Shopping (customer) routes - always accessible */}
-<Route path="/shopping" element={<ShoppingLayout><CustomerShoppingPage /></ShoppingLayout>} />
-<Route path="/customer-promotions" element={<ShoppingLayout><CustomerPromotionsPage /></ShoppingLayout>} />
-<Route path="/category/:slug" element={<ShoppingLayout><CustomerCategoryPage /></ShoppingLayout>} />
-<Route path="/flashsale" element={<ShoppingLayout><FlashSalePage /></ShoppingLayout>} />
-<Route path="/favorites" element={<ShoppingLayout><FavoritesPage /></ShoppingLayout>} />
-<Route path="/search" element={<ShoppingLayout><SearchResultsPage /></ShoppingLayout>} />
-<Route path="/product/:id" element={<ShoppingLayout><ProductDetailPage /></ShoppingLayout>} />
-<Route path="/shopping-cart" element={<ShoppingLayout><ShoppingCartPage /></ShoppingLayout>} />
-<Route
-  path="/checkout"
-  element={
-    isAuthenticated
-      ? <ShoppingLayout><CheckoutPage /></ShoppingLayout>
-      : <Navigate to="/auth" state={{ returnUrl: '/checkout' }} />
-  }
-/>
+            {/* Shopping (customer) routes - always accessible */}
+            <Route path="/shopping" element={<ShoppingLayout><CustomerShoppingPage /></ShoppingLayout>} />
+            <Route path="/customer-promotions" element={<ShoppingLayout><CustomerPromotionsPage /></ShoppingLayout>} />
+            <Route path="/category/:slug" element={<ShoppingLayout><CustomerCategoryPage /></ShoppingLayout>} />
+            <Route path="/flashsale" element={<ShoppingLayout><FlashSalePage /></ShoppingLayout>} />
+            <Route path="/favorites" element={<ShoppingLayout><FavoritesPage /></ShoppingLayout>} />
+            <Route path="/search" element={<ShoppingLayout><SearchResultsPage /></ShoppingLayout>} />
+            <Route path="/product/:id" element={<ShoppingLayout><ProductDetailPage /></ShoppingLayout>} />
+            <Route path="/shopping-cart" element={<ShoppingLayout><ShoppingCartPage /></ShoppingLayout>} />
+            <Route
+              path="/checkout"
+              element={
+                isAuthenticated
+                  ? <ShoppingLayout><CheckoutPage /></ShoppingLayout>
+                  : <Navigate to="/auth" state={{ returnUrl: '/checkout' }} />
+              }
+            />
 
-<<<<<<< Updated upstream
-{/* /auth - redirect based on role if already logged in */}
-<Route
-  path="/auth"
-  element={
-    isAuthenticated
-      ? (
-          isAdminUser(userRole)
-            ? <Navigate to={getAdminHomeRoute(userRole)} />
-            : <Navigate to="/shopping" />
-        )
-      : <ShoppingLayout><CustomerAuthPage /></ShoppingLayout>
-  }
-/>
+            {/* /auth - redirect based on role if already logged in */}
+            <Route
+              path="/auth"
+              element={
+                isAuthenticated
+                  ? (
+                    isAdminUser(userRole)
+                      ? <Navigate to={getAdminHomeRoute(userRole)} />
+                      : <Navigate to="/shopping" />
+                  )
+                  : <ShoppingLayout><CustomerAuthPage /></ShoppingLayout>
+              }
+            />
 
-<Route path="/about" element={<ShoppingLayout><CustomerAboutPage /></ShoppingLayout>} />
-<Route path="/contact" element={<ShoppingLayout><CustomerContactPage /></ShoppingLayout>} />
-<Route path="/news" element={<ShoppingLayout><CustomerNewsPage /></ShoppingLayout>} />
-<Route path="/profile" element={isAuthenticated ? <ShoppingLayout><CustomerProfilePage /></ShoppingLayout> : <Navigate to="/auth" />} />
-<Route path="/my-orders" element={isAuthenticated ? <ShoppingLayout><CustomerOrdersPage /></ShoppingLayout> : <Navigate to="/auth" />} />
-<Route path="/order-detail/:id" element={isAuthenticated ? <ShoppingLayout><CustomerOrderDetailPage /></ShoppingLayout> : <Navigate to="/auth" />} />
-<Route path="/my-debts" element={isAuthenticated ? <ShoppingLayout><CustomerDebtsPage /></ShoppingLayout> : <Navigate to="/auth" />} />
+            <Route path="/about" element={<ShoppingLayout><CustomerAboutPage /></ShoppingLayout>} />
+            <Route path="/contact" element={<ShoppingLayout><CustomerContactPage /></ShoppingLayout>} />
+            <Route path="/news" element={<ShoppingLayout><CustomerNewsPage /></ShoppingLayout>} />
+            <Route path="/profile" element={isAuthenticated ? <ShoppingLayout><CustomerProfilePage /></ShoppingLayout> : <Navigate to="/auth" />} />
+            <Route path="/my-orders" element={isAuthenticated ? <ShoppingLayout><CustomerOrdersPage /></ShoppingLayout> : <Navigate to="/auth" />} />
+            <Route path="/order-detail/:id" element={isAuthenticated ? <ShoppingLayout><CustomerOrderDetailPage /></ShoppingLayout> : <Navigate to="/auth" />} />
+            <Route path="/my-debts" element={isAuthenticated ? <ShoppingLayout><CustomerDebtsPage /></ShoppingLayout> : <Navigate to="/auth" />} />
 
-{/* Admin / Staff routes - protected by token and role */}
-<Route path="/dashboard" element={<DashboardRoute><DashboardPage /></DashboardRoute>} />
-<Route path="/products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
-<Route path="/orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
-=======
-          {/* Admin / Staff routes - protected by token and role */}
-          <Route path="/dashboard" element={<DashboardRoute><DashboardPage /></DashboardRoute>} />
-          <Route path="/products" element={<AdminRoute moduleKeys={['products', 'categories']}><ProductsPage /></AdminRoute>} />
-          <Route path="/orders" element={<AdminRoute moduleKeys={['orders', 'deliveries']}><OrdersPage /></AdminRoute>} />
+            {/* Admin / Staff routes - protected by token and role */}
+            <Route path="/dashboard" element={<DashboardRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser} getAdminHomeRoute={getAdminHomeRoute}><DashboardPage /></DashboardRoute>} />
+            <Route path="/products" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ProductsPage /></AdminRoute>} />
+            <Route path="/orders" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><OrdersPage /></AdminRoute>} />
 
-          <Route path="/customers" element={<AdminRoute moduleKeys={['customers']}><CustomersPage /></AdminRoute>} />
-          <Route path="/promotions" element={<AdminRoute moduleKeys={['promotions', 'flashsales']}><PromotionsPage /></AdminRoute>} />
-          <Route path="/suppliers" element={<AdminRoute moduleKeys={['suppliers']}><SuppliersPage /></AdminRoute>} />
-          <Route path="/procurement" element={<AdminRoute moduleKeys={['inventory']}><ProcurementPage /></AdminRoute>} />
-          <Route path="/returns" element={<AdminRoute moduleKeys={['inventory']}><ReturnsPage /></AdminRoute>} />
-          <Route path="/inventory" element={<AdminRoute moduleKeys={['inventory']}><InventoryPage /></AdminRoute>} />
-          <Route path="/debts" element={<AdminRoute moduleKeys={['customers']}><DebtsPage /></AdminRoute>} />
-          <Route path="/deliveries" element={<AdminRoute moduleKeys={['deliveries']}><DeliveriesPage /></AdminRoute>} />
+            <Route path="/customers" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><CustomersPage /></AdminRoute>} />
+            <Route path="/promotions" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><PromotionsPage /></AdminRoute>} />
+            <Route path="/suppliers" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><SuppliersPage /></AdminRoute>} />
+            <Route path="/procurement" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ProcurementPage /></AdminRoute>} />
+            <Route path="/returns" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ReturnsPage /></AdminRoute>} />
+            <Route path="/inventory" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><InventoryPage /></AdminRoute>} />
+            <Route path="/debts" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><DebtsPage /></AdminRoute>} />
+            <Route path="/deliveries" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><DeliveriesPage /></AdminRoute>} />
 
-          <Route path="/settings" element={<AdminRoute moduleKeys={['settings']}><SettingsPage /></AdminRoute>} />
-          <Route path="/employees" element={<AdminRoute moduleKeys={['employees']}><EmployeesPage /></AdminRoute>} />
-          <Route path="/price-history" element={<AdminRoute moduleKeys={['inventory']}><PriceHistoryPage /></AdminRoute>} />
-          <Route path="/reports" element={<AdminRoute moduleKeys={['reports']}><ReportsPage /></AdminRoute>} />
->>>>>>> Stashed changes
-
-            <Route path="/customers" element={<AdminRoute><CustomersPage /></AdminRoute>} />
-            <Route path="/promotions" element={<AdminRoute><PromotionsPage /></AdminRoute>} />
-            <Route path="/suppliers" element={<AdminRoute><SuppliersPage /></AdminRoute>} />
-            <Route path="/procurement" element={<AdminRoute><ProcurementPage /></AdminRoute>} />
-            <Route path="/returns" element={<AdminRoute><ReturnsPage /></AdminRoute>} />
-            <Route path="/inventory" element={<AdminRoute><InventoryPage /></AdminRoute>} />
-            <Route path="/debts" element={<AdminRoute><DebtsPage /></AdminRoute>} />
-            <Route path="/deliveries" element={<AdminRoute><DeliveriesPage /></AdminRoute>} />
-
-            <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
-            <Route path="/employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
-            <Route path="/price-history" element={<AdminRoute><PriceHistoryPage /></AdminRoute>} />
-            <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+            <Route path="/settings" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><SettingsPage /></AdminRoute>} />
+            <Route path="/employees" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><EmployeesPage /></AdminRoute>} />
+            <Route path="/price-history" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><PriceHistoryPage /></AdminRoute>} />
+            <Route path="/reports" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ReportsPage /></AdminRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/shopping" />} />

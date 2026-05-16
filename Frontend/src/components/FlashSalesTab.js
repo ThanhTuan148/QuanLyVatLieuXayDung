@@ -97,7 +97,8 @@ function FlashSaleFormDialog({ open, onClose, onSaved, editing }) {
         TrangThai: form.trangThai,
         DoiTuongs: selectedItems.map(s => ({
           MaSanPham: s.maSanPham,
-          GiaKhuyenMai: s.kieuGiam === 'gia_truc_tiep' ? parseFloat(s.giaKhuyenMai) : (s.kieuGiam === 'phan_tram' ? s.giaBan * (1 - s.phanTramGiam/100) : s.giaBan - s.soTienGiam)
+          GiaKhuyenMai: s.kieuGiam === 'gia_truc_tiep' ? parseFloat(s.giaKhuyenMai) : (s.kieuGiam === 'phan_tram' ? s.giaBan * (1 - s.phanTramGiam/100) : s.giaBan - s.soTienGiam),
+          SoLuong: parseInt(s.soLuong) || 100
         })),
       };
       if (editing) await flashSaleService.updateSale(editing.maKhuyenMai, payload);

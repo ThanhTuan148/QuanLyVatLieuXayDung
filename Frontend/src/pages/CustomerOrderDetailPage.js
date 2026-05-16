@@ -10,7 +10,9 @@ import {
   LocalShipping as ShippingIcon,
   Payment as PaymentIcon,
   Event as DateIcon,
-  OpenInNew as OpenInNewIcon
+  OpenInNew as OpenInNewIcon,
+  PictureAsPdf as PdfIcon,
+  Email as EmailIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import orderService from '../services/orderService';
@@ -155,6 +157,38 @@ const CustomerOrderDetailPage = () => {
     }
 
     return { can: true, reason: "" };
+  };
+
+  const handleDownloadVatInvoice = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/vat-invoice/${id}/download`);
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Không thể tải hóa đơn.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `HoaDon_GTGT_${order.maHD}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Lỗi khi tải hóa đơn: ' + err.message);
+    }
+  };
+
+  const handleSendVatEmail = async () => {
+    if (!window.confirm(`Gửi hóa đơn GTGT đến email: ${order.vatEmail}?`)) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/vat-invoice/${id}/send-email`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) alert('✅ ' + data.message);
+      else alert('❌ ' + data.message);
+    } catch (err) {
+      alert('Lỗi khi gửi email: ' + err.message);
+    }
   };
 
   const handleCancelOrder = async () => {
@@ -665,35 +699,51 @@ const CustomerOrderDetailPage = () => {
                     <>
                       <Box>
                         <Typography variant="caption" color="text.secondary" display="block">Tên công ty</Typography>
-                        <Typography variant="body2" fontWeight={600}>{order.vatCompanyName}</Typography>
+                        <Typography variant="body2" fontWeight={600}>{order.vatCompanyName || 'Chưa cung cấp'}</Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary" display="block">Mã số thuế</Typography>
-                        <Typography variant="body2" fontWeight={600}>{order.vatTaxId}</Typography>
+                        <Typography variant="body2" fontWeight={600}>{order.vatTaxId || 'Chưa cung cấp'}</Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary" display="block">Địa chỉ công ty</Typography>
-                        <Typography variant="body2">{order.vatCompanyAddress}</Typography>
+                        <Typography variant="body2">{order.vatCompanyAddress || 'Chưa cung cấp'}</Typography>
                       </Box>
                     </>
                   ) : (
                     <>
                       <Box>
                         <Typography variant="caption" color="text.secondary" display="block">Người mua hàng</Typography>
-                        <Typography variant="body2" fontWeight={600}>{order.vatBuyerName}</Typography>
+                        <Typography variant="body2" fontWeight={600}>{order.vatBuyerName || 'Chưa cung cấp'}</Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary" display="block">Địa chỉ</Typography>
-                        <Typography variant="body2">{order.vatAddress}</Typography>
+                        <Typography variant="body2">{order.vatAddress || 'Chưa cung cấp'}</Typography>
                       </Box>
                     </>
                   )}
 
                   <Box>
                     <Typography variant="caption" color="text.secondary" display="block">Email nhận hóa đơn</Typography>
-                    <Typography variant="body2">{order.vatEmail}</Typography>
+                    <Typography variant="body2">{order.vatEmail || 'Chưa cung cấp'}</Typography>
                   </Box>
                 </Stack>
+
+                {/* Action Buttons - chỉ hiện khi đơn hoàn thành */}
+                {order.trangThai === 'Hoàn thành' && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #e0c9a6', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<PdfIcon />}
+                      onClick={handleDownloadVatInvoice}
+                      sx={{ bgcolor: '#e53935', color: '#fff', borderRadius: '8px', textTransform: 'none', fontWeight: 700, '&:hover': { bgcolor: '#c62828' } }}
+                    >
+                      Tải PDF hóa đơn
+                    </Button>
+
+                  </Box>
+                )}
               </Paper>
             )}
 

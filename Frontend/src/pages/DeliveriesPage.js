@@ -132,7 +132,7 @@ export default function DeliveriesPage() {
         onClose={() => setDetailOpen(false)} 
         deliveryId={selectedId} 
         onContinueDelivery={handleContinueDelivery}
-        onUpdated={() => { setDetailOpen(false); fetchDeliveries(); }}
+        onUpdated={() => { fetchDeliveries(); }}
       />
       <DeliveryForm 
         open={formOpen} 

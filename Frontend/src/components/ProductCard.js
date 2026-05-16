@@ -44,9 +44,12 @@ const ProductCard = ({
   const isOutOfStock = product && (product.soLuongTon <= 0 || product.soLuongTon === undefined);
 
   // Flash Sale progress
-  const soldCount = product?.daBan || 0;
-  const totalCount = product?.soLuong || 100;
-  const percentSold = Math.min(100, Math.round((soldCount / totalCount) * 100)) || 15;
+  const soldCount = product?.daBan !== undefined ? product.daBan : Math.floor((product?.maSanPham || 1) % 50); // Use 0 if explicitly provided, else mock
+  const currentStock = product?.soLuongTon !== undefined ? product.soLuongTon : 0;
+  const totalCount = product?.soLuongBanDau || (currentStock + soldCount) || 100;
+  const percentSold = totalCount > 0 ? Math.min(100, Math.round((soldCount / totalCount) * 100)) : 0;
+  
+  const isFlashSaleEmpty = showProgressBar && (currentStock <= 0 || soldCount >= totalCount);
 
   const buildImages = () => {
     if (!product) return [];
@@ -292,17 +295,41 @@ const ProductCard = ({
             variant="contained"
             disabled={isOutOfStock}
             onClick={(e) => { e.stopPropagation(); onAddToCart && onAddToCart(product, e); }}
-            startIcon={<CartIcon sx={{ fontSize: '16px !important' }} />}
+            startIcon={<CartIcon sx={{ fontSize: '14px !important', mr: -0.5 }} />}
             sx={{
               bgcolor: isOutOfStock ? '#eee' : '#fff', color: isOutOfStock ? '#999' : '#333',
               border: '1px solid #e0e0e0', borderRadius: '20px',
               textTransform: 'none', fontWeight: 600,
-              px: 2, py: 0.6, fontSize: '0.8rem', boxShadow: 'none',
+              px: 1.5, py: 0.6, fontSize: '0.75rem', boxShadow: 'none',
               '&:hover': { bgcolor: isOutOfStock ? '#eee' : '#e68c55', color: isOutOfStock ? '#999' : '#fff', borderColor: '#e68c55', boxShadow: 'none' },
             }}
           >
-            {isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ'}
+            {isOutOfStock ? 'Hết hàng' : 'Giỏ hàng'}
           </Button>
+
+          {/* Buy Now */}
+          {!isOutOfStock && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (onAddToCart) {
+                  onAddToCart(product, e);
+                  navigate('/shopping-cart'); // Optional: usually handled by parent, but we can do it here or let parent pass a onBuyNow prop.
+                }
+              }}
+              sx={{
+                bgcolor: '#e68c55', color: '#fff',
+                border: '1px solid #e68c55', borderRadius: '20px',
+                textTransform: 'none', fontWeight: 600,
+                px: 1.5, py: 0.6, fontSize: '0.75rem', boxShadow: 'none',
+                '&:hover': { bgcolor: '#d47a46', borderColor: '#d47a46', boxShadow: 'none' },
+              }}
+            >
+              Mua ngay
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -353,14 +380,22 @@ const ProductCard = ({
         {/* Flash Sale Progress Bar */}
         {showProgressBar && (
           <Box sx={{ 
-            width: '100%', maxWidth: '200px', height: '18px', bgcolor: '#fecaca', 
+            width: '100%', maxWidth: '200px', height: '20px', bgcolor: '#fecaca', 
             borderRadius: '10px', position: 'relative', mt: 1.5, overflow: 'hidden'
           }}>
-            <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '10px' }} />
-            <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 600, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-              Đã bán {soldCount}
-            </Typography>
-            <Box sx={{ position: 'absolute', left: 4, top: -1, fontSize: '0.7rem' }}>🔥</Box>
+            {isFlashSaleEmpty ? (
+               <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                 Đã hết số lượng flashsales
+               </Typography>
+            ) : (
+               <>
+                 <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '10px', transition: 'width 0.5s' }} />
+                 <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', textShadow: '0px 0px 3px rgba(0,0,0,0.5)' }}>
+                   Đã bán {soldCount}/{totalCount}
+                 </Typography>
+                 <Box sx={{ position: 'absolute', left: 4, top: 0, fontSize: '0.8rem' }}>🔥</Box>
+               </>
+            )}
           </Box>
         )}
       </CardContent>

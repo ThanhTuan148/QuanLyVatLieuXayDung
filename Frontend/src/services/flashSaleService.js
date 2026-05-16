@@ -1,17 +1,23 @@
 import api from './api';
 
+let flashSalesCache = null;
+
 const flashSaleService = {
   // Lấy danh sách Giá sốc
   async getAllSales() {
+    if (flashSalesCache) return flashSalesCache;
     const response = await api.get('/promotions?loai=GiaSoc');
-    return response.data;
+    flashSalesCache = response.data;
+    return flashSalesCache;
   },
   
   // Lấy các chương trình đang hoạt động
   async getActiveSales() {
+    // We can reuse the same cache and filter or just return the cache
+    if (flashSalesCache) return flashSalesCache;
     const response = await api.get('/promotions?loai=GiaSoc');
-    // Logic filter active có thể để backend làm hoặc frontend làm
-    return response.data; 
+    flashSalesCache = response.data;
+    return flashSalesCache; 
   },
   async getSaleById(id) {
     const response = await api.get(`/promotions/${id}`);

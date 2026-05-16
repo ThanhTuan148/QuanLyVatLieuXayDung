@@ -1,9 +1,19 @@
 // src/services/productService.js
 import api from './api';
 
+let productsCache = null;
+
 const productService = {
-  getAllProducts: (hang, includeGifts = true) => {
-    return api.get('/products', { params: { hang, includeGifts } });
+  getAllProducts: async (hang, includeGifts = true) => {
+    // Only cache the full list (no category filter)
+    if (!hang && includeGifts && productsCache) {
+      return productsCache;
+    }
+    const res = await api.get('/products', { params: { hang, includeGifts } });
+    if (!hang && includeGifts) {
+      productsCache = res;
+    }
+    return res;
   },
 
   getProductById: (id) => {

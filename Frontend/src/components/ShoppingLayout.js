@@ -449,7 +449,7 @@ const ShoppingLayout = ({ children }) => {
           </Box>
           <Box sx={{ bgcolor: '#eef2f5', px: 2, py: 0.5, borderRadius: '20px', ml: 2, flexShrink: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.8rem' }}>
-              Miễn phí vận chuyển cho đơn hàng từ 1.300.000đ
+              Miễn phí vận chuyển cho đơn hàng từ 500.000đ
             </Typography>
           </Box>
         </Container>
@@ -480,7 +480,7 @@ const ShoppingLayout = ({ children }) => {
               </Box>
               <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, fontFamily: '"Inter", "Roboto", sans-serif' }}>Các danh mục</Typography>
-                {categories.slice(0, 4).map((cat, index) => (
+                {categories.map((cat, index) => (
                   <Typography
                     key={index}
                     variant="body2"
@@ -492,9 +492,9 @@ const ShoppingLayout = ({ children }) => {
                 ))}
               </Box>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>Tải ứng dụng</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>Freeship</Typography>
                 <Typography variant="body2" sx={{ color: '#aaa', mb: 2 }}>
-                  Giảm giá 15% cho đơn hàng đầu tiên của bạn
+                  Miễn phí vận chuyển cho đơn hàng từ 500.000đ
                 </Typography>
               </Box>
             </Box>

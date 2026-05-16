@@ -68,6 +68,8 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
       const eligible = res.data.filter(o => 
         o.trangThai === 'Đã xác nhận' || 
         o.trangThai === 'Chờ xử lý' || 
+        o.trangThai === 'Đang giao (Thiếu hàng)' ||
+        o.trangThai === 'Đã giao một phần' ||
         o.maHoaDon === initialOrderId
       );
       setOrders(eligible);
@@ -94,9 +96,12 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
             const mCTHD = ct.maCTHD || ct.MaCTHD;
             const daGiao = ct.soLuongDaGiao || 0;
             const dangGiao = ct.soLuongDangGiao || 0;
-            const choGiao = ct.soLuongChoGiao || 0;
+            const daGan = ct.soLuongDaGan || 0;
+            const chuaGan = ct.soLuongChuaGan || 0;
             const total = ct.soLuong || ct.SoLuong || 0;
-            const conLai = total - daGiao - dangGiao - choGiao;
+            
+            // conLai ở đây là số lượng còn có thể đưa vào phiếu giao mới (chưa gán vào đâu)
+            const conLai = chuaGan;
             
             return {
               maCTHD: mCTHD,
@@ -105,7 +110,7 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
               soLuongGoc: total,
               soLuongDaGiao: daGiao,
               soLuongDangGiao: dangGiao,
-              soLuongChoGiao: choGiao,
+              soLuongDaGan: daGan,
               soLuongConLai: conLai,
 
 
@@ -344,7 +349,7 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
                           <TableCell sx={{ fontWeight: 'bold' }}>Sản Phẩm</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 'bold' }}>Quy cách/KL</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 'bold' }}>SL Gốc</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 'bold' }}>Đã Giao</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold' }}>Đã gán</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 'bold' }}>Còn Lại</TableCell>
                           <TableCell align="center" width="120" sx={{ fontWeight: 'bold' }}>SL Giao</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>Ghi Chú</TableCell>
@@ -368,7 +373,7 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
                                 </Typography>
                               </TableCell>
                               <TableCell align="center">{item.soLuongGoc}</TableCell>
-                              <TableCell align="center">{item.soLuongDaGiao}</TableCell>
+                              <TableCell align="center">{item.soLuongDaGan}</TableCell>
                               <TableCell align="center" sx={{ fontWeight: 'bold', color: item.soLuongConLai > 0 ? 'success.main' : 'text.disabled' }}>
                                 {item.soLuongConLai}
                               </TableCell>

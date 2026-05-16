@@ -10,9 +10,11 @@ import CategoryForm from './CategoryForm';
 import DataTable from './DataTable';
 import { usePermissions } from '../contexts/PermissionContext';
 
+let cachedCategories = null;
+
 function CategoriesTab() {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(cachedCategories || []);
+  const [loading, setLoading] = useState(!cachedCategories);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
@@ -24,10 +26,11 @@ function CategoriesTab() {
   useEffect(() => { fetchCategories(); }, []);
 
   const fetchCategories = async () => {
-    setLoading(true);
     try { 
+      if (!cachedCategories) setLoading(true);
       const res = await categoryService.getAllCategories(); 
-      setCategories(res.data || []); 
+      cachedCategories = res.data || [];
+      setCategories(cachedCategories); 
     }
     catch (err) { console.error(err); }
     finally { setLoading(false); }

@@ -41,7 +41,7 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     var totalOrdered = h.CTHDs.Sum(ct => ct.SoLuong);
                     var totalDelivered = await _ctx.CTPhieuGiaoHangs
-                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.PhieuGiaoHang.TrangThai == "Đã giao")
+                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.TrangThai.Contains("Đã giao"))
                         .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
 
                     if (totalDelivered >= totalOrdered && totalOrdered > 0)
@@ -64,7 +64,9 @@ namespace BuildingMaterialAPI.Controllers
                 maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang, maKhuyenMai = h.MaKhuyenMai,
                 tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
                 tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
-                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả"))
+                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
+                yeuCauVat = h.YeuCauVat,
+                vatEmail = h.VatEmail
             }));
         }
 
@@ -88,7 +90,7 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     var totalOrdered = h.CTHDs.Sum(ct => ct.SoLuong);
                     var totalDelivered = await _ctx.CTPhieuGiaoHangs
-                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.PhieuGiaoHang.TrangThai == "Đã giao")
+                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.TrangThai.Contains("Đã giao"))
                         .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
 
                     if (totalDelivered >= totalOrdered && totalOrdered > 0)
@@ -111,7 +113,9 @@ namespace BuildingMaterialAPI.Controllers
                 maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang, maKhuyenMai = h.MaKhuyenMai,
                 tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
                 tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
-                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả"))
+                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
+                yeuCauVat = h.YeuCauVat,
+                vatEmail = h.VatEmail
             }));
         }
 
@@ -128,20 +132,40 @@ namespace BuildingMaterialAPI.Controllers
 
             if (h == null) return NotFound();
 
+            var assignedQtys = await _ctx.CTPhieuGiaoHangs
+                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null)
+                .GroupBy(c => c.MaCTHD)
+                .Select(g => new { MaCTHD = g.Key.Value, Qty = g.Sum(x => x.SoLuongGiao) })
+                .ToDictionaryAsync(x => x.MaCTHD, x => x.Qty);
+
             var deliveredQtys = await _ctx.CTPhieuGiaoHangs
-                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.PhieuGiaoHang.TrangThai == "Đã giao")
+                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.TrangThai.Contains("Đã giao"))
                 .GroupBy(c => c.MaCTHD)
                 .Select(g => new { MaCTHD = g.Key.Value, Qty = g.Sum(x => x.SoLuongGiao) })
                 .ToDictionaryAsync(x => x.MaCTHD, x => x.Qty);
 
-            var shippingQtys = await _ctx.CTPhieuGiaoHangs
-                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.PhieuGiaoHang.TrangThai == "Đang giao")
-                .GroupBy(c => c.MaCTHD)
-                .Select(g => new { MaCTHD = g.Key.Value, Qty = g.Sum(x => x.SoLuongGiao) })
-                .ToDictionaryAsync(x => x.MaCTHD, x => x.Qty);
+            var shippingItems = await _ctx.CTPhieuGiaoHangs
+                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.TrangThai.Contains("Đang giao"))
+                .Select(c => new {
+                    MaCTHD = c.MaCTHD,
+                    SoLuongGiao = c.SoLuongGiao,
+                    SoLuongThucNhan = _ctx.CTPhieuXuatKhos
+                        .Where(xk => xk.PhieuXuatKho.MaPhieuGH == c.MaPhieuGH && xk.MaSanPham == c.MaSanPham)
+                        .Select(xk => xk.SoLuongThucNhan)
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
 
-            var pendingQtys = await _ctx.CTPhieuGiaoHangs
-                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.PhieuGiaoHang.TrangThai == "Chờ giao")
+            var shippingQtys = shippingItems
+                .GroupBy(c => c.MaCTHD)
+                .Select(g => new { 
+                    MaCTHD = g.Key.Value, 
+                    Qty = g.Sum(x => x.SoLuongThucNhan.HasValue ? Math.Min(x.SoLuongGiao, x.SoLuongThucNhan.Value) : x.SoLuongGiao) 
+                })
+                .ToDictionary(x => x.MaCTHD, x => x.Qty);
+
+            var tripPendingQtys = await _ctx.CTPhieuGiaoHangs
+                .Where(c => c.PhieuGiaoHang.MaHoaDon == id && c.MaCTHD != null && c.TrangThai.Contains("Chờ giao"))
                 .GroupBy(c => c.MaCTHD)
                 .Select(g => new { MaCTHD = g.Key.Value, Qty = g.Sum(x => x.SoLuongGiao) })
                 .ToDictionaryAsync(x => x.MaCTHD, x => x.Qty);
@@ -244,7 +268,9 @@ namespace BuildingMaterialAPI.Controllers
                     soLuong = ct.SoLuong,
                     soLuongDaGiao = deliveredQtys.GetValueOrDefault(ct.MaCTHD, 0),
                     soLuongDangGiao = shippingQtys.GetValueOrDefault(ct.MaCTHD, 0),
-                    soLuongChoGiao = pendingQtys.GetValueOrDefault(ct.MaCTHD, 0),
+                    soLuongDaGan = assignedQtys.GetValueOrDefault(ct.MaCTHD, 0),
+                    soLuongChuaGan = ct.SoLuong - assignedQtys.GetValueOrDefault(ct.MaCTHD, 0),
+                    soLuongChoGiao = (ct.SoLuong - assignedQtys.GetValueOrDefault(ct.MaCTHD, 0)) + tripPendingQtys.GetValueOrDefault(ct.MaCTHD, 0),
                     donGia = ct.DonGia,
                     thanhTien = ct.ThanhTien ?? (ct.SoLuong * ct.DonGia - ct.GiamGia),
                     diaChiGiaoHang = ct.DiaChiGiaoHang,
@@ -425,14 +451,18 @@ namespace BuildingMaterialAPI.Controllers
             {
                 foreach (var item in dto.Items)
                 {
-                    var kho = await _ctx.CTKhoHangs.Include(k => k.SanPham).FirstOrDefaultAsync(k => k.MaSanPham == item.MaSanPham);
+                    var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
+                        .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
+                        .OrderBy(k => k.MaKhoHang)
+                        .ToListAsync();
                     
-                    // Kiểm tra tồn kho khả dụng
-                    if (kho == null || kho.SoLuongTon < item.SoLuong)
+                    var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
+                    var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
+                    
+                    if (tongTonHienTai < item.SoLuong)
                     {
-                        var tenSP = kho?.SanPham?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
-                        var tonHienTai = kho?.SoLuongTon ?? 0;
-                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Hiện có: {tonHienTai}). Vui lòng kiểm tra lại!");
+                        var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
+                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
                     }
 
                     _ctx.CTHDs.Add(new CTHD
@@ -449,37 +479,45 @@ namespace BuildingMaterialAPI.Controllers
                         SdtNguoiNhan = item.SdtNguoiNhan
                     });
 
-                    // Cập nhật tồn kho
-                    if (hd.TrangThai == "Hoàn thành")
+                    int remainingToDeduct = item.SoLuong;
+                    
+                    foreach (var kho in khoList)
                     {
-                        kho.SoLuong -= item.SoLuong; // Trừ thực tế nếu đã hoàn thành
+                        if (remainingToDeduct <= 0) break;
                         
-                        // Thêm vào chi tiết xuất kho
-                        if (pxk != null)
+                        int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
+                        
+                        if (hd.TrangThai == "Hoàn thành")
                         {
-                            _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                            kho.SoLuong -= deductAmount;
+                            
+                            if (pxk != null)
                             {
-                                MaPhieuXK = pxk.MaPhieuXK,
-                                MaSanPham = item.MaSanPham,
-                                SoLuong = item.SoLuong,
-                                MaKho = kho.MaKhoHang,
-                                DonGiaVon = kho.SanPham?.GiaNhap ?? 0
-                            });
+                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                {
+                                    MaPhieuXK = pxk.MaPhieuXK,
+                                    MaSanPham = item.MaSanPham,
+                                    SoLuong = deductAmount,
+                                    MaKho = kho.MaKhoHang,
+                                    DonGiaVon = kho.SanPham?.GiaNhap ?? 0
+                                });
+                            }
                         }
-                    }
-                    kho.SoLuongTon -= item.SoLuong; // Luôn trừ khả dụng
-                    kho.NgayCapNhat = DateTime.UtcNow;
-
-                    // Kiểm tra tồn kho thấp
-                    if (kho.SoLuongTon <= (kho.SanPham?.MucTonToiThieu ?? 5))
-                    {
-                        await _notificationService.SendToPermissionAsync(
-                            "inventory",
-                            "Cảnh báo tồn kho thấp",
-                            $"Sản phẩm {kho.SanPham?.TenSP} sắp hết hàng (Còn {kho.SoLuongTon} {kho.SanPham?.DonViTinh}).",
-                            "HeThong",
-                            link: "/inventory"
-                        );
+                        
+                        kho.SoLuongTon -= deductAmount;
+                        kho.NgayCapNhat = DateTime.UtcNow;
+                        remainingToDeduct -= deductAmount;
+                        
+                        if (kho.SoLuongTon <= (kho.SanPham?.MucTonToiThieu ?? 5))
+                        {
+                            await _notificationService.SendToPermissionAsync(
+                                "inventory",
+                                "Cảnh báo tồn kho thấp",
+                                $"Sản phẩm {kho.SanPham?.TenSP} sắp hết hàng trong kho {kho.MaKhoHang} (Còn {kho.SoLuongTon} {kho.SanPham?.DonViTinh}).",
+                                "HeThong",
+                                link: "/inventory"
+                            );
+                        }
                     }
                 }
             }
@@ -561,40 +599,42 @@ namespace BuildingMaterialAPI.Controllers
                 });
             }
 
-            PhieuXuatKho? pxk = null;
+            PhieuXuatKho? pxk = await _ctx.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == id);
             // Đơn online: Tạo phiếu xuất kho khi Quản lý XÁC NHẬN đơn hàng
             // (không phải lúc Hoàn thành - vì cần thủ kho soạn hàng trước khi giao)
-            if (hd.TrangThai == "Đã xác nhận" && oldStatus != "Đã xác nhận")
+            if (hd.TrangThai == "Đã xác nhận" && oldStatus != "Đã xác nhận" && pxk == null)
             {
-                // Chỉ tạo nếu chưa có phiếu xuất kho nào liên kết với đơn hàng này
-                bool pxkExists = await _ctx.PhieuXuatKhos.AnyAsync(p => p.MaHoaDon == id);
-                if (!pxkExists)
+                int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
+                var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
+                pxk = new PhieuXuatKho
                 {
-                    int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
-                    var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
-                    pxk = new PhieuXuatKho
-                    {
-                        MaHoaDon = id,
-                        MaNhanVien = dto.MaNhanVien ?? hd.MaNhanVien,
-                        NgayXuat = DateTime.UtcNow,
-                        NgayTao = DateTime.UtcNow,
-                        NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
-                        GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận",
-                        ChuKyNguoiLap = confirmedBy?.ChuKy,
-                        TrangThai = "Chờ duyệt" // Bước 1: Quản lý duyệt phiếu xuất
-                    };
-                    _ctx.PhieuXuatKhos.Add(pxk);
-                    await _ctx.SaveChangesAsync();
+                    MaHoaDon = id,
+                    MaNhanVien = dto.MaNhanVien ?? hd.MaNhanVien,
+                    NgayXuat = DateTime.UtcNow,
+                    NgayTao = DateTime.UtcNow,
+                    NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
+                    GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận",
+                    ChuKyNguoiLap = confirmedBy?.ChuKy,
+                    TrangThai = "Chờ duyệt" // Bước 1: Quản lý duyệt phiếu xuất
+                };
+                _ctx.PhieuXuatKhos.Add(pxk);
+                await _ctx.SaveChangesAsync();
 
-                    _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
-                    {
-                        MaPhieuXK = pxk.MaPhieuXK,
-                        TrangThaiMoi = "Chờ duyệt",
-                        NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
-                        MaNguoiThucHien = staffId,
-                        NgayTao = DateTime.UtcNow
-                    });
-                }
+                _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+                {
+                    MaPhieuXK = pxk.MaPhieuXK,
+                    TrangThaiMoi = "Chờ duyệt",
+                    NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
+                    MaNguoiThucHien = staffId,
+                    NgayTao = DateTime.UtcNow
+                });
+            }
+
+            // Nếu đã có phiếu xuất kho, xóa các chi tiết cũ để ghi lại (tránh nhân đôi)
+            if (pxk != null)
+            {
+                var oldPxkItems = await _ctx.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
+                _ctx.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
             }
 
             var oldItems = await _ctx.CTHDs.Where(c => c.MaHoaDon == id).ToListAsync();
@@ -623,12 +663,29 @@ namespace BuildingMaterialAPI.Controllers
                         TenNguoiNhan = item.TenNguoiNhan,
                         SdtNguoiNhan = item.SdtNguoiNhan
                     });
-                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == item.MaSanPham);
-                    if (kho != null) 
+                    var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
+                        .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
+                        .OrderBy(k => k.MaKhoHang)
+                        .ToListAsync();
+
+                    var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
+                    if (tongTonHienTai < item.SoLuong)
                     {
+                        var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
+                        var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
+                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
+                    }
+
+                    int remainingToDeduct = item.SoLuong;
+
+                    foreach (var kho in khoList)
+                    {
+                        if (remainingToDeduct <= 0) break;
+                        int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
+
                         if (hd.TrangThai == "Hoàn thành" || hd.TrangThai == "Đã xác nhận")
                         {
-                            if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= item.SoLuong;
+                            if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= deductAmount;
                             
                             // Log to outbound history
                             if (pxk != null)
@@ -637,13 +694,14 @@ namespace BuildingMaterialAPI.Controllers
                                 {
                                     MaPhieuXK = pxk.MaPhieuXK,
                                     MaSanPham = item.MaSanPham,
-                                    SoLuong = item.SoLuong,
+                                    SoLuong = deductAmount,
                                     MaKho = kho.MaKhoHang,
-                                    DonGiaVon = 0
+                                    DonGiaVon = kho.SanPham?.GiaNhap ?? 0
                                 });
                             }
                         }
-                        kho.SoLuongTon -= item.SoLuong;
+                        kho.SoLuongTon -= deductAmount;
+                        remainingToDeduct -= deductAmount;
                     }
                 }
             }

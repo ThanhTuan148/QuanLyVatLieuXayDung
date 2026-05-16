@@ -31,20 +31,20 @@ const GiftsModal = ({ open, onClose, currentTotal, selectedGifts, onSelect }) =>
   }, [open]);
 
   const fetchGifts = async () => {
+    // Only show loading if we really need to fetch (though service handles cache now)
     setLoading(true);
     try {
       const res = await productService.getAllProducts();
-      const all = res.data || [];
-      // Lọc các sản phẩm là quà tặng
+      const all = res.data || (Array.isArray(res) ? res : []);
+      // Filter gift items
       const giftItems = all.filter(p => p.isGift).map(p => {
-        // Gán tier dựa trên tên hoặc logic cố định
         let tier = 500000;
         const name = (p.tenSP || '').toLowerCase();
         if (name.includes('thước') || name.includes('nón') || name.includes('mũ')) tier = 2000000;
         else if (name.includes('đèn pin') || name.includes('tua vít') || name.includes('khoan')) tier = 3000000;
         
         return {
-          id: p.maSanPham,
+          id: p.maSanPham || p.maSP,
           name: p.tenSP,
           image: p.hinhAnh,
           tier: tier

@@ -53,19 +53,25 @@ export default function NotificationCenter() {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("http://localhost:5000/hubs/notifications")
       .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Warning) // Reduce noise
       .build();
 
-      connection.on("ReceiveNotification", (notification) => {
+    const joinGroups = (conn) => {
+      if (conn.state === signalR.HubConnectionState.Connected) {
+        conn.invoke("JoinGroup", `User_${userId}`)
+          .catch(err => console.error("JoinGroup Error:", err));
+        console.log(`Joined notification group: User_${userId}`);
+      }
+    };
+
+    connection.on("ReceiveNotification", (notification) => {
       if (!isMounted) return;
       
-      // Chỉ nhận nếu MaNguoiNhan khớp với userId hiện tại
       if (notification.maNguoiNhan && notification.maNguoiNhan !== userId) return;
 
       setNotifications(prev => {
-        // Tránh trùng lặp nếu thông báo này đã tồn tại trong danh sách (check theo maThongBao)
         const exists = prev.some(n => n.maThongBao === notification.maThongBao);
         if (exists) return prev;
-        
         return [notification, ...prev].slice(0, 50);
       });
       
@@ -73,51 +79,46 @@ export default function NotificationCenter() {
       setLastNotification(notification);
       setToastOpen(true);
       
-      // Play sound safely
       try {
           const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-3.mp3');
           audio.volume = 0.5;
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-              playPromise.catch(error => {
-                  console.log("Autoplay or source load failed:", error);
-              });
-          }
-      } catch(e) {
-          console.error("Audio error:", e);
-      }
+          audio.play().catch(() => {}); // Ignore autoplay blocks
+      } catch(e) {}
     });
-
-    const joinGroups = (conn) => {
-      if (conn.state === signalR.HubConnectionState.Connected) {
-        conn.invoke("JoinGroup", `User_${userId}`).catch(console.error);
-        console.log(`Joined notification group: User_${userId}`);
-      }
-    };
 
     connection.onreconnected(() => {
       if (isMounted) joinGroups(connection);
     });
 
-    connection.start()
-      .then(() => {
-        if (!isMounted) {
-            connection.stop();
-            return;
+    async function startConnection() {
+      try {
+        await connection.start();
+        if (isMounted) {
+          connectionRef.current = connection;
+          joinGroups(connection);
+        } else {
+          await connection.stop();
         }
-        connectionRef.current = connection;
-        joinGroups(connection);
-      })
-      .catch(err => {
-          if (isMounted) console.error("SignalR Connection Error: ", err);
-      });
+      } catch (err) {
+        if (isMounted) {
+          // Ignore the "stopped during negotiation" error as it's a known race condition in React Dev
+          if (err.message && err.message.includes("stopped during negotiation")) {
+            return;
+          }
+          console.error("SignalR Connection Error: ", err);
+        }
+      }
+    }
+
+    startConnection();
 
     return () => {
       isMounted = false;
       if (connectionRef.current) {
-        connectionRef.current.stop();
+        connectionRef.current.stop().catch(() => {});
+        connectionRef.current = null;
       } else {
-        connection.stop();
+        connection.stop().catch(() => {});
       }
     };
   }, [userId, fetchNotifications]);

@@ -67,6 +67,7 @@ namespace BuildingMaterialAPI.Controllers
                 .Include(x => x.NhanVien)
                 .Include(x => x.CTPNs).ThenInclude(c => c.SanPham)
                 .Include(x => x.CTPNs).ThenInclude(c => c.NhaCungCap)
+                .Include(x => x.CTPNs).ThenInclude(c => c.KhoHang)
                 .FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
             
             if (p == null) return NotFound();
@@ -75,6 +76,7 @@ namespace BuildingMaterialAPI.Controllers
             var splitItems = await _ctx.CTPNs
                 .Include(c => c.SanPham)
                 .Include(c => c.NhaCungCap)
+                .Include(c => c.KhoHang)
                 .Where(c => c.PhieuNhap.GhiChu != null && c.PhieuNhap.GhiChu.Contains($"[TáchTừPhiếu:{id}]"))
                 .ToListAsync();
 
@@ -106,7 +108,9 @@ namespace BuildingMaterialAPI.Controllers
                          ghiChu = c.GhiChu,
                          maNhaCungCap = c.MaNhaCungCap,
                          tenNhaCungCap = c.NhaCungCap?.TenNCC,
-                         maPhieuHienTai = c.MaPhieuNhap
+                         maPhieuHienTai = c.MaPhieuNhap,
+                         maKhoHang = c.MaKhoHang,
+                         tenKhoHang = c.KhoHang?.TenKho ?? (c.MaKhoHang > 0 ? $"Kho #{c.MaKhoHang}" : "Chưa gán")
                      };
                  }).ToList()
             });
@@ -447,30 +451,42 @@ namespace BuildingMaterialAPI.Controllers
                 var ct = p.CTPNs.FirstOrDefault(c => c.MaCTPN == item.MaCTPN);
                 if (ct != null)
                 {
-                    ct.SoLuongDaNhan = item.SoLuongDaNhan;
-                    // Chọn kho thực tế (ưu tiên kho được chọn trong chi tiết phiếu, nếu không có thì mặc định kho 1)
-                    int maKhoTarget = ct.MaKhoHang ?? 1;
+                    int oldQty = ct.SoLuongDaNhan;
+                    int newQty = item.SoLuongDaNhan;
+                    int delta = newQty - oldQty;
 
-                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
-                              ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
-                    if (kho != null)
+                    // Cập nhật CTPN
+                    ct.SoLuongDaNhan = newQty;
+                    
+                    // Xác định kho (Ưu tiên kho từ DTO gửi lên, rồi mới tới kho trong CTPN, cuối cùng mặc định kho 1)
+                    int maKhoTarget = item.MaKhoHang ?? ct.MaKhoHang ?? 1;
+                    ct.MaKhoHang = maKhoTarget;
+
+                    if (delta != 0)
                     {
-                        kho.SoLuong += ct.SoLuongDaNhan;
-                        kho.SoLuongTon += ct.SoLuongDaNhan;
-                        kho.SoLuongNhap += ct.SoLuongDaNhan;
-                        kho.NgayNhapCuoi = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _ctx.CTKhoHangs.Add(new CTKhoHang {
-                            MaKhoHang = maKhoTarget,
-                            MaSanPham = ct.MaSanPham,
-                            SoLuong = ct.SoLuongDaNhan,
-                            SoLuongTon = ct.SoLuongDaNhan,
-                            SoLuongNhap = ct.SoLuongDaNhan,
-                            NgayNhapCuoi = DateTime.UtcNow,
-                            NgayCapNhat = DateTime.UtcNow
-                        });
+                        var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
+                                  ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
+
+                        if (kho != null)
+                        {
+                            kho.SoLuongTon += delta;
+                            kho.SoLuongNhap += delta; // Chỉ tăng SL Nhập khi có thêm hàng mới vào
+                            kho.SoLuong = kho.SoLuongTon; // Đồng bộ SoLuong
+                            kho.NgayNhapCuoi = DateTime.UtcNow;
+                            kho.NgayCapNhat = DateTime.UtcNow;
+                        }
+                        else if (delta > 0)
+                        {
+                            _ctx.CTKhoHangs.Add(new CTKhoHang {
+                                MaKhoHang = maKhoTarget,
+                                MaSanPham = ct.MaSanPham,
+                                SoLuong = delta,
+                                SoLuongTon = delta,
+                                SoLuongNhap = delta,
+                                NgayNhapCuoi = DateTime.UtcNow,
+                                NgayCapNhat = DateTime.UtcNow
+                            });
+                        }
                     }
 
                     // Tự động cập nhật bảng giá chào hàng cho NCC này

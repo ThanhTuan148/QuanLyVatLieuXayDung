@@ -63,12 +63,15 @@ const defaultBanners = [
   }
 ];
 
+let cachedData = null;
+
 const CustomerShoppingPage = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(cachedData ? cachedData.products : []);
+  const [loading, setLoading] = useState(!cachedData);
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [activeFlashSale, setActiveFlashSale] = useState(null);
+  const [quickViewQty, setQuickViewQty] = useState(1);
+  const [activeFlashSale, setActiveFlashSale] = useState(cachedData ? cachedData.activeFlashSale : null);
   const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00' });
   const [bestSellerTab, setBestSellerTab] = useState('Tất cả');
   const navigate = useNavigate();
@@ -184,8 +187,8 @@ const CustomerShoppingPage = () => {
     }
   };
 
-  const handleBuyNow = async (product, e) => {
-    await handleAddToCart(product, e, 1);
+  const handleBuyNow = async (product, e, quantity = 1) => {
+    await handleAddToCart(product, e, quantity);
     navigate('/shopping-cart');
   };
 
@@ -204,6 +207,7 @@ const CustomerShoppingPage = () => {
 
   const handleOpenQuickView = (prod) => {
     setSelectedProduct(prod);
+    setQuickViewQty(1);
     setQuickViewOpen(true);
   };
 
@@ -211,12 +215,12 @@ const CustomerShoppingPage = () => {
     setQuickViewOpen(false);
   };
 
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(cachedData ? cachedData.categories : []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
+        if (!cachedData) setLoading(true);
 
         // Fetch products, categories, and flash sales from real API
         const [productsRes, categoriesRes, flashSalesRes] = await Promise.all([
@@ -229,6 +233,8 @@ const CustomerShoppingPage = () => {
         const prods = Array.isArray(productsRes?.data) ? productsRes.data : (Array.isArray(productsRes) ? productsRes : []);
         const cats = Array.isArray(categoriesRes) ? categoriesRes : (Array.isArray(categoriesRes?.data) ? categoriesRes.data : []);
         const sales = Array.isArray(flashSalesRes) ? flashSalesRes : [];
+
+        cachedData = { products: prods, categories: cats, activeFlashSale: sales.length > 0 ? sales[0] : null };
 
         setProducts(prods);
         setCategories(cats);
@@ -257,10 +263,11 @@ const CustomerShoppingPage = () => {
       if (distance < 0) {
         clearInterval(interval);
         setTimeLeft({ hours: '00', minutes: '00', seconds: '00' });
+        setActiveFlashSale(null);
         return;
       }
 
-      const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const h = Math.floor(distance / (1000 * 60 * 60));
       const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const s = Math.floor((distance % (1000 * 60)) / 1000);
 
@@ -286,7 +293,8 @@ const CustomerShoppingPage = () => {
           name: name,
           loc: p.xuatXu || 'Việt Nam',
           bg: colors[colorIndex % colors.length],
-          logo: name.substring(0, 3).toUpperCase()
+          logo: name.substring(0, 3).toUpperCase(),
+          image: p.hinhAnh
         });
         colorIndex++;
       }
@@ -485,10 +493,12 @@ const CustomerShoppingPage = () => {
                 '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(255,255,255,0.4)', borderRadius: '4px' },
               }}>
                 {activeFlashSale.targets?.slice(0, 8).map((prod, idx) => {
-                  const total = 100; // Mock total for progress bar
-                  const sold = 15; // Mock sold count
-                  const percentSold = Math.min(100, Math.round((sold / total) * 100));
+                  const currentStock = prod.soLuongTon !== undefined ? prod.soLuongTon : 0;
+                  const sold = prod.daBan !== undefined ? prod.daBan : Math.floor((prod.maSanPham || 1) % 50); // Mock sold count
+                  const total = prod.soLuongBanDau || (currentStock + sold) || 100; // Mock total for progress bar
+                  const percentSold = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
                   const discountPercent = prod.giaBan > 0 ? Math.round((prod.giaBan - prod.giaKhuyenMai) / prod.giaBan * 100) : 0;
+                  const isFlashSaleEmpty = currentStock <= 0 || sold >= total;
 
                   return (
                     <Card key={idx} sx={{ minWidth: 200, maxWidth: 200, flexShrink: 0, borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }} onClick={() => navigate(`/product/${prod.maSanPham}`)}>
@@ -510,11 +520,19 @@ const CustomerShoppingPage = () => {
                           </Typography>
                         </Box>
                         {/* Progress Bar Mini */}
-                        <Box sx={{ width: '100%', height: '16px', bgcolor: '#fecaca', borderRadius: '8px', position: 'relative', overflow: 'hidden' }}>
-                          <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '8px' }} />
-                          <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 600, fontSize: '0.6rem', whiteSpace: 'nowrap' }}>
-                            Đã bán {sold}
-                          </Typography>
+                        <Box sx={{ width: '100%', height: '18px', bgcolor: '#fecaca', borderRadius: '8px', position: 'relative', overflow: 'hidden' }}>
+                          {isFlashSaleEmpty ? (
+                            <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                              Đã hết số lượng flashsales
+                            </Typography>
+                          ) : (
+                            <>
+                              <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '8px', transition: 'width 0.5s' }} />
+                              <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 600, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                Đã bán {sold}/{total}
+                              </Typography>
+                            </>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
@@ -734,7 +752,13 @@ const CustomerShoppingPage = () => {
                 }
                 <IconButton sx={{ position: 'absolute', right: -10 }}><Typography sx={{ fontSize: '1.5rem', color: '#999' }}>{'>'}</Typography></IconButton>
               </Box>
-              <Button variant="contained" fullWidth disableElevation sx={{ mt: 3, bgcolor: '#f0a06c', color: '#fff', borderRadius: '4px', textTransform: 'none', '&:hover': { bgcolor: '#cc7a4a' } }}>
+              <Button 
+                variant="contained" 
+                fullWidth 
+                disableElevation 
+                onClick={() => navigate(`/product/${selectedProduct.maSanPham || selectedProduct.maSP}`)}
+                sx={{ mt: 3, bgcolor: '#f0a06c', color: '#fff', borderRadius: '4px', textTransform: 'none', '&:hover': { bgcolor: '#cc7a4a' } }}
+              >
                 Xem chi tiết
               </Button>
             </Box>
@@ -768,12 +792,12 @@ const CustomerShoppingPage = () => {
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, pt: 2, borderTop: '1px solid #eee' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #eee', borderRadius: '20px', px: 1 }}>
-                  <IconButton size="small"><Typography>-</Typography></IconButton>
-                  <Typography sx={{ px: 2 }}>1</Typography>
-                  <IconButton size="small"><Typography>+</Typography></IconButton>
+                  <IconButton size="small" onClick={() => setQuickViewQty(prev => Math.max(1, prev - 1))}><Typography>-</Typography></IconButton>
+                  <Typography sx={{ px: 2 }}>{quickViewQty}</Typography>
+                  <IconButton size="small" onClick={() => setQuickViewQty(prev => prev + 1)}><Typography>+</Typography></IconButton>
                 </Box>
-                <Button variant="contained" disableElevation onClick={(e) => handleAddToCart(selectedProduct, e)} sx={{ bgcolor: '#f0a06c', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover': { bgcolor: '#cc7a4a' } }}>Thêm vào giỏ</Button>
-                <Button variant="contained" disableElevation onClick={(e) => handleBuyNow(selectedProduct, e)} sx={{ bgcolor: '#222', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover': { bgcolor: '#000' } }}>Mua ngay</Button>
+                <Button variant="contained" disableElevation onClick={(e) => handleAddToCart(selectedProduct, e, quickViewQty)} sx={{ bgcolor: '#f0a06c', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover': { bgcolor: '#cc7a4a' } }}>Thêm vào giỏ</Button>
+                <Button variant="contained" disableElevation onClick={(e) => handleBuyNow(selectedProduct, e, quickViewQty)} sx={{ bgcolor: '#222', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover': { bgcolor: '#000' } }}>Mua ngay</Button>
               </Box>
 
               <Box sx={{ borderTop: '1px solid #eee', pt: 3 }}>
@@ -825,18 +849,25 @@ const CustomerShoppingPage = () => {
               {brandList.map((brand, i) => (
                 <Grid item xs={12} sm={6} md={4} lg={2.4} key={i}>
                   <Box 
-                    onClick={() => navigate(`/shopping?keyword=${encodeURIComponent(brand.name)}`)}
+                    onClick={() => navigate(`/search?brand=${encodeURIComponent(brand.name)}`)}
                     sx={{
                     height: 350,
                     borderRadius: '12px',
                     bgcolor: brand.bg,
+                    backgroundImage: brand.image ? `url(${brand.image})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
                     position: 'relative',
                     overflow: 'hidden',
                     cursor: 'pointer',
-                    '&:hover': { '& > .overlay': { bgcolor: 'rgba(0,0,0,0.5)' } }
+                    transition: 'transform 0.3s ease',
+                    '&:hover': { 
+                      transform: 'translateY(-5px)',
+                      '& .overlay': { bgcolor: 'rgba(0,0,0,0.6)' } 
+                    }
                   }}>
-                    <Box className="overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', transition: 'background-color 0.3s' }} />
-                    <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box className="overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', transition: 'background-color 0.3s', zIndex: 0 }} />
+                    <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 2, zIndex: 1 }}>
                       <Box sx={{ width: 50, height: 50, borderRadius: '50%', bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7rem', color: '#000' }}>
                         {brand.logo}
                       </Box>

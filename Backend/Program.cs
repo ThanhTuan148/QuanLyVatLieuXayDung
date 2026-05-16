@@ -52,6 +52,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IVatInvoiceService, VatInvoiceService>();
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
@@ -86,11 +87,14 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
-// Emergency Database Fix
+// Emergency Database Fix (Disabled for faster startup - already applied)
+/*
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try {
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[KHUYENMAI_DOITUONG]') AND name = 'SoLuongKhuyenMai') ALTER TABLE [KHUYENMAI_DOITUONG] ADD [SoLuongKhuyenMai] int NULL;");
+        context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[KHUYENMAI_DOITUONG]') AND name = 'SoLuongDaBan') ALTER TABLE [KHUYENMAI_DOITUONG] ADD [SoLuongDaBan] int NOT NULL DEFAULT 0;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONGNO]') AND name = 'MaNhaCungCap') ALTER TABLE [CONGNO] ADD [MaNhaCungCap] int NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONGNO]') AND name = 'MaPhieuNhap') ALTER TABLE [CONGNO] ADD [MaPhieuNhap] int NULL;");
         context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CHITETTRANO]') AND name = 'MaPhieuNhap') ALTER TABLE [CHITETTRANO] ADD [MaPhieuNhap] int NULL;");
@@ -394,6 +398,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"[Emergency Fix Error] {ex.Message}");
     }
 }
+*/
 
 
 // Configure the HTTP request pipeline

@@ -16,10 +16,12 @@ import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => v ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '—';
 
+let cachedProducts = null;
+
 function ProductsTab({ showGiftsOnly = false }) {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(cachedProducts || []);
   const [filtered, setFiltered] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedProducts);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewImages, setViewImages] = useState(null);
@@ -42,8 +44,10 @@ function ProductsTab({ showGiftsOnly = false }) {
   const fetchProducts = async () => {
     setLoading(true);
     try { 
+      if (!cachedProducts) setLoading(true);
       const res = await productService.getAllProducts(); 
-      setProducts(res.data || []); 
+      cachedProducts = res.data || [];
+      setProducts(cachedProducts); 
     }
     catch (err) { 
       console.error('Fetch products error:', err);

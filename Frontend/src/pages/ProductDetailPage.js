@@ -27,13 +27,19 @@ import storageHelper from '../services/storageHelper';
 import reviewService from '../services/reviewService';
 import ProductCard from '../components/ProductCard';
 
+let cachedAllProducts = null;
+let cachedProductDetails = {};
+
 const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [relatedProducts, setRelatedProducts] = useState([]);
-  const [allProductsState, setAllProductsState] = useState([]);
+  const [product, setProduct] = useState(cachedProductDetails[id] || null);
+  const [loading, setLoading] = useState(!cachedProductDetails[id]);
+  const [relatedProducts, setRelatedProducts] = useState(() => {
+     if (cachedAllProducts) return cachedAllProducts.filter(p => (p.maSanPham || p.maSP) != id).slice(0, 4);
+     return [];
+  });
+  const [allProductsState, setAllProductsState] = useState(cachedAllProducts || []);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
 
@@ -52,7 +58,7 @@ const ProductDetailPage = () => {
 
   useEffect(() => {
     const fetchProduct = async () => {
-      setLoading(true);
+      if (!cachedProductDetails[id]) setLoading(true);
       try {
         // Fetch raw product
         const res = await productService.getProductById(id);
@@ -78,6 +84,8 @@ const ProductDetailPage = () => {
         }
         
         setProduct(data);
+        cachedAllProducts = allProducts;
+        cachedProductDetails[id] = data;
         setRelatedProducts(allProducts.filter(p => (p.maSanPham || p.maSP) != id).slice(0, 4));
         
       } catch (error) {
@@ -218,6 +226,13 @@ const ProductDetailPage = () => {
   
   const isOutOfStock = product.soLuongTon <= 0 || product.soLuongTon === undefined;
 
+  const isFlashSale = product.loaiGia === 'FlashSale';
+  const currentStock = product?.soLuongTon !== undefined ? product.soLuongTon : 0;
+  const soldCount = product?.daBan !== undefined ? product.daBan : Math.floor((product?.maSanPham || 1) % 50); // Mock sold count
+  const totalCount = product?.soLuongBanDau || (currentStock + soldCount) || 100;
+  const percentSold = totalCount > 0 ? Math.min(100, Math.round((soldCount / totalCount) * 100)) : 0;
+  const isFlashSaleEmpty = isFlashSale && currentStock <= 0;
+
   // Images setup
   let extras = [];
   if (Array.isArray(product.anhPhu)) {
@@ -327,14 +342,39 @@ const ProductDetailPage = () => {
 
             {/* Event Box (Dynamic) */}
             {hasDiscount && (
-              <Paper elevation={0} sx={{ bgcolor: '#fff5f5', p: 3, borderRadius: '12px', mb: 4, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid #fecaca' }}>
-                 <Box sx={{ color: '#ef4444' }}>
-                   <TagIcon fontSize="large" sx={{ transform: 'rotate(90deg)' }} />
+              <Paper elevation={0} sx={{ bgcolor: '#fff5f5', p: 3, borderRadius: '12px', mb: 4, display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid #fecaca' }}>
+                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                   <Box sx={{ color: '#ef4444' }}>
+                     <TagIcon fontSize="large" sx={{ transform: 'rotate(90deg)' }} />
+                   </Box>
+                   <Box>
+                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#ef4444' }}>
+                       {isFlashSale ? '⚡ FLASH SALE' : 'Đang Khuyến Mãi'}
+                     </Typography>
+                     <Typography variant="body2" sx={{ color: '#666' }}>Tiết kiệm ngay {discountPercent}% khi mua sản phẩm này</Typography>
+                   </Box>
                  </Box>
-                 <Box>
-                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#ef4444' }}>Đang Khuyến Mãi</Typography>
-                   <Typography variant="body2" sx={{ color: '#666' }}>Tiết kiệm ngay {discountPercent}% khi mua sản phẩm này</Typography>
-                 </Box>
+
+                 {isFlashSale && (
+                   <Box sx={{ 
+                     width: '100%', height: '24px', bgcolor: '#fecaca', 
+                     borderRadius: '12px', position: 'relative', mt: 1, overflow: 'hidden'
+                   }}>
+                     {isFlashSaleEmpty ? (
+                        <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444', fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                          Đã hết số lượng flashsales
+                        </Typography>
+                     ) : (
+                        <>
+                          <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '12px', transition: 'width 0.5s' }} />
+                          <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', textShadow: '0px 0px 3px rgba(0,0,0,0.5)' }}>
+                            Đã bán {soldCount}/{totalCount}
+                          </Typography>
+                          <Box sx={{ position: 'absolute', left: 8, top: 1, fontSize: '0.9rem' }}>🔥</Box>
+                        </>
+                     )}
+                   </Box>
+                 )}
               </Paper>
             )}
 

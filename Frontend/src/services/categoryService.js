@@ -1,7 +1,14 @@
 import api from './api';
 
+let categoriesCache = null;
+
 const categoryService = {
-  getAllCategories: () => api.get('/categories'),
+  getAllCategories: async () => {
+    if (categoriesCache) return categoriesCache;
+    const res = await api.get('/categories');
+    categoriesCache = res;
+    return res;
+  },
   getCategoryById: (id) => api.get(`/categories/${id}`),
   createCategory: (data) => api.post('/categories', data),
   updateCategory: (id, data) => api.put(`/categories/${id}`, data),

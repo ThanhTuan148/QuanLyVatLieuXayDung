@@ -13,7 +13,7 @@ import {
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import couponService from '../services/couponService';
 
-function CouponInput({ orderAmount, onCouponApply }) {
+function CouponInput({ orderAmount, onCouponApply, systemVoucherCodes = [] }) {
   const [couponCode, setCouponCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -22,9 +22,13 @@ function CouponInput({ orderAmount, onCouponApply }) {
   const [savedCoupons, setSavedCoupons] = useState([]);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('savedVouchers') || '[]');
+    let saved = JSON.parse(localStorage.getItem('savedVouchers') || '[]');
+    // Filter out codes that are in systemVoucherCodes
+    if (systemVoucherCodes.length > 0) {
+      saved = saved.filter(code => !systemVoucherCodes.includes(code));
+    }
     setSavedCoupons(saved);
-  }, []);
+  }, [systemVoucherCodes]);
 
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) {
@@ -34,18 +38,29 @@ function CouponInput({ orderAmount, onCouponApply }) {
     }
 
     try {
+      if (systemVoucherCodes.includes(couponCode.trim())) {
+        setMessage('Mã này là Ưu đãi hệ thống. Vui lòng chọn ở mục "Ưu đãi hệ thống" phía trên.');
+        setIsError(true);
+        setDiscount(0);
+        return;
+      }
       setLoading(true);
       const result = await couponService.validateCoupon(couponCode, orderAmount);
 
       if (result.valid) {
-        setMessage(`Áp dụng mã thành công! Bạn được giảm ₫${result.discount.toLocaleString('vi-VN')}`);
+        if (result.type === 'Freeship') {
+            setMessage('Áp dụng mã Freeship thành công!');
+        } else {
+            setMessage(`Áp dụng mã thành công! Bạn được giảm ₫${result.discount.toLocaleString('vi-VN')}`);
+        }
         setDiscount(result.discount);
         setIsError(false);
         if (onCouponApply) {
           onCouponApply({
             code: couponCode,
             discount: result.discount,
-            finalAmount: result.finalAmount
+            finalAmount: result.finalAmount,
+            type: result.type // Pass type to parent
           });
         }
       } else {

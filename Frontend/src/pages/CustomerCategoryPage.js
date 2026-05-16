@@ -10,13 +10,22 @@ import ProductCard from '../components/ProductCard';
 import cartService from '../services/cartService';
 import storageHelper from '../services/storageHelper';
 
+let cachedCatData = null;
+
 const CustomerCategoryPage = () => {
   const { slug: id } = useParams();
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
-  const [allProductsRaw, setAllProductsRaw] = useState([]);
-  const [category, setCategory] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [allProductsRaw, setAllProductsRaw] = useState(cachedCatData ? cachedCatData.prods : []);
+  const [products, setProducts] = useState(() => {
+    if (cachedCatData) return id ? cachedCatData.prods.filter(p => p.maLoaiSP == id) : cachedCatData.prods;
+    return [];
+  });
+
+  const [category, setCategory] = useState(() => {
+    if (cachedCatData && id) return cachedCatData.cats.find(c => c.maLoaiSanPham == id) || null;
+    return null;
+  });
+  const [loading, setLoading] = useState(!cachedCatData);
   const [maxPrice, setMaxPrice] = useState(5000);
   const [priceRange, setPriceRange] = useState([0, 5000]);
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -29,7 +38,7 @@ const CustomerCategoryPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
+        if (!cachedCatData) setLoading(true);
         const [productsRes, categoriesRes] = await Promise.all([
           productService.getAllProducts(null, false),
           fetch('http://localhost:5000/api/categories').then(r => r.json()).catch(() => [])
@@ -37,6 +46,8 @@ const CustomerCategoryPage = () => {
         
         const prods = Array.isArray(productsRes?.data) ? productsRes.data : (Array.isArray(productsRes) ? productsRes : []);
         const cats = Array.isArray(categoriesRes) ? categoriesRes : (Array.isArray(categoriesRes?.data) ? categoriesRes.data : []);
+        
+        cachedCatData = { prods, cats };
         
         let currentCat = cats.find(c => c.maLoaiSanPham == id) || null;
         setCategory(currentCat);
@@ -347,16 +358,20 @@ const CustomerCategoryPage = () => {
                <Typography sx={{ color: '#777', fontStyle: 'italic' }}>Bạn chưa có sản phẩm yêu thích nào.</Typography>
              </Grid>
            ) : (
-             favorites.slice(0, 4).map(p => (
-               <Grid item xs={12} sm={6} md={3} key={p.maSanPham || p.maSP}>
-                 <ProductCard 
-                   product={p} 
-                   isFavorite={true} 
-                   onToggleFav={handleToggleFavorite} 
-                   onAddToCart={handleAddToCart} 
-                 />
-               </Grid>
-             ))
+             favorites.slice(0, 4).map(favId => {
+               const p = allProductsRaw.find(prod => prod.maSanPham == favId || prod.maSP == favId);
+               if (!p) return null;
+               return (
+                 <Grid item xs={12} sm={6} md={3} key={p.maSanPham || p.maSP}>
+                   <ProductCard 
+                     product={p} 
+                     isFavorite={true} 
+                     onToggleFav={handleToggleFavorite} 
+                     onAddToCart={handleAddToCart} 
+                   />
+                 </Grid>
+               );
+             })
            )}
         </Grid>
       </Container>

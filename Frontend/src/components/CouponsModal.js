@@ -18,13 +18,27 @@ import {
   ConfirmationNumberOutlined as VoucherIcon,
 } from '@mui/icons-material';
 
-const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCode }) => {
+const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCode, onApplyManual }) => {
+  const [manualCode, setManualCode] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const handleManualApply = async () => {
+    if (!manualCode.trim() || !onApplyManual) return;
+    setLoading(true);
+    try {
+      await onApplyManual(manualCode);
+      setManualCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper" PaperProps={{ sx: { borderRadius: '16px' } }}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <VoucherIcon color="primary" />
-          <Typography variant="h6" fontWeight={700}>CHỌN MÃ KHUYẾN MÃI</Typography>
+          <Typography variant="h6" fontWeight={700}>CHỌN ƯU ĐÃI HỆ THỐNG</Typography>
         </Box>
         <IconButton onClick={onClose} size="small">
           <CloseIcon />
@@ -34,29 +48,34 @@ const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCo
       <DialogContent sx={{ pt: 2 }}>
         <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
           <TextField 
-            fullWidth size="small" placeholder="Nhập mã khuyến mãi / Gift Card" 
+            fullWidth size="small" placeholder="Nhập mã Coupon / Gift Card" 
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+            disabled={loading}
             sx={{ 
               '& .MuiOutlinedInput-root': { borderRadius: '8px', height: '40px' } 
             }}
           />
           <Button 
             variant="contained" 
+            onClick={handleManualApply}
+            disabled={loading || !manualCode.trim()}
             sx={{ 
               borderRadius: '8px', px: 3, height: '40px', bgcolor: '#e68c55', 
               '&:hover': { bgcolor: '#cc7a4a' },
               whiteSpace: 'nowrap', minWidth: '100px'
             }}
           >
-            Áp dụng
+            {loading ? '...' : 'Áp dụng'}
           </Button>
         </Box>
 
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>Mã giảm giá</Typography>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>Danh sách ưu đãi hệ thống</Typography>
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {coupons.length > 0 ? coupons.map((cp) => {
             const isEligible = currentTotal >= (cp.donHangToiThieu || 0);
             return (
-              <Grid item xs={12} key={cp.maVoucher}>
+              <Grid item xs={12} key={cp.maKhuyenMai}>
                 <Paper 
                   elevation={0} 
                   sx={{ 
@@ -66,7 +85,7 @@ const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCo
                 >
                   {/* Left Ticket Part */}
                   <Box sx={{ 
-                    width: 100, bgcolor: cp.loaiVoucher === 'Freeship' ? '#e8f5e9' : (isEligible ? '#fff5f0' : '#f5f5f5'), 
+                    width: 100, bgcolor: cp.loaiGiamGia === 'Freeship' ? '#e8f5e9' : (isEligible ? '#fff5f0' : '#f5f5f5'), 
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     borderRight: '1px dashed #ddd', position: 'relative'
                   }}>
@@ -78,14 +97,14 @@ const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCo
                       display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 0.5,
                       boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                     }}>
-                      {cp.loaiVoucher === 'Freeship' ? (
+                      {cp.loaiGiamGia === 'Freeship' ? (
                         <VoucherIcon sx={{ fontSize: 24, color: '#4caf50' }} />
                       ) : (
                         <Typography fontSize={24} color={isEligible ? '#e68c55' : '#aaa'}>%</Typography>
                       )}
                     </Box>
                     <Typography fontSize={10} color="text.secondary" fontWeight={600}>
-                      {cp.loaiVoucher === 'Freeship' ? 'Freeship' : 'Mã giảm'}
+                      {cp.loaiGiamGia === 'Freeship' ? 'Freeship' : 'Mã giảm'}
                     </Typography>
                   </Box>
 
@@ -94,34 +113,34 @@ const CouponsModal = ({ open, onClose, coupons, onApply, currentTotal, appliedCo
                     <Box sx={{ pr: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                         <Typography variant="subtitle2" fontWeight={700}>
-                          {cp.loaiVoucher === 'PhanTram' ? `Giảm ${cp.giaTriGiam}%` : `Giảm ₫${cp.giaTriGiam.toLocaleString('vi-VN')}`} - Toàn Sàn
+                          {cp.loaiGiamGia === 'PhanTram' ? `Giảm ${cp.giaTriGiam}%` : `Giảm ₫${cp.giaTriGiam.toLocaleString('vi-VN')}`} - Toàn Sàn
                         </Typography>
                         <InfoIcon sx={{ fontSize: 16, color: '#1976d2', cursor: 'pointer' }} />
                       </Box>
                       <Typography fontSize={11} color="text.secondary" sx={{ mb: 0.5 }}>
                         Đơn hàng từ ₫{(cp.donHangToiThieu || 0).toLocaleString('vi-VN')}
                       </Typography>
-                      <Typography fontSize={11} sx={{ color: cp.loaiVoucher === 'Freeship' ? '#4caf50' : '#e68c55', fontWeight: 600 }}>
-                        HSD: {new Date(cp.ngayKetThuc).toLocaleDateString('vi-VN')}
+                      <Typography fontSize={11} sx={{ color: cp.loaiGiamGia === 'Freeship' ? '#4caf50' : '#e68c55', fontWeight: 600 }}>
+                        HSD: {new Date(cp.thoiGianKetThuc).toLocaleDateString('vi-VN')}
                       </Typography>
                     </Box>
                     <Button 
-                      variant={cp.code === appliedCode ? 'outlined' : 'contained'} 
+                      variant={cp.maApDung === appliedCode ? 'outlined' : 'contained'} 
                       onClick={() => onApply(cp)}
                       disabled={!isEligible}
                       sx={{ 
                         borderRadius: '8px', fontSize: '0.8rem', textTransform: 'none', px: 2,
                         minWidth: '95px',
-                        borderColor: cp.code === appliedCode ? (cp.loaiVoucher === 'Freeship' ? '#4caf50' : '#e68c55') : 'transparent',
-                        color: cp.code === appliedCode ? (cp.loaiVoucher === 'Freeship' ? '#4caf50' : '#e68c55') : '#fff',
-                        bgcolor: cp.code === appliedCode ? 'transparent' : (cp.loaiVoucher === 'Freeship' ? '#4caf50' : '#e68c55'), 
+                        borderColor: cp.maApDung === appliedCode ? (cp.loaiGiamGia === 'Freeship' ? '#4caf50' : '#e68c55') : 'transparent',
+                        color: cp.maApDung === appliedCode ? (cp.loaiGiamGia === 'Freeship' ? '#4caf50' : '#e68c55') : '#fff',
+                        bgcolor: cp.maApDung === appliedCode ? 'transparent' : (cp.loaiGiamGia === 'Freeship' ? '#4caf50' : '#e68c55'), 
                         '&:hover': { 
-                          bgcolor: cp.code === appliedCode ? 'rgba(0,0,0,0.02)' : (cp.loaiVoucher === 'Freeship' ? '#388e3c' : '#cc7a4a'),
-                          borderColor: cp.code === appliedCode ? (cp.loaiVoucher === 'Freeship' ? '#388e3c' : '#cc7a4a') : 'transparent',
+                          bgcolor: cp.maApDung === appliedCode ? 'rgba(0,0,0,0.02)' : (cp.loaiGiamGia === 'Freeship' ? '#388e3c' : '#cc7a4a'),
+                          borderColor: cp.maApDung === appliedCode ? (cp.loaiGiamGia === 'Freeship' ? '#388e3c' : '#cc7a4a') : 'transparent',
                         }
                       }}
                     >
-                      {cp.code === appliedCode ? 'Đã áp dụng' : 'Áp dụng'}
+                      {cp.maApDung === appliedCode ? 'Đã áp dụng' : 'Áp dụng'}
                     </Button>
                   </Box>
                 </Paper>

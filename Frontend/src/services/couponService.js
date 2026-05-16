@@ -2,6 +2,7 @@ import api from './api';
 
 const couponService = {
     getAll: () => api.get('/promotions?loai=Coupon'),
+    getSystemPromotions: () => api.get('/promotions?loai=UuDai'),
     get: (id) => api.get(`/promotions/${id}`),
     create: (data) => api.post('/promotions', { ...data, loaiKM: 'Coupon' }),
     update: (id, data) => api.put(`/promotions/${id}`, { ...data, loaiKM: 'Coupon' }),
@@ -48,7 +49,8 @@ const couponService = {
                 discount: discount,
                 finalAmount: orderAmount - discount,
                 tenKM: coupon.tenKM,
-                maKhuyenMai: coupon.maKhuyenMai
+                maKhuyenMai: coupon.maKhuyenMai,
+                type: coupon.loaiGiamGia
             };
 
         } catch (error) {

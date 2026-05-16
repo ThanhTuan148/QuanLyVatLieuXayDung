@@ -30,14 +30,31 @@ const CustomerPromotionsPage = () => {
     const fetchCoupons = async () => {
       try {
         const res = await couponService.getAll();
-        const allCoupons = res.data || [];
+        const rawCoupons = res.data || (Array.isArray(res) ? res : []);
         
-        // Filter active coupons: TrangThai === 'Hoạt động' and within date range
+        const allCoupons = rawCoupons.map(c => ({
+          maUUDAI: c.maKhuyenMai,
+          code: c.maApDung,
+          tenUuDai: c.tenKM,
+          loaiUuDai: c.loaiGiamGia,
+          giaTriGiam: c.giaTriGiam,
+          giamToiDa: c.giamToiDa,
+          donHangToiThieu: c.donHangToiThieu,
+          ngayBatDau: c.thoiGianBatDau || c.ngayBatDau,
+          ngayKetThuc: c.thoiGianKetThuc || c.ngayKetThuc,
+          trangThai: c.trangThai
+        }));
+        
+        // Filter active coupons: trangThai === true and within date range
         const now = new Date();
         const activeCoupons = allCoupons.filter(c => {
-          if (c.trangThai === false) return false;
-          const startDate = new Date(c.thoiGianBatDau || c.ngayBatDau);
-          const endDate = new Date(c.thoiGianKetThuc || c.ngayKetThuc);
+          if (c.trangThai === false || c.trangThai === 0) return false;
+          
+          const startDate = new Date(c.ngayBatDau);
+          const endDate = new Date(c.ngayKetThuc);
+          
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return true;
+          
           if (now < startDate || now > endDate) return false;
           return true;
         });
@@ -98,7 +115,7 @@ const CustomerPromotionsPage = () => {
         ) : (
           <Grid container spacing={3}>
             {coupons.map((coupon) => (
-              <Grid item xs={12} md={6} lg={4} key={coupon.maKhuyenMai}>
+              <Grid item xs={12} md={6} lg={4} key={coupon.maUUDAI}>
                 <Card 
                   sx={{ 
                     display: 'flex', 
@@ -124,9 +141,11 @@ const CustomerPromotionsPage = () => {
                     borderRight: '2px dashed #fff'
                   }}>
                     <Typography variant="h6" sx={{ fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
-                      {coupon.loaiGiamGia === 'PhanTram' 
+                      {coupon.loaiUuDai === 'PhanTram' || coupon.loaiUuDai === 'Giảm %'
                         ? `GIẢM ${coupon.giaTriGiam}%` 
-                        : `GIẢM ${(coupon.giaTriGiam / 1000)}K`}
+                        : coupon.loaiUuDai === 'Freeship' 
+                          ? `FREESHIP`
+                          : `GIẢM ${(coupon.giaTriGiam / 1000)}K`}
                     </Typography>
                     <Box sx={{ 
                       position: 'absolute', top: -10, right: -10, width: 20, height: 20, bgcolor: '#f5f7fa', borderRadius: '50%' 
@@ -140,13 +159,13 @@ const CustomerPromotionsPage = () => {
                     <Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#333' }}>
-                          {coupon.tenKM}
+                          {coupon.tenUuDai}
                         </Typography>
                       </Box>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                         Đơn tối thiểu: <b>{formatCurrency(coupon.donHangToiThieu)}</b>
                       </Typography>
-                      {coupon.loaiGiamGia === 'PhanTram' && coupon.giamToiDa > 0 && (
+                      {(coupon.loaiUuDai === 'PhanTram' || coupon.loaiUuDai === 'Giảm %') && coupon.giamToiDa > 0 && (
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                           Giảm tối đa: <b>{formatCurrency(coupon.giamToiDa)}</b>
                         </Typography>
@@ -158,27 +177,27 @@ const CustomerPromotionsPage = () => {
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
                       <Chip 
-                        label={coupon.maApDung} 
+                        label={coupon.code} 
                         size="small" 
                         sx={{ bgcolor: '#f0f0f0', fontWeight: 'bold', letterSpacing: 1 }} 
                       />
                       <Button 
                         variant="contained" 
                         size="small"
-                        onClick={() => handleCopyCode(coupon.maApDung)}
+                        onClick={() => handleCopyCode(coupon.code)}
                         startIcon={<ContentCopyIcon fontSize="small" />}
                         sx={{ 
-                          bgcolor: savedCoupons.includes(coupon.maApDung) ? '#4caf50' : '#e68c55', 
+                          bgcolor: savedCoupons.includes(coupon.code) ? '#4caf50' : '#e68c55', 
                           borderRadius: 20,
                           textTransform: 'none',
                           boxShadow: 'none',
                           '&:hover': {
-                            bgcolor: savedCoupons.includes(coupon.maApDung) ? '#43a047' : '#d87b45',
+                            bgcolor: savedCoupons.includes(coupon.code) ? '#43a047' : '#d87b45',
                             boxShadow: 'none'
                           }
                         }}
                       >
-                        {savedCoupons.includes(coupon.maApDung) ? 'Đã lưu' : 'Lưu mã'}
+                        {savedCoupons.includes(coupon.code) ? 'Đã lưu' : 'Lưu mã'}
                       </Button>
                     </Box>
                   </CardContent>

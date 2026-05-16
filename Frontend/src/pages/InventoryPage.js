@@ -27,14 +27,18 @@ import ConfirmReceiptDialog from '../components/ConfirmReceiptDialog';
 import OutboundHistoryDialog from '../components/OutboundHistoryDialog';
 import { usePermissions } from '../contexts/PermissionContext';
 
+let cachedInventory = null;
+let cachedWarehouses = null;
+let cachedOutboundHistory = null;
+
 export default function InventoryPage() {
   const { permissions } = usePermissions();
-  const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [inventory, setInventory] = useState(cachedInventory || []);
+  const [loading, setLoading] = useState(!cachedInventory);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [warehouseDialogOpen, setWarehouseDialogOpen] = useState(false);
-  const [warehouses, setWarehouses] = useState([]);
+  const [warehouses, setWarehouses] = useState(cachedWarehouses || []);
   const [products, setProducts] = useState([]);
   const [newWarehouse, setNewWarehouse] = useState({ tenKho: '', loaiKho: '', diaChi: '' });
   const [editingWarehouse, setEditingWarehouse] = useState(null);
@@ -47,8 +51,8 @@ export default function InventoryPage() {
   const [historyRowsPerPage, setHistoryRowsPerPage] = useState(5);
   const [historyFilters, setHistoryFilters] = useState({ maPhieuNhap: '', tenNhaCungCap: '', tuNgay: '', denNgay: '' });
 
-  const [outboundHistory, setOutboundHistory] = useState([]);
-  const [outboundLoading, setOutboundLoading] = useState(false);
+  const [outboundHistory, setOutboundHistory] = useState(cachedOutboundHistory || []);
+  const [outboundLoading, setOutboundLoading] = useState(!cachedOutboundHistory);
   const [expandedOutbound, setExpandedOutbound] = useState(null);
   
   const [outboundSearch, setOutboundSearch] = useState('');
@@ -103,10 +107,12 @@ export default function InventoryPage() {
   }, [activeTab, visibleTabs]);
 
   const fetchOutboundHistory = async () => {
-    setOutboundLoading(true);
     try {
+      if (!cachedOutboundHistory) setOutboundLoading(true);
       const res = await inventoryService.getOutboundHistory();
-      setOutboundHistory(res.data || []);
+      const data = res.data || [];
+      cachedOutboundHistory = data;
+      setOutboundHistory(data);
     } catch (err) { console.error('Fetch outbound err:', err); }
     finally { setOutboundLoading(false); }
   };
@@ -156,7 +162,9 @@ export default function InventoryPage() {
   const fetchWarehouses = async () => {
     try {
       const res = await inventoryService.getWarehouses();
-      setWarehouses(res.data || []);
+      const data = res.data || [];
+      cachedWarehouses = data;
+      setWarehouses(data);
     } catch (err) { console.error(err); }
   };
 
@@ -168,10 +176,12 @@ export default function InventoryPage() {
   };
 
   const fetchInventory = async () => {
-    setLoading(true);
     try { 
+      if (!cachedInventory) setLoading(true);
       const res = await inventoryService.getAll(); 
-      setInventory(res.data || []); 
+      const data = res.data || [];
+      cachedInventory = data;
+      setInventory(data); 
     }
     catch (err) { console.error('Fetch inventory error:', err); }
     finally { setLoading(false); }
@@ -184,7 +194,7 @@ export default function InventoryPage() {
     setHistoryPage(0);
     setHistoryFilters({ maPhieuNhap: '', tenNhaCungCap: '', tuNgay: '', denNgay: '' });
     try {
-      const res = await inventoryService.getImportHistory(row.maSanPham);
+      const res = await inventoryService.getImportHistory(row.maSanPham, row.maKhoHang);
       setHistoryItems(res.data || []);
     } catch (err) { console.error('Fetch history err:', err); }
     finally { setHistoryLoading(false); }
@@ -354,7 +364,7 @@ export default function InventoryPage() {
     {
       field: 'actions',
       headerName: 'Thao Tác',
-      width: 220,
+      width: 280,
       sortable: false,
       filterable: false,
       align: 'right',
@@ -381,7 +391,7 @@ export default function InventoryPage() {
                 </IconButton>
               </Tooltip>
             )}
-            {row.trangThai?.trim() === 'Chờ nhận' && (isTaiXe || isQuanLy) && (
+            {(row.trangThai?.trim() === 'Chờ nhận' || row.trangThai?.trim() === 'Đã nhận một phần') && (isTaiXe || isQuanLy) && (
               <Tooltip title="Tài xế xác nhận nhận hàng để đi giao (Bước 3)">
                 <IconButton size="small" sx={{ color: '#f57c00' }} onClick={() => { setSelectedOutbound(row); setConfirmReceiptOpen(true); }}>
                   <LocalShippingIcon />
@@ -700,11 +710,12 @@ export default function InventoryPage() {
                         <TableHead sx={{ bgcolor: 'rgba(102,126,234,0.07)' }}>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', width: 90 }}>Mã Phiếu</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', width: 130 }}>Loại</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', width: 170 }}>Ngày Nhập</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Nhà Cung Cấp</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="center">Số Lượng</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', width: 120 }} align="right">Đơn Giá</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', width: 150 }} align="right">Thành Tiền</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Nguồn Giao / NCC</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', width: 90 }} align="center">S.Lượng</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', width: 110 }} align="right">Đơn Giá</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', width: 130 }} align="right">Thành Tiền</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -715,25 +726,28 @@ export default function InventoryPage() {
                               </TableCell>
                             </TableRow>
                           ) : paginated.map((h, i) => (
-                            <TableRow key={h.maPhieuNhap || i} hover>
+                            <TableRow key={h.maPhieu || i} hover>
                               <TableCell 
                                 sx={{ 
-                                  color: 'primary.main', 
+                                  color: h.loai === 'Nhập hàng' ? 'primary.main' : 'text.primary', 
                                   fontWeight: 'bold', 
-                                  cursor: 'pointer',
-                                  '&:hover': { textDecoration: 'underline' }
+                                  cursor: h.loai === 'Nhập hàng' ? 'pointer' : 'default',
+                                  '&:hover': { textDecoration: h.loai === 'Nhập hàng' ? 'underline' : 'none' }
                                 }}
-                                onClick={() => handleOpenProcurementDetail(h.idPhieuNhap)}
+                                onClick={() => h.loai === 'Nhập hàng' && handleOpenProcurementDetail(h.idPhieu)}
                               >
-                                {h.maPhieuNhap}
+                                {h.maPhieu}
                               </TableCell>
-                              <TableCell>{h.ngayNhap ? new Date(h.ngayNhap).toLocaleString('vi-VN') : '—'}</TableCell>
-                              <TableCell>{h.tenNhaCungCap}</TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                {h.loai}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: '0.8rem' }}>{h.ngayNhap ? new Date(h.ngayNhap).toLocaleString('vi-VN') : '—'}</TableCell>
+                              <TableCell sx={{ fontSize: '0.85rem' }}>{h.tenNhaCungCap}</TableCell>
                               <TableCell align="center">
-                                <Chip label={h.soLuongNhan} size="small" color="primary" variant="outlined" sx={{ fontWeight: 'bold' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{h.soLuongNhan}</Typography>
                               </TableCell>
-                              <TableCell align="right">{h.donGia?.toLocaleString('vi-VN')} đ</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>{h.thanhTien?.toLocaleString('vi-VN')} đ</TableCell>
+                              <TableCell align="right" sx={{ fontSize: '0.85rem' }}>{h.donGia?.toLocaleString('vi-VN')} đ</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', fontSize: '0.85rem' }}>{h.thanhTien?.toLocaleString('vi-VN')} đ</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

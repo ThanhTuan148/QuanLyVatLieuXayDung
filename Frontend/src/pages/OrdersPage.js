@@ -3,6 +3,7 @@ import {
   Box, Button, Typography, Chip, LinearProgress, Card, CardContent, Grid
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EmailIcon from '@mui/icons-material/Email';
 import orderService from '../services/orderService';
 import OrderForm from '../components/OrderForm';
 import OrderDetailDialog from '../components/OrderDetailDialog';
@@ -59,6 +60,18 @@ function OrdersPage() {
     if (!window.confirm('Xóa đơn hàng này?')) return;
     try { await orderService.deleteOrder(id); fetchOrders(); }
     catch { alert('Xóa thất bại'); }
+  };
+
+  const handleSendVatInvoice = async (order) => {
+    if (!window.confirm(`Gửi hóa đơn GTGT đến email: ${order.vatEmail || '(chưa có email)'}?`)) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/vat-invoice/${order.maHoaDon}/send-email`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) alert('✅ ' + data.message);
+      else alert('❌ ' + data.message);
+    } catch (err) {
+      alert('Lỗi: ' + err.message);
+    }
   };
 
   const handleApprove = async (order) => {
@@ -168,17 +181,28 @@ function OrdersPage() {
     {
       field: 'actions',
       headerName: 'Thao Tác',
-      width: 250,
+      width: 350,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', height: '100%' }}>
           {canEdit && params.row.trangThai === 'Chờ xử lý' && (
             <Button size="small" color="success" variant="contained" disableElevation onClick={() => handleApprove(params.row)}>Duyệt</Button>
           )}
           <Button size="small" variant="outlined" onClick={() => { setSelectedOrderId(params.row.maHoaDon); setDetailOpen(true); }}>Chi tiết</Button>
-          {canEdit && <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
-          {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maHoaDon)}>Xóa</Button>}
+          {canEdit && <Button size="small" variant="outlined" color="primary" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+          {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(params.row.maHoaDon)}>Xóa</Button>}
+          {params.row.trangThai === 'Hoàn thành' && params.row.vatEmail && (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<EmailIcon sx={{ fontSize: 14 }} />}
+              onClick={() => handleSendVatInvoice(params.row)}
+              sx={{ bgcolor: '#e68c55', color: '#fff', fontSize: '0.7rem', px: 1, '&:hover': { bgcolor: '#c97a40' }, whiteSpace: 'nowrap' }}
+            >
+              HĐ GTGT
+            </Button>
+          )}
         </Box>
       )
     }

@@ -381,7 +381,7 @@ export default function ProductPromotionsTab() {
     {
       field: 'actions',
       headerName: 'Thao Tác',
-      width: 150,
+      width: 200,
       sortable: false,
       filterable: false,
       renderCell: (params) => (

@@ -49,15 +49,20 @@ namespace BuildingMaterialAPI.Controllers
 
             var report = orders
                 .GroupBy(h => h.NgayLap.Date)
-                .Select(g => new {
-                    Date = g.Key.ToString("yyyy-MM-dd"),
-                    Revenue = g.Sum(h => h.TongTien ?? 0), // Tính doanh thu theo giá trị đơn hàng
-                    Collected = g.Sum(h => h.ThanhToan ?? 0), // Số tiền thực tế đã thu
-                    Profit = g.Sum(h => h.CTHDs.Sum(ct => {
+                .Select(g => {
+                    decimal totalRevenue = g.Sum(h => h.TongTien ?? 0);
+                    decimal totalCost = g.Sum(h => h.CTHDs.Sum(ct => {
                         decimal cost = latestImportPrices.ContainsKey(ct.MaSanPham) ? latestImportPrices[ct.MaSanPham] : 0;
-                        return (ct.DonGia - cost) * ct.SoLuong;
-                    })),
-                    OrderCount = g.Count()
+                        return cost * ct.SoLuong;
+                    }));
+
+                    return new {
+                        Date = g.Key.ToString("yyyy-MM-dd"),
+                        Revenue = totalRevenue,
+                        Collected = g.Sum(h => h.ThanhToan ?? 0),
+                        Profit = totalRevenue - totalCost,
+                        OrderCount = g.Count()
+                    };
                 })
                 .OrderBy(x => x.Date)
                 .ToList();

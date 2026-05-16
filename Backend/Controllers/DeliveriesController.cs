@@ -150,6 +150,14 @@ namespace BuildingMaterialAPI.Controllers
                 }
                 await _context.SaveChangesAsync();
 
+                // Xóa các chi tiết Phiếu Xuất Kho cũ nếu đã tồn tại để tránh nhân đôi
+                var oldPxkItems = await _context.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
+                if (oldPxkItems.Any())
+                {
+                    _context.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
+                    await _context.SaveChangesAsync();
+                }
+
                 if (dto.Items != null && dto.Items.Any())
                 {
                     foreach (var item in dto.Items)
@@ -230,22 +238,41 @@ namespace BuildingMaterialAPI.Controllers
 
             string oldTripStatus = existing.TrangThai;
 
-            // Kiểm tra xem đã hoàn tất luồng xuất kho chưa nếu muốn chuyển sang Đang giao/Đã giao
-            if (dto.TrangThai == "Đang giao" || dto.TrangThai == "Đã giao")
+            var pxk = await _context.PhieuXuatKhos.Include(x => x.ChiTiet).FirstOrDefaultAsync(x => x.MaPhieuGH == id);
+
+            // Chặn cập nhật trạng thái giao nếu tài xế chưa xác nhận nhận hàng từ kho
+            string[] deliveryStatuses = { "Đã giao", "Đã giao một phần", "Đang giao một phần" };
+            if (deliveryStatuses.Contains(dto.TrangThai))
             {
-                var pxk = await _context.PhieuXuatKhos.FirstOrDefaultAsync(x => x.MaPhieuGH == id);
-                // Nếu có phiếu xuất kho liên quan và nó chưa ở trạng thái "Đã xuất"
-                if (pxk != null && pxk.TrangThai != "Đã xuất")
+                string[] confirmedPxkStatuses = { "Đã xuất", "Đã nhận một phần", "Đã nhận đủ" };
+                if (pxk == null || !confirmedPxkStatuses.Contains(pxk.TrangThai))
                 {
-                    return BadRequest(new { message = "Không thể cập nhật trạng thái này vì phiếu xuất kho liên quan chưa được hoàn tất (Đã xuất). Vui lòng thực hiện luồng xuất kho tại kho hàng trước." });
+                    return BadRequest(new { message = "⚠️ Bạn chưa xác nhận nhận hàng từ kho cho chuyến này. Vui lòng qua mục 'Kho hàng → Lịch sử xuất kho' để xác nhận nhận hàng trước khi cập nhật trạng thái giao!" });
                 }
             }
 
-            // Kiểm tra trình tự trạng thái: Bắt buộc phải là "Đang giao" mới được chuyển sang các trạng thái kết thúc
-            string[] finalStatuses = { "Đã giao", "Hỏng/Lỗi", "Khách từ chối" };
-            if (finalStatuses.Contains(dto.TrangThai) && existing.TrangThai != "Đang giao")
+            // Chặn "Đã giao" nếu đơn hàng vẫn còn sản phẩm chưa giao đủ
+            if (dto.TrangThai == "Đã giao")
             {
-                return BadRequest(new { message = $"Không thể chuyển sang trạng thái '{dto.TrangThai}' vì chuyến hàng hiện tại đang ở trạng thái '{existing.TrangThai}'. Bạn cần chuyển sang 'Đang giao' trước khi kết thúc chuyến hàng." });
+                var totalOrdered = await _context.CTHDs
+                    .Where(ct => ct.MaHoaDon == existing.MaHoaDon)
+                    .SumAsync(ct => ct.SoLuong);
+                var totalAssigned = await _context.CTPhieuGiaoHangs
+                    .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon)
+                    .SumAsync(c => c.SoLuongGiao);
+
+                if (totalAssigned < totalOrdered)
+                {
+                    // Tài xế chưa nhận hàng tiếp từ kho để giao phần còn lại → ép về "Đã giao một phần"
+                    dto.TrangThai = "Đã giao một phần";
+                }
+            }
+
+            // Kiểm tra trình tự trạng thái
+            string[] finalStatuses = { "Đã giao", "Đã giao một phần", "Hỏng/Lỗi", "Khách từ chối" };
+            if (finalStatuses.Contains(dto.TrangThai) && existing.TrangThai != "Đang giao" && existing.TrangThai != "Chờ giao" && !existing.TrangThai.Contains("Thiếu") && !existing.TrangThai.Contains("một phần"))
+            {
+                // Allow transitions from warehouse-confirmed states
             }
 
             existing.GhiChu = dto.GhiChu;
@@ -257,7 +284,7 @@ namespace BuildingMaterialAPI.Controllers
             {
                 existing.NgayGiaoThucTe = dto.NgayGiaoThucTe.Value;
             }
-            else if (dto.TrangThai == "Đã giao")
+            else if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần")
             {
                 existing.NgayGiaoThucTe = DateTime.UtcNow;
             }
@@ -265,6 +292,7 @@ namespace BuildingMaterialAPI.Controllers
             existing.NgayCapNhat = DateTime.UtcNow;
             
             // Update individual items status if provided
+            bool hasPartialPickupDiscrepancy = false;
             if (dto.Items != null && dto.Items.Any())
             {
                 var itemIds = dto.Items.Select(x => x.MaCTGH).ToList();
@@ -279,9 +307,36 @@ namespace BuildingMaterialAPI.Controllers
                     {
                         item.TrangThai = itemUpdate.TrangThai;
                         item.GhiChu = itemUpdate.GhiChu;
+
+                        // Tự động nâng cấp "Đang giao một phần" lên "Đã giao một phần" nếu tài xế chốt chuyến đi
+                        if ((dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần") && itemUpdate.TrangThai == "Đang giao một phần")
+                        {
+                            itemUpdate.TrangThai = "Đã giao một phần";
+                            item.TrangThai = "Đã giao một phần";
+                        }
+
+                        // Nếu tài xế xác nhận "Đã giao" cho khách, nhưng thực tế lúc xuất kho nhận thiếu
+                        // thì ta cập nhật lại số lượng giao thực tế của phiếu này để phần còn thiếu quay về trạng thái "Chờ giao" của Đơn hàng
+                        if ((itemUpdate.TrangThai == "Đã giao" || itemUpdate.TrangThai == "Đã giao một phần") && pxk != null && (pxk.TrangThai == "Đã xuất" || pxk.TrangThai == "Đã nhận một phần"))
+                        {
+                            var ctxk = pxk.ChiTiet.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
+                            if (ctxk != null)
+                            {
+                                int thucNhan = ctxk.SoLuongThucNhan ?? 0;
+                                if (thucNhan < item.SoLuongGiao)
+                                {
+                                    item.SoLuongGiao = thucNhan;
+                                    hasPartialPickupDiscrepancy = true;
+                                    if (thucNhan == 0) item.TrangThai = "Hỏng/Lỗi"; // Nếu không nhận được gì thì coi như lỗi/hủy item này
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            // Lưu thay đổi trạng thái và số lượng từng món TRƯỚC khi tính toán hoàn thành
+            await _context.SaveChangesAsync();
 
             // Update Order Status based on overall fulfillment
             if (existing.HoaDon != null)
@@ -300,14 +355,7 @@ namespace BuildingMaterialAPI.Controllers
                 }
                 logMessage += $" Địa chỉ: {existing.DiaChi}. Sản phẩm: {deliveryInfo}";
 
-                // Log history for the trip update
-                string oldPhieuStatus = existing.TrangThai;
-                await _context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO LICHSUHOADON (MaHoaDon, TrangThaiCu, TrangThaiMoi, NoiDungThayDoi, NgayTao) VALUES ({0}, {1}, {2}, {3}, {4})",
-                    existing.MaHoaDon, existing.TrangThai, dto.TrangThai, logMessage, DateTime.UtcNow
-                );
-
-                existing.TrangThai = dto.TrangThai; // Update the trip status after logging
+                string oldHdStatus = existing.HoaDon.TrangThai;
 
                 // Payment Collection Logic (Internal update)
                 if (dto.SoTienThu > 0)
@@ -347,7 +395,7 @@ namespace BuildingMaterialAPI.Controllers
                     }
                 }
 
-                bool isReturnExchangeTrip = oldPhieuStatus.Contains("đổi") || oldPhieuStatus.Contains("thu hồi") || oldPhieuStatus.Contains("Đổi");
+                bool isReturnExchangeTrip = oldTripStatus.Contains("đổi") || oldTripStatus.Contains("thu hồi") || oldTripStatus.Contains("Đổi");
 
                 if (isReturnExchangeTrip)
                 {
@@ -379,26 +427,59 @@ namespace BuildingMaterialAPI.Controllers
                 }
                 else
                 {
-                    var totalOrdered = await _context.CTHDs
+                    // Số lượng đặt trong toàn đơn hàng
+                    var cthdList = await _context.CTHDs
                         .Where(ct => ct.MaHoaDon == existing.MaHoaDon)
-                        .SumAsync(ct => ct.SoLuong);
+                        .ToListAsync();
+                    var totalOrdered = cthdList.Sum(ct => ct.SoLuong);
 
-                    var totalDelivered = await _context.CTPhieuGiaoHangs
-                        .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon && c.PhieuGiaoHang.TrangThai == "Đã giao")
+                    // Số lượng đã giao thực sự ở các chuyến KHÁC (đã hoàn thành)
+                    var previousTripsDelivered = await _context.CTPhieuGiaoHangs
+                        .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon && c.MaPhieuGH != id && c.TrangThai.Contains("Đã giao"))
                         .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
+
+                    int currentTripDelivered = 0;
+                    if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần") 
+                    {
+                        // Sử dụng SoLuongThucNhan từ xuất kho nếu có (số thực nhận), 
+                        // chứ không phải SoLuongGiao (số kế hoạch trên phiếu giao)
+                        foreach (var detail in details.Where(c => c.TrangThai != null && c.TrangThai.Contains("Đã giao")))
+                        {
+                            if (pxk != null)
+                            {
+                                var ctxk = pxk.ChiTiet?.FirstOrDefault(x => x.MaSanPham == detail.MaSanPham);
+                                if (ctxk != null)
+                                {
+                                    // Lấy số nhỏ hơn giữa kế hoạch và thực nhận
+                                    currentTripDelivered += Math.Min(detail.SoLuongGiao, ctxk.SoLuongThucNhan ?? 0);
+                                }
+                                else
+                                {
+                                    currentTripDelivered += detail.SoLuongGiao;
+                                }
+                            }
+                            else
+                            {
+                                currentTripDelivered += detail.SoLuongGiao;
+                            }
+                        }
+                    }
+
+                    var totalDelivered = previousTripsDelivered + currentTripDelivered;
 
                     if (totalDelivered >= totalOrdered)
                     {
-                        string oldStatus = existing.HoaDon.TrangThai;
                         existing.HoaDon.TrangThai = "Hoàn thành";
                         existing.HoaDon.NgayGiao = DateTime.UtcNow;
-
-                        await _context.Database.ExecuteSqlRawAsync(
-                            "INSERT INTO LICHSUHOADON (MaHoaDon, TrangThaiCu, TrangThaiMoi, NoiDungThayDoi, NgayTao) VALUES ({0}, {1}, {2}, {3}, {4})",
-                            existing.MaHoaDon, oldStatus, "Hoàn thành", "Đơn hàng đã được giao đủ số lượng và hoàn thành.", DateTime.UtcNow
-                        );
                     }
-                    else if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đang giao")
+                    else if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần")
+                    {
+                        if (existing.HoaDon.TrangThai != "Hoàn thành" && existing.HoaDon.TrangThai != "Yêu cầu đổi/trả hàng" && existing.HoaDon.TrangThai != "Đang đổi trả")
+                        {
+                            existing.HoaDon.TrangThai = "Đã giao một phần";
+                        }
+                    }
+                    else if (dto.TrangThai == "Đang giao")
                     {
                         if (existing.HoaDon.TrangThai != "Hoàn thành" && existing.HoaDon.TrangThai != "Yêu cầu đổi/trả hàng" && existing.HoaDon.TrangThai != "Đang đổi trả")
                         {
@@ -407,6 +488,27 @@ namespace BuildingMaterialAPI.Controllers
                     }
                 }
                 existing.HoaDon.NgayCapNhat = DateTime.UtcNow;
+
+                // FINAL LOG: Record the order status change in the timeline
+                _context.LichSuHoaDons.Add(new LichSuHoaDon
+                {
+                    MaHoaDon = existing.MaHoaDon ?? 0,
+                    TrangThaiCu = oldHdStatus,
+                    TrangThaiMoi = existing.HoaDon.TrangThai,
+                    NoiDungThayDoi = logMessage,
+                    MaNguoiThucHien = dto.MaNguoiThucHien,
+                    NgayTao = DateTime.UtcNow
+                });
+            }
+
+            // Update the trip status
+            if (dto.TrangThai == "Đã giao" && hasPartialPickupDiscrepancy)
+            {
+                existing.TrangThai = "Đã giao một phần";
+            }
+            else
+            {
+                existing.TrangThai = dto.TrangThai;
             }
 
             // Ghi nhận lịch sử giao hàng
@@ -566,6 +668,17 @@ namespace BuildingMaterialAPI.Controllers
 
             if (p == null) return NotFound();
 
+            var totalOrdered = p.HoaDon?.CTHDs?.Sum(ct => ct.SoLuong) ?? 0;
+            var totalAssigned = await _context.CTPhieuGiaoHangs
+                .Where(c => c.PhieuGiaoHang.MaHoaDon == p.MaHoaDon)
+                .SumAsync(c => c.SoLuongGiao);
+            
+            bool canContinue = (totalAssigned < totalOrdered) && (p.HoaDon?.TrangThai != "Đã hủy");
+
+            var pxk = await _context.PhieuXuatKhos
+                .Include(x => x.ChiTiet)
+                .FirstOrDefaultAsync(x => x.MaPhieuGH == id);
+
             return Ok(new
             {
                 maPhieuGH = p.MaPhieuGH,
@@ -578,6 +691,7 @@ namespace BuildingMaterialAPI.Controllers
                 trangThai = p.TrangThai ?? "Chờ giao",
                 ghiChu = p.GhiChu ?? "",
                 maHD = p.HoaDon?.MaHD ?? "N/A",
+                trangThaiHoaDon = p.HoaDon?.TrangThai ?? "N/A",
                 maHoaDon = p.MaHoaDon,
                 maNhanVien = p.MaNhanVien,
                 tenNhanVien = p.NhanVien?.TenNV ?? "N/A",
@@ -587,9 +701,13 @@ namespace BuildingMaterialAPI.Controllers
                 tongTienOrder = p.HoaDon?.TongTien ?? 0,
                 daThanhToanOrder = p.HoaDon?.ThanhToan ?? 0,
                 soTienPhaiThu = p.HoaDon?.SoTienPhaiThu ?? 0,
+                coTheGiaoTiep = canContinue,
+                trangThaiXuatKho = pxk?.TrangThai ?? "Chưa có",
                 chiTiet = p.CTPhieuGiaoHangs?.Select(ct => {
                     // Lấy số lượng đặt từ CTHD liên quan
                     var cthd = p.HoaDon?.CTHDs?.FirstOrDefault(x => x.MaCTHD == ct.MaCTHD || (x.MaSanPham == ct.MaSanPham && ct.MaCTHD == null));
+                    var ctxk = pxk?.ChiTiet?.FirstOrDefault(x => x.MaSanPham == ct.MaSanPham);
+
                     return new
                     {
                         maCTGH = ct.MaCTGH,
@@ -597,6 +715,9 @@ namespace BuildingMaterialAPI.Controllers
                         tenSanPham = ct.SanPham?.TenSP ?? "N/A",
                         soLuongGiao = ct.SoLuongGiao,
                         soLuongOrder = cthd?.SoLuong ?? 0,
+                        soLuongNhanKho = ctxk?.SoLuongThucNhan ?? 0,
+                        donGia = cthd?.DonGia ?? ct.SanPham?.GiaBan ?? 0,
+                        thanhTien = cthd?.ThanhTien ?? 0,
                         trangThai = ct.TrangThai ?? "Đang giao",
                         ghiChu = ct.GhiChu
                     };

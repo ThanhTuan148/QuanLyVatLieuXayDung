@@ -37,11 +37,15 @@ import PromotionSection from '../components/PromotionSection';
 import CouponsModal from '../components/CouponsModal';
 import GiftsModal from '../components/GiftsModal';
 
+let cachedCartItems = null;
+let cachedAllProducts = null;
+let cachedVouchers = null;
+
 const ShoppingCartPage = () => {
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [cartItems, setCartItems] = useState(cachedCartItems || []);
+  const [loading, setLoading] = useState(!cachedCartItems);
+  const [selectedIds, setSelectedIds] = useState(() => (cachedCartItems || []).map(i => i.cartId));
 
   // Manual Coupon state (from text input)
   const [appliedManualCoupon, setAppliedManualCoupon] = useState(null);
@@ -52,7 +56,7 @@ const ShoppingCartPage = () => {
   const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
 
   // Rewards state
-  const [allVouchers, setAllVouchers] = useState([]);
+  const [allVouchers, setAllVouchers] = useState(cachedVouchers || []);
   const [couponsOpen, setCouponsOpen] = useState(false);
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [selectedGifts, setSelectedGifts] = useState([]);
@@ -64,13 +68,14 @@ const ShoppingCartPage = () => {
   // Fetch cart items
   const fetchCart = async () => {
     try {
-      setLoading(true);
+      if (!cachedCartItems) setLoading(true);
       const [cart, productsRes] = await Promise.all([
         cartService.getUserCart(),
         productService.getAllProducts()
       ]);
 
       const allProducts = Array.isArray(productsRes.data) ? productsRes.data : (Array.isArray(productsRes) ? productsRes : []);
+      cachedAllProducts = allProducts;
 
       // Hydrate cart items with full product info
       const hydratedCart = await Promise.all((cart || []).map(async (item) => {
@@ -98,7 +103,9 @@ const ShoppingCartPage = () => {
         };
       }));
 
+      cachedCartItems = hydratedCart;
       setCartItems(hydratedCart);
+      
       // Auto-select all items initially if not already set
       if (selectedIds.length === 0 && hydratedCart.length > 0) {
         setSelectedIds(hydratedCart.map(i => i.cartId));
@@ -106,7 +113,9 @@ const ShoppingCartPage = () => {
 
       // Fetch all vouchers for the browse modal
       const voucherRes = await voucherUuDaiService.getAll();
-      setAllVouchers(Array.isArray(voucherRes.data) ? voucherRes.data : (Array.isArray(voucherRes) ? voucherRes : []));
+      const vouchers = Array.isArray(voucherRes.data) ? voucherRes.data : (Array.isArray(voucherRes) ? voucherRes : []);
+      cachedVouchers = vouchers;
+      setAllVouchers(vouchers);
 
     } catch (error) {
       console.error('Error fetching cart:', error);
@@ -123,7 +132,37 @@ const ShoppingCartPage = () => {
   const selectedItems = cartItems.filter(item => selectedIds.includes(item.cartId));
   const subtotalSelected = selectedItems.reduce((sum, item) => sum + (item.originalPrice * item.quantity), 0);
   const productDiscount = selectedItems.reduce((sum, item) => sum + ((item.originalPrice - item.currentPrice) * item.quantity), 0);
-  const total = Math.max(0, subtotalSelected - productDiscount - manualDiscountAmount - promoDiscountAmount);
+  
+  const shippingFee = 30000; // Cố định 30k
+  const freeShipThreshold = 500000;
+  const isAutoFreeShip = (subtotalSelected - productDiscount) >= freeShipThreshold;
+  
+  // Calculate current shipping fee before discounts
+  let currentShippingFee = isAutoFreeShip ? 0 : shippingFee;
+  let shippingDiscount = 0;
+
+  // Check if any applied coupon is FREESHIP
+  const isManualFreeship = appliedManualCoupon?.type === 'Freeship';
+  const isPromoFreeship = appliedPromoCoupon?.type === 'Freeship';
+
+  if (isManualFreeship || isPromoFreeship) {
+    if (isAutoFreeShip) {
+      // Nếu đã được freeship tự động mà áp mã freeship -> Báo lỗi và hủy mã đó
+      alert("Đơn hàng đã được freeship, vui lòng sử dụng mã khác");
+      if (isManualFreeship) {
+        setAppliedManualCoupon(null);
+        setManualDiscountAmount(0);
+      } else {
+        setAppliedPromoCoupon(null);
+        setPromoDiscountAmount(0);
+      }
+    } else {
+      // Nếu chưa được freeship tự động -> mã Freeship trừ vào phí ship
+      shippingDiscount = shippingFee;
+    }
+  }
+
+  const total = Math.max(0, subtotalSelected - productDiscount - (isManualFreeship ? 0 : manualDiscountAmount) - (isPromoFreeship ? 0 : promoDiscountAmount) + currentShippingFee - shippingDiscount);
 
   // Selection handlers
   const handleToggleSelect = (id) => {
@@ -193,7 +232,7 @@ const ShoppingCartPage = () => {
   // Handle manual coupon apply (receives data from CouponInput)
   const handleApplyManualCoupon = (couponData) => {
     if (couponData && couponData.code) {
-      setAppliedManualCoupon(couponData.code);
+      setAppliedManualCoupon({ code: couponData.code, type: couponData.type });
       setManualDiscountAmount(couponData.discount);
     }
   };
@@ -201,12 +240,27 @@ const ShoppingCartPage = () => {
   // Handle promo selection (receives data from CouponsModal)
   const handleSelectPromo = (uudai) => {
     if (uudai) {
-      const discount = uudai.loaiUuDai === 'PhanTram'
+      const discount = uudai.loaiGiamGia === 'PhanTram'
         ? (total * uudai.giaTriGiam / 100)
         : uudai.giaTriGiam;
 
-      setAppliedPromoCoupon(uudai.code);
+      setAppliedPromoCoupon({ code: uudai.maApDung, type: uudai.loaiGiamGia });
       setPromoDiscountAmount(discount);
+    }
+  };
+
+  const handleModalApplyCoupon = async (code) => {
+    try {
+      const result = await couponService.validateCoupon(code, subtotalSelected - productDiscount);
+      if (result.valid) {
+        setAppliedManualCoupon({ code: result.code, type: result.type });
+        setManualDiscountAmount(result.discount);
+        alert(`Áp dụng mã Coupon ${result.code} thành công!`);
+      } else {
+        alert(result.message || "Mã không hợp lệ");
+      }
+    } catch (err) {
+      alert("Lỗi khi áp dụng mã");
     }
   };
 
@@ -396,6 +450,7 @@ const ShoppingCartPage = () => {
                 eligibleCount={eligibleVouchersCount}
                 selectedGiftsCount={selectedGifts.length}
                 giftLimit={giftLimit}
+                label="Ưu đãi hệ thống"
               />
 
               <Card sx={{ borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: 'none' }}>
@@ -421,7 +476,7 @@ const ShoppingCartPage = () => {
                     )}
                     {manualDiscountAmount > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Mã giảm giá ({appliedManualCoupon}):</Typography>
+                        <Typography color="text.secondary">Mã giảm giá ({appliedManualCoupon?.code}):</Typography>
                         <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
                           -₫{manualDiscountAmount.toLocaleString('vi-VN')}
                         </Typography>
@@ -429,12 +484,31 @@ const ShoppingCartPage = () => {
                     )}
                     {promoDiscountAmount > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Khuyến mãi ({appliedPromoCoupon}):</Typography>
+                        <Typography color="text.secondary">Khuyến mãi ({appliedPromoCoupon?.code}):</Typography>
                         <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
                           -₫{promoDiscountAmount.toLocaleString('vi-VN')}
                         </Typography>
                       </Box>
                     )}
+                    
+                    {/* Phí ship row */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography color="text.secondary">Phí vận chuyển:</Typography>
+                      <Box sx={{ textAlign: 'right' }}>
+                         {currentShippingFee > 0 ? (
+                           <>
+                             <Typography sx={{ fontWeight: 600 }}>₫{currentShippingFee.toLocaleString('vi-VN')}</Typography>
+                             {shippingDiscount > 0 && (
+                               <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block' }}>
+                                 Mã Freeship: -₫{shippingDiscount.toLocaleString('vi-VN')}
+                               </Typography>
+                             )}
+                           </>
+                         ) : (
+                           <Typography sx={{ color: '#4caf50', fontWeight: 700 }}>Miễn phí</Typography>
+                         )}
+                      </Box>
+                    </Box>
                   </Box>
 
                   <Box sx={{ mb: 3, p: 2, backgroundColor: '#fff5f0', borderRadius: '8px', border: '1px solid #ffe8db' }}>
@@ -445,7 +519,7 @@ const ShoppingCartPage = () => {
                       </Typography>
                     </Box>
                     <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
-                      (Tiết kiệm được ₫{(productDiscount + manualDiscountAmount + promoDiscountAmount).toLocaleString('vi-VN')})
+                      (Tiết kiệm được ₫{(productDiscount + manualDiscountAmount + promoDiscountAmount + shippingDiscount).toLocaleString('vi-VN')})
                     </Typography>
                   </Box>
 
@@ -457,6 +531,7 @@ const ShoppingCartPage = () => {
                     <CouponInput
                       orderAmount={subtotalSelected - productDiscount}
                       onCouponApply={handleApplyManualCoupon}
+                      systemVoucherCodes={allVouchers.map(v => v.maApDung)}
                     />
                   </Box>
 
@@ -530,8 +605,9 @@ const ShoppingCartPage = () => {
         onClose={() => setCouponsOpen(false)}
         coupons={allVouchers}
         currentTotal={total}
-        appliedCode={appliedPromoCoupon}
+        appliedCode={appliedPromoCoupon?.code}
         onApply={handleSelectPromo}
+        onApplyManual={handleModalApplyCoupon}
       />
 
       <GiftsModal

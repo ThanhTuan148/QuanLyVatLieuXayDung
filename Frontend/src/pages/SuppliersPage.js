@@ -106,13 +106,13 @@ function SuppliersPage() {
     {
       field: 'actions',
       headerName: 'Thao Tác',
-      width: 150,
+      width: 180,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {canEdit && <Button size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
-          {canDelete && <Button size="small" color="error" onClick={() => handleDelete(params.row.maNhaCungCap)}>Xóa</Button>}
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', height: '100%' }}>
+          {canEdit && <Button size="small" variant="outlined" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+          {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(params.row.maNhaCungCap)}>Xóa</Button>}
         </Box>
       )
     }

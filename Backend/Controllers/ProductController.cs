@@ -24,17 +24,20 @@ namespace BuildingMaterialAPI.Controllers
         {
             var now = DateTime.Now;
 
-            // Lấy tất cả các chương trình khuyến mãi đang hoạt động (gồm cả Giá sốc và KM sản phẩm)
+            // 1. Fetch active promos first
             var activePromos = await _ctx.KhuyenMais
+                .AsNoTracking()
                 .Include(km => km.KhuyenMaiDoiTuongs)
                 .Where(km => km.TrangThai && km.ThoiGianBatDau <= now && km.ThoiGianKetThuc >= now)
                 .ToListAsync();
 
-
+            // 2. Fetch products with efficient projection and split query
             var productsQuery = _ctx.SanPhams
+                .AsNoTracking()
                 .Include(p => p.LoaiSanPham)
                 .Include(p => p.NhaCungCapSanPhams).ThenInclude(n => n.NhaCungCap)
                 .Include(p => p.CTKhoHangs)
+                .AsSplitQuery() // Optimization for multiple collection Includes
                 .Where(p => p.TrangThai == true);
 
             if (!includeGifts)
@@ -44,21 +47,24 @@ namespace BuildingMaterialAPI.Controllers
 
             var products = await productsQuery.ToListAsync();
 
+            // 3. Process in memory (efficiently)
+            var memberRank = Request.Headers.ContainsKey("X-Member-Rank") ? Request.Headers["X-Member-Rank"].ToString() : "Mới";
+
             var result = products.Select(p =>
             {
-                // Tìm các khuyến mãi áp dụng cho sản phẩm này
+                // Pre-filter promos for this product to avoid repeated lookups
                 var productPromos = activePromos
                     .Where(km => km.KhuyenMaiDoiTuongs.Any(dt => dt.MaSanPham == p.MaSanPham || (dt.MaLoaiSP != null && dt.MaLoaiSP == p.MaLoaiSP)))
                     .ToList();
 
-                // Ưu tiên 1: Giá sốc (FlashSale)
+                // Priority 1: FlashSale
                 var flashPromo = productPromos.FirstOrDefault(km => km.LoaiKM == "GiaSoc");
                 var flashDetail = flashPromo?.KhuyenMaiDoiTuongs.FirstOrDefault(dt => dt.MaSanPham == p.MaSanPham);
                 
-                // Ưu tiên 2: Khuyến mãi sản phẩm / Thành viên
+                // Priority 2: Best regular promo
                 var bestPromo = productPromos
                     .Where(km => km.LoaiKM == "SanPham" || km.LoaiKM == "ThanhVien")
-                    .OrderByDescending(km => km.HangThanhVien == (Request.Headers.ContainsKey("X-Member-Rank") ? Request.Headers["X-Member-Rank"].ToString() : "Mới") ? 1 : 0) 
+                    .OrderByDescending(km => km.HangThanhVien == memberRank ? 1 : 0) 
                     .ThenByDescending(km => km.LoaiGiamGia == "PhanTram" ? km.GiaTriGiam : 0) 
                     .FirstOrDefault();
 
@@ -100,17 +106,15 @@ namespace BuildingMaterialAPI.Controllers
                     phanTramGiam,
                     loaiGia,
                     hangApDung = bestPromo?.HangThanhVien,
-
                     giaNhap = p.GiaNhap, mucTonToiThieu = p.MucTonToiThieu,
                     ghiChu = p.GhiChu, maLoaiSP = p.MaLoaiSP,
                     thuongHieu = p.ThuongHieu, xuatXu = p.XuatXu,
-                    tenLoai = p.LoaiSanPham != null ? p.LoaiSanPham.TenLoai : "",
+                    tenLoai = p.LoaiSanPham?.TenLoai ?? "",
                     trangThai = p.TrangThai, ngayTao = p.NgayTao,
                     trongLuong = p.TrongLuong,
                     donViTrongLuong = p.DonViTrongLuong,
                     kichThuoc = p.KichThuoc,
                     isGift = p.IsGift == true,
-                    
                     nhaCungCaps = p.NhaCungCapSanPhams.Select(n => new {
                         maNCC = n.MaNCC,
                         tenNCC = n.NhaCungCap?.TenNCC,

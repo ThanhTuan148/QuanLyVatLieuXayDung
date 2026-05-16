@@ -6,6 +6,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using System.IO;
+using System.Text.Json.Serialization;
 
 namespace BuildingMaterialAPI.Controllers
 {
@@ -167,25 +168,89 @@ namespace BuildingMaterialAPI.Controllers
             await _ctx.SaveChangesAsync();
             return NoContent();
         }
-        [HttpGet("{productId}/import-history")]
-        public async Task<IActionResult> GetImportHistory(int productId)
+        public class ImportHistoryDto
         {
-            var history = await _ctx.CTPNs
-                .Include(c => c.PhieuNhap)
-                .ThenInclude(p => p.NhaCungCap)
-                .Where(c => c.MaSanPham == productId && c.SoLuongDaNhan > 0)
-                .OrderByDescending(c => c.PhieuNhap.NgayNhap)
-                .Select(c => new {
-                    idPhieuNhap = c.MaPhieuNhap,
-                    maPhieuNhap = c.PhieuNhap.MaPN,
-                    ngayNhap = c.PhieuNhap.NgayNhap,
-                    tenNhaCungCap = c.PhieuNhap.NhaCungCap != null ? c.PhieuNhap.NhaCungCap.TenNCC : "Khác",
-                    soLuongNhan = c.SoLuongDaNhan,
-                    donGia = c.DonGia,
-                    thanhTien = (decimal)c.SoLuongDaNhan * c.DonGia
-                })
-                .ToListAsync();
-            return Ok(history);
+            [JsonPropertyName("idPhieu")] public int IdPhieu { get; set; }
+            [JsonPropertyName("maPhieu")] public string MaPhieu { get; set; }
+            [JsonPropertyName("ngayNhap")] public DateTime? NgayNhap { get; set; }
+            [JsonPropertyName("tenNhaCungCap")] public string TenNhaCungCap { get; set; }
+            [JsonPropertyName("soLuongNhan")] public int SoLuongNhan { get; set; }
+            [JsonPropertyName("donGia")] public decimal DonGia { get; set; }
+            [JsonPropertyName("thanhTien")] public decimal ThanhTien { get; set; }
+            [JsonPropertyName("loai")] public string Loai { get; set; }
+        }
+
+        [HttpGet("{productId}/import-history")]
+        public async Task<IActionResult> GetImportHistory(int productId, [FromQuery] int? warehouseId = null)
+        {
+            // 1. Nhập hàng từ Nhà Cung Cấp (Phiếu Nhập gốc)
+            var pnQuery = _ctx.CTPNs
+                .AsNoTracking()
+                .Where(c => c.MaSanPham == productId && c.SoLuongDaNhan > 0);
+
+            if (warehouseId.HasValue)
+                pnQuery = pnQuery.Where(c => c.MaKhoHang == warehouseId.Value);
+
+            var pnItems = await pnQuery.Select(c => new ImportHistoryDto
+            {
+                IdPhieu = c.MaPhieuNhap,
+                MaPhieu = c.PhieuNhap.MaPN ?? "PN-Unknown",
+                NgayNhap = c.PhieuNhap.NgayNhap,
+                TenNhaCungCap = c.PhieuNhap.NhaCungCap != null ? c.PhieuNhap.NhaCungCap.TenNCC : "Khác",
+                SoLuongNhan = c.SoLuongDaNhan,
+                DonGia = c.DonGia,
+                ThanhTien = (decimal)c.SoLuongDaNhan * c.DonGia,
+                Loai = "Nhập hàng"
+            }).ToListAsync();
+
+            // 2. Nhập bù từ Đổi Trả Nhà Cung Cấp (Join in DB)
+            var srQuery = _ctx.CTPhieuTraHangNCCs
+                .AsNoTracking()
+                .Where(c => c.MaSanPham == productId && c.PhieuTraHangNCC.TrangThai == "Hoàn Tất");
+
+            if (warehouseId.HasValue)
+            {
+                // Join with CTPN to check warehouse
+                srQuery = srQuery.Where(c => _ctx.CTPNs.Any(x => x.MaPhieuNhap == c.PhieuTraHangNCC.MaPhieuNhap && x.MaSanPham == productId && x.MaKhoHang == warehouseId.Value));
+            }
+
+            var srItems = await srQuery.Select(c => new ImportHistoryDto
+            {
+                IdPhieu = c.MaPhieuTra,
+                MaPhieu = c.PhieuTraHangNCC.MaPT ?? "PT-Unknown",
+                NgayNhap = c.PhieuTraHangNCC.NgayCapNhat,
+                TenNhaCungCap = c.PhieuTraHangNCC.PhieuNhap.NhaCungCap != null ? c.PhieuTraHangNCC.PhieuNhap.NhaCungCap.TenNCC : "NCC",
+                SoLuongNhan = c.SoLuongTra,
+                DonGia = c.DonGia,
+                ThanhTien = (decimal)c.SoLuongTra * c.DonGia,
+                Loai = "Nhập bù (Đổi trả)"
+            }).ToListAsync();
+
+            // 3. Nhập từ Khách Hàng Đổi Trả (Join in DB)
+            var crQuery = _ctx.CTPhieuDoiTras
+                .AsNoTracking()
+                .Where(c => c.MaSanPham == productId && c.PhieuDoiTra.TrangThai == "Hoàn Tất" && c.PhieuDoiTra.TrangThaiNhapKho == "Đã nhập kho");
+
+            if (warehouseId.HasValue)
+            {
+                // Join with CTPhieuXuatKho to check warehouse (based on HoaDon)
+                crQuery = crQuery.Where(c => _ctx.CTPhieuXuatKhos.Any(x => x.PhieuXuatKho.MaHoaDon == c.PhieuDoiTra.MaHoaDon && x.MaSanPham == productId && x.MaKho == warehouseId.Value));
+            }
+
+            var crItems = await crQuery.Select(c => new ImportHistoryDto
+            {
+                IdPhieu = c.MaPhieuDT,
+                MaPhieu = c.PhieuDoiTra.MaDT ?? "DT-Unknown",
+                NgayNhap = c.PhieuDoiTra.NgayCapNhat,
+                TenNhaCungCap = "Trả từ: " + (c.PhieuDoiTra.HoaDon.KhachHang != null ? c.PhieuDoiTra.HoaDon.KhachHang.TenKH : "Khách lẻ"),
+                SoLuongNhan = c.SoLuong,
+                DonGia = c.DonGia,
+                ThanhTien = (decimal)c.SoLuong * c.DonGia,
+                Loai = "Khách trả hàng"
+            }).ToListAsync();
+
+            var combinedList = pnItems.Concat(srItems).Concat(crItems).OrderByDescending(x => x.NgayNhap).ToList();
+            return Ok(combinedList);
         }
 
         [HttpGet("outbound")]
@@ -211,8 +276,10 @@ namespace BuildingMaterialAPI.Controllers
                     maNguoiDuyet = p.MaNguoiDuyet,
                     ngayDuyet = p.NgayDuyet,
                     chiTiet = p.ChiTiet.Select(ct => new {
+                        maSanPham = ct.MaSanPham,
                         tenSanPham = ct.SanPham != null ? ct.SanPham.TenSP : "N/A",
                         soLuong = ct.SoLuong,
+                        soLuongThucNhan = ct.SoLuongThucNhan ?? 0,
                         tenKho = ct.KhoHang != null ? ct.KhoHang.TenKho : "N/A",
                         donGiaVon = ct.DonGiaVon
                     })
@@ -272,11 +339,20 @@ namespace BuildingMaterialAPI.Controllers
                             MaPhieuXK INT NOT NULL,
                             MaSanPham INT NOT NULL,
                             SoLuong INT NOT NULL,
+                            SoLuongThucNhan INT NULL,
+                            GhiChu NVARCHAR(MAX) NULL,
                             MaKho INT NULL,
                             DonGiaVon DECIMAL(18,0) DEFAULT 0,
                             CONSTRAINT FK_CTPXK_PhieuXK FOREIGN KEY (MaPhieuXK) REFERENCES PHIEUXUATKHO(MaPhieuXK),
                             CONSTRAINT FK_CTPXK_SanPham FOREIGN KEY (MaSanPham) REFERENCES SANPHAM(MaSanPham)
                         );
+                    END
+                    ELSE
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('CTPHIEUXUATKHO') AND name = 'SoLuongThucNhan')
+                            ALTER TABLE CTPHIEUXUATKHO ADD SoLuongThucNhan INT NULL;
+                        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('CTPHIEUXUATKHO') AND name = 'GhiChu')
+                            ALTER TABLE CTPHIEUXUATKHO ADD GhiChu NVARCHAR(MAX) NULL;
                     END
                 ");
                 return Ok(new { message = "Khởi tạo các bảng kho thành công!" });
@@ -561,7 +637,7 @@ namespace BuildingMaterialAPI.Controllers
             var driver = await _ctx.NhanViens.FindAsync(driverId);
             if (driver == null) return BadRequest("Tài xế không tồn tại");
 
-            bool isFull = true;
+            bool hasUpdate = false;
             string shortageNote = "";
 
             if (body.Items != null && body.Items.Any())
@@ -571,20 +647,27 @@ namespace BuildingMaterialAPI.Controllers
                     var ctxk = p.ChiTiet.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
                     if (ctxk != null)
                     {
-                        ctxk.SoLuongThucNhan = item.SoLuongNhan;
+                        int receivedThisTime = item.SoLuongNhan;
+                        ctxk.SoLuongThucNhan = (ctxk.SoLuongThucNhan ?? 0) + receivedThisTime;
                         ctxk.GhiChu = item.GhiChu;
 
-                        if (item.SoLuongNhan < ctxk.SoLuong)
+                        if (receivedThisTime > 0) hasUpdate = true;
+
+                        if (ctxk.SoLuongThucNhan < ctxk.SoLuong)
                         {
-                            isFull = false;
-                            shortageNote += $"Thiếu {ctxk.SanPham?.TenSP ?? "SP"}: {ctxk.SoLuong - item.SoLuongNhan}; ";
+                            shortageNote += $"Thiếu {ctxk.SanPham?.TenSP ?? "SP"}: {ctxk.SoLuong - ctxk.SoLuongThucNhan}; ";
                         }
                     }
                 }
             }
 
+            if (!hasUpdate) return BadRequest(new { message = "Vui lòng nhập ít nhất một sản phẩm đã nhận." });
+
+            // Kiểm tra xem tất cả sản phẩm trong phiếu này đã nhận đủ chưa
+            bool isAllFull = p.ChiTiet.All(ct => (ct.SoLuongThucNhan ?? 0) >= ct.SoLuong);
+
             string oldStatus = p.TrangThai;
-            p.TrangThai = isFull ? "Đã xuất" : "Đã xuất (Thiếu hàng)";
+            p.TrangThai = isAllFull ? "Đã xuất" : "Đã nhận một phần";
             p.MaNguoiNhan = driverId;
             p.ChuKyNguoiNhan = driver.ChuKy;
 
@@ -593,26 +676,28 @@ namespace BuildingMaterialAPI.Controllers
                 MaPhieuXK = id,
                 TrangThaiCu = oldStatus,
                 TrangThaiMoi = p.TrangThai,
-                NoiDungThayDoi = isFull ? $"Tài xế {driver.TenNV} xác nhận nhận đủ hàng." : $"Tài xế {driver.TenNV} xác nhận nhận thiếu hàng. {shortageNote}",
+                NoiDungThayDoi = isAllFull 
+                    ? $"Tài xế {driver.TenNV} xác nhận đã nhận ĐỦ hàng." 
+                    : $"Tài xế {driver.TenNV} xác nhận nhận thêm hàng (Chưa đủ). {shortageNote}",
                 MaNguoiThucHien = driver.MaNhanVien,
                 NgayTao = DateTime.UtcNow
             });
 
             if (p.PhieuGiaoHang != null)
             {
-                p.PhieuGiaoHang.TrangThai = isFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
+                p.PhieuGiaoHang.TrangThai = isAllFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
                 p.PhieuGiaoHang.NgayCapNhat = DateTime.UtcNow;
 
                 if (p.PhieuGiaoHang.CTPhieuGiaoHangs != null)
                 {
                     foreach (var item in p.PhieuGiaoHang.CTPhieuGiaoHangs)
                     {
-                        var receiptItem = body.Items?.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
-                        if (receiptItem != null)
+                        var ctxk = p.ChiTiet.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
+                        if (ctxk != null)
                         {
-                            if (receiptItem.SoLuongNhan >= item.SoLuongGiao)
+                            if ((ctxk.SoLuongThucNhan ?? 0) >= ctxk.SoLuong)
                                 item.TrangThai = "Đang giao";
-                            else if (receiptItem.SoLuongNhan > 0)
+                            else if ((ctxk.SoLuongThucNhan ?? 0) > 0)
                                 item.TrangThai = "Đang giao (Thiếu)";
                             else
                                 item.TrangThai = "Chờ giao (Thiếu)";
@@ -624,15 +709,28 @@ namespace BuildingMaterialAPI.Controllers
                 var hd = await _ctx.HoaDons.FindAsync(p.MaHoaDon);
                 if (hd != null)
                 {
-                    hd.TrangThai = isFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
+                    string oldHdStatus = hd.TrangThai;
+                    hd.TrangThai = isAllFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
                     hd.NgayCapNhat = DateTime.UtcNow;
+
+                    _ctx.LichSuHoaDons.Add(new LichSuHoaDon
+                    {
+                        MaHoaDon = hd.MaHoaDon,
+                        TrangThaiCu = oldHdStatus,
+                        TrangThaiMoi = hd.TrangThai,
+                        NoiDungThayDoi = isAllFull 
+                            ? $"Tài xế {driver.TenNV} đã nhận đủ hàng từ kho và bắt đầu đi giao." 
+                            : $"Tài xế {driver.TenNV} đã nhận một phần hàng từ kho. {shortageNote}",
+                        MaNguoiThucHien = driverId,
+                        NgayTao = DateTime.UtcNow
+                    });
                 }
             }
 
             await _ctx.SaveChangesAsync();
             return Ok(new { 
-                message = isFull ? "Đã nhận hàng đầy đủ. Đang đi giao." : "Xác nhận nhận hàng một phần. " + shortageNote,
-                isFull = isFull
+                message = isAllFull ? "Đã nhận hàng đầy đủ. Đang đi giao." : "Xác nhận nhận hàng một phần thành công. Bạn có thể tiếp tục cập nhật khi nhận thêm hàng.",
+                isFull = isAllFull
             });
         }
 

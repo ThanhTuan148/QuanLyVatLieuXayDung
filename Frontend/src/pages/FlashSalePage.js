@@ -8,9 +8,11 @@ import cartService from '../services/cartService';
 import storageHelper from '../services/storageHelper';
 import ProductCard from '../components/ProductCard';
 
+let cachedFlashSaleData = null;
+
 const FlashSalePage = () => {
-  const [flashSale, setFlashSale] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [flashSale, setFlashSale] = useState(cachedFlashSaleData);
+  const [loading, setLoading] = useState(!cachedFlashSaleData);
   const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00' });
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -54,12 +56,14 @@ const FlashSalePage = () => {
   useEffect(() => {
     const fetchActiveFlashSale = async () => {
       try {
-        setLoading(true);
+        if (!cachedFlashSaleData) setLoading(true);
         const data = await flashSaleService.getActiveSales();
         // Assuming we take the first active flash sale
         if (data && data.length > 0) {
+          cachedFlashSaleData = data[0];
           setFlashSale(data[0]);
         } else {
+          cachedFlashSaleData = null;
           setFlashSale(null);
         }
       } catch (error) {
@@ -83,10 +87,11 @@ const FlashSalePage = () => {
         clearInterval(interval);
         setTimeLeft({ hours: '00', minutes: '00', seconds: '00' });
         // Optionally refresh or hide sale
+        setFlashSale(null);
         return;
       }
 
-      const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const h = Math.floor(distance / (1000 * 60 * 60));
       const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const s = Math.floor((distance % (1000 * 60)) / 1000);
 

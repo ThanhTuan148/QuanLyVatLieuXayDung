@@ -17,6 +17,7 @@ const useQuery = () => {
 const SearchResultsPage = () => {
   const query = useQuery();
   const searchTerm = query.get('q') || '';
+  const brandTerm = query.get('brand') || '';
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [priceRange, setPriceRange] = useState([0, 5000000]);
@@ -33,13 +34,21 @@ const SearchResultsPage = () => {
         const res = await productService.getAllProducts(null, false);
         const prods = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
         
-        // Filter products by search term
-        const lowerSearchTerm = searchTerm.toLowerCase();
-        const filteredProds = prods.filter(p => 
-          p.tenSP?.toLowerCase().includes(lowerSearchTerm) || 
-          p.tenLoai?.toLowerCase().includes(lowerSearchTerm) ||
-          p.moTa?.toLowerCase().includes(lowerSearchTerm)
-        );
+        // Filter products by search term or brand
+        let filteredProds = prods;
+        if (brandTerm) {
+          filteredProds = prods.filter(p => 
+            p.thuongHieu?.toLowerCase() === brandTerm.toLowerCase()
+          );
+        } else if (searchTerm) {
+          const lowerSearchTerm = searchTerm.toLowerCase();
+          filteredProds = prods.filter(p => 
+            p.tenSP?.toLowerCase().includes(lowerSearchTerm) || 
+            p.tenLoai?.toLowerCase().includes(lowerSearchTerm) ||
+            p.moTa?.toLowerCase().includes(lowerSearchTerm) ||
+            p.thuongHieu?.toLowerCase().includes(lowerSearchTerm)
+          );
+        }
         setSearchResults(filteredProds);
 
         // Fetch related products (same category as first result, or just random ones)
@@ -65,13 +74,13 @@ const SearchResultsPage = () => {
       }
     };
     
-    if (searchTerm) {
+    if (searchTerm || brandTerm) {
       fetchSearchResults();
     } else {
       setSearchResults([]);
       setLoading(false);
     }
-  }, [searchTerm]);
+  }, [searchTerm, brandTerm]);
 
   const handlePriceChange = (event, newValue) => {
     setPriceRange(newValue);
@@ -128,7 +137,7 @@ const SearchResultsPage = () => {
 
         <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
           <Typography variant="h2" sx={{ color: '#fff', fontSize: { xs: '2.5rem', md: '4rem' }, fontWeight: 700, mb: 1, textShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-            Kết quả tìm kiếm: "{searchTerm}"
+            {brandTerm ? `Thương hiệu: ${brandTerm}` : `Kết quả tìm kiếm: "${searchTerm}"`}
           </Typography>
         </Container>
       </Box>
