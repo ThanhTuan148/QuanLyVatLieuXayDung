@@ -11,7 +11,8 @@ body {
 }
 
 html {
-  overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
+  overflow-y: scroll;
+  /* Always show scrollbar to prevent layout shift */
   scrollbar-gutter: stable;
 }
 

@@ -173,6 +173,7 @@ export default function NotificationCenter() {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleClose}
+        disableScrollLock={true}
         PaperProps={{
           sx: { 
             width: 380, maxHeight: 520, mt: 1.5, borderRadius: 3, 

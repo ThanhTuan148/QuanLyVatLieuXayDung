@@ -1,293 +1,274 @@
-import React, { useState } from 'react';
-import { Box, Container, Typography, Grid, Button, Avatar, Divider } from '@mui/material';
-import FacebookIcon from '@mui/icons-material/Facebook';
-import LinkedInIcon from '@mui/icons-material/LinkedIn';
-import InstagramIcon from '@mui/icons-material/Instagram';
-import TwitterIcon from '@mui/icons-material/Twitter';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import HeroCarousel from '../components/HeroCarousel';
+import teamService from '../services/teamService';
 
-const teamMembers = [
-  {
-    name: 'Trương Thanh Tuấn',
-    role: '2001224546',
-    avatar: 'https://i.pravatar.cc/300?img=11',
-    socials: { facebook: '#', linkedin: '#', instagram: '#' }
-  },
-  {
-    name: 'Phạm Hồ Thúy Vy',
-    role: '2001224546',
-    avatar: 'https://i.pravatar.cc/300?img=47',
-    socials: { facebook: '#', twitter: '#', linkedin: '#', instagram: '#' }
-  },
-  {
-    name: 'Lê Trần Ngọc Yến',
-    role: '2001224546',
-    avatar: 'https://i.pravatar.cc/300?img=45',
-    socials: { facebook: '#', twitter: '#', instagram: '#' }
-  },
+const useFadeIn = () => {
+  const ref = useRef(null);
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.disconnect(); } }, { threshold: 0.1 });
+    if (ref.current) o.observe(ref.current);
+    return () => o.disconnect();
+  }, []);
+  return [ref, v];
+};
+
+const Counter = ({ target, suffix, visible }) => {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!visible) return;
+    let s = 0; const step = Math.ceil(target / 60);
+    const t = setInterval(() => { s += step; if (s >= target) { setVal(target); clearInterval(t); } else setVal(s); }, 20);
+    return () => clearInterval(t);
+  }, [visible, target]);
+  return <>{val.toLocaleString('vi-VN')}{suffix}</>;
+};
+
+const imgs = [
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1615529179035-e760f6a2dcee?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1600210492493-0946911123ea?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=420&h=260&fit=crop',
+  'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=420&h=260&fit=crop',
 ];
 
-const SocialButton = ({ icon, color }) => (
-  <Box
-    component="a"
-    href="#"
-    sx={{
-      width: 36, height: 36, borderRadius: '50%',
-      bgcolor: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff', cursor: 'pointer',
-      transition: 'transform 0.2s, opacity 0.2s',
-      '&:hover': { opacity: 0.8, transform: 'scale(1.1)' }
-    }}
-  >
-    {icon}
-  </Box>
-);
-
-const CustomerAboutPage = () => {
-  const navigate = useNavigate();
-  const [readMore, setReadMore] = useState(false);
+const MarqueeRow = ({ reverse, isImages }) => {
+  const items = [...imgs, ...imgs, ...imgs];
+  const labels = ['Vật liệu xây dựng ✦', 'Chất lượng cao cấp ✦', 'Sắt thép uy tín ✦', 'Gạch & Ngói ✦', 'Xi măng đặc biệt ✦', 'Nội thất đẳng cấp ✦', 'Tư vấn chuyên nghiệp ✦', 'Giao hàng toàn quốc ✦'];
+  const allLabels = [...labels, ...labels, ...labels];
 
   return (
-    <Box>
-
-      {/* ── HERO BANNER ── */}
-      <Box sx={{
-        bgcolor: '#9cad9f',
-        minHeight: 340,
-        position: 'relative',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-      }}>
-        {/* White oval shape behind chairs */}
-        <Box sx={{
-          position: 'absolute', right: '8%', top: '50%', transform: 'translateY(-50%)',
-          width: 420, height: 260, bgcolor: 'rgba(255,255,255,0.25)',
-          borderRadius: '50%',
-        }} />
-
-        {/* Chairs illustration using colored boxes as stand-ins */}
-        <Box sx={{ position: 'absolute', right: '5%', top: 0, bottom: 0, display: 'flex', alignItems: 'center', gap: 2 }}>
-          {[
-            { w: 80, h: 90, bg: '#c6bfb6', mt: 20 },
-            { w: 110, h: 120, bg: '#4a6741', mt: 5 },
-            { w: 70, h: 75, bg: '#3b82c4', mt: 30 },
-            { w: 100, h: 100, bg: '#c4823b', mt: 10 },
-            { w: 60, h: 100, bg: '#2b5bb5', mt: 0 },
-          ].map((shape, i) => (
-            <Box key={i} sx={{
-              width: shape.w, height: shape.h, bgcolor: shape.bg,
-              borderRadius: '40% 40% 50% 50%', mt: `${shape.mt}px`,
-              boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
-            }} />
-          ))}
-        </Box>
-
-        <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, position: 'relative', zIndex: 1 }}>
-          <Typography variant="h2" sx={{ color: '#fff', fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 700, mb: 1.5, fontSize: { xs: '2.5rem', md: '3.5rem' } }}>
-            Về chúng tôi
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography
-              variant="body2"
-              sx={{ color: 'rgba(255,255,255,0.8)', fontFamily: '"Inter", "Roboto", sans-serif', cursor: 'pointer', '&:hover': { color: '#fff' } }}
-              onClick={() => navigate('/shopping')}
-            >
-              Trang chủ
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', fontFamily: '"Inter", "Roboto", sans-serif' }}>/</Typography>
-            <Typography variant="body2" sx={{ color: '#fff', fontFamily: '"Inter", "Roboto", sans-serif', fontWeight: 600 }}>Về chúng tôi</Typography>
-          </Box>
-        </Container>
-      </Box>
-
-      {/* ── TWO PHOTOS + ABOUT TEXT ── */}
-      <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, py: 10 }}>
-        <Grid container spacing={5} alignItems="center">
-          {/* Left: two stacked photos */}
-          <Grid item xs={12} md={6}>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Box sx={{
-                flex: 1, height: 380, borderRadius: '16px', overflow: 'hidden',
-                backgroundImage: 'url(https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400)',
-                backgroundSize: 'cover', backgroundPosition: 'center'
-              }} />
-              <Box sx={{
-                flex: 1, height: 380, borderRadius: '16px', overflow: 'hidden',
-                backgroundImage: 'url(https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400)',
-                backgroundSize: 'cover', backgroundPosition: 'center'
-              }} />
-            </Box>
-          </Grid>
-
-          {/* Right: text */}
-          <Grid item xs={12} md={6}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#222', mb: 1.5, fontFamily: '"Inter", "Roboto", sans-serif' }}>
-              Về cửa hàng trực tuyến của chúng tôi
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#e68c55', fontStyle: 'italic', mb: 3, lineHeight: 1.7 }}>
-              Cung cấp vật liệu xây dựng chất lượng cao,
-              đáp ứng mọi nhu cầu xây dựng và trang trí nội thất.
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#555', mb: 2.5, lineHeight: 1.9 }}>
-              Chúng tôi là đơn vị chuyên cung cấp vật liệu xây dựng hàng đầu với nhiều năm
-              kinh nghiệm trong ngành. Từ xi măng, ống đồng, dây điện cho đến các vật tư
-              hoàn thiện nội ngoại thất – tất cả đều được tuyển chọn kỹ lưỡng từ các thương
-              hiệu uy tín trong và ngoài nước.
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#555', lineHeight: 1.9 }}>
-              Hệ thống phân phối rộng khắp, dịch vụ giao hàng tận nơi và đội ngũ tư vấn
-              chuyên nghiệp giúp khách hàng lựa chọn đúng sản phẩm, tiết kiệm thời gian và
-              chi phí tối đa cho mọi công trình.
-            </Typography>
-          </Grid>
-        </Grid>
-      </Container>
-
-      {/* ── TEAM MEMBERS ── */}
-      <Box sx={{ py: 8 }}>
-        <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
-          <Box sx={{ textAlign: 'center', mb: 7 }}>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: '#222', mb: 1, fontFamily: '"Inter", "Roboto", sans-serif' }}>Thành viên nhóm</Typography>
-          </Box>
-
-          <Grid container spacing={6} justifyContent="center">
-            {teamMembers.map((member, i) => (
-              <Grid item xs={12} sm={6} md={4} key={i} sx={{ display: 'flex', justifyContent: 'center' }}>
-                <Box sx={{ textAlign: 'center', maxWidth: 300 }}>
-                  {/* Circle Avatar */}
-                  <Box sx={{
-                    width: 260, height: 260, borderRadius: '50%', overflow: 'hidden',
-                    mx: 'auto', mb: 3,
-                    backgroundImage: `url(${member.avatar})`,
-                    backgroundSize: 'cover', backgroundPosition: 'center',
-                    border: '4px solid #f0ede8',
-                    boxShadow: '0 8px 30px rgba(0,0,0,0.1)'
-                  }} />
-
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#222', mb: 0.5 }}>{member.name}</Typography>
-                  <Typography variant="body2" sx={{ color: '#999', mb: 2 }}>{member.role}</Typography>
-
-                  {/* Social Icons */}
-                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                    {member.socials.facebook && <SocialButton color="#1877f2" icon={<FacebookIcon sx={{ fontSize: 18 }} />} />}
-                    {member.socials.twitter && <SocialButton color="#000" icon={<TwitterIcon sx={{ fontSize: 18 }} />} />}
-                    {member.socials.linkedin && <SocialButton color="#0a66c2" icon={<LinkedInIcon sx={{ fontSize: 18 }} />} />}
-                    {member.socials.instagram && <SocialButton color="#c13584" icon={<InstagramIcon sx={{ fontSize: 18 }} />} />}
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* ── VIDEO / IMAGE SHOWCASE ── */}
-      <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, py: 6 }}>
-        <Box sx={{
-          borderRadius: '40px', overflow: 'hidden', position: 'relative',
-          height: 380,
-          backgroundImage: 'url(https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1200)',
-          backgroundSize: 'cover', backgroundPosition: 'center',
-        }}>
-          {/* Dark overlay */}
-          <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.4)' }} />
-
-          {/* Text */}
-          <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', mb: 1, letterSpacing: 1 }}>
-              Vật liệu xây dựng
-            </Typography>
-            <Typography variant="h3" sx={{ color: '#fff', fontWeight: 700, mb: 4, fontSize: { xs: '1.8rem', md: '2.8rem' } }}>
-              Cách chúng tôi xây dựng thương hiệu
-            </Typography>
-
-            {/* Play Button */}
-            <Box sx={{
-              width: 64, height: 64, borderRadius: '50%',
-              border: '2px solid rgba(255,255,255,0.7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 0.3s',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', transform: 'scale(1.1)' }
-            }}>
-              <PlayArrowIcon sx={{ color: '#fff', fontSize: 34 }} />
-            </Box>
-          </Box>
-        </Box>
-      </Container>
-
-      {/* ── TEXT CONTENT BLOCKS ── */}
-      <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, py: 6 }}>
-        <Grid container spacing={8}>
-          <Grid item xs={12}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#222', mb: 2 }}>
-              Cửa hàng trực tuyến với đa dạng vật liệu xây dựng
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#555', lineHeight: 2, mb: 4 }}>
-              Vật liệu xây dựng là nền tảng không thể thiếu của bất kỳ công trình nào.
-              Chúng tôi cung cấp không gian sinh hoạt đúng nghĩa, tạo điều kiện lý tưởng
-              để làm việc hiệu quả hoặc nghỉ ngơi sau một ngày dài. Ngày càng phổ biến hơn,
-              khách hàng có thể đặt hàng ngay trong cửa hàng trực tuyến của chúng tôi, ngồi
-              thoải mái tại nhà, chọn lựa vật liệu phù hợp và mua sắm những sản phẩm mình ưa thích.
-              Cửa hàng trực tuyến của chúng tôi có danh mục vật liệu đồ sộ: từ vật liệu thô như
-              xi măng, cát, đá cho đến vật liệu hoàn thiện nội ngoại thất cao cấp.
-            </Typography>
-
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#222', mb: 2 }}>
-              Sản xuất vật liệu là một hình thức nghệ thuật hiện đại
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: '#555', lineHeight: 2,
-                overflow: readMore ? 'visible' : 'hidden',
-                maxHeight: readMore ? 'none' : '80px',
-                display: '-webkit-box',
-                WebkitLineClamp: readMore ? 'unset' : 3,
-                WebkitBoxOrient: 'vertical',
-              }}
-            >
-              Các nhà sản xuất vật liệu xây dựng, cũng như các nhà sản xuất đồ gia dụng
-              khác, luôn mang đến những ưu đãi tuyệt vời: chúng ta thường bắt gặp cả những
-              sản phẩm sản xuất đại trà tiêu chuẩn lẫn những sáng tạo độc đáo – vật liệu từ
-              những người thợ thủ công lành nghề sẽ được đánh giá cao bởi những người thực sự
-              am hiểu chất lượng. Chúng tôi đã tuyển chọn cho bạn những mẫu tốt nhất từ các
-              nghệ nhân hiện đại, những người đã thành công kết hợp hài hòa giữa truyền thống
-              và đổi mới trong từng sản phẩm.
-            </Typography>
-
-            <Button
-              onClick={() => setReadMore(r => !r)}
-              sx={{ mt: 3, color: '#333', fontWeight: 700, borderBottom: '2px solid #333', borderRadius: 0, px: 0, textTransform: 'none', '&:hover': { bgcolor: 'transparent', color: '#e68c55', borderColor: '#e68c55' } }}
-            >
-              {readMore ? 'Thu gọn' : 'Đọc thêm'}
-            </Button>
-          </Grid>
-        </Grid>
-      </Container>
-
-      {/* ── STATS BANNER ── */}
-      <Box sx={{ bgcolor: '#2b2b2b', py: 6, mt: 4 }}>
-        <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
-          <Grid container spacing={4} justifyContent="space-around" textAlign="center">
-            {[
-              { num: '2,500+', label: 'Sản phẩm' },
-              { num: '150+', label: 'Thương hiệu' },
-              { num: '10,000+', label: 'Khách hàng' },
-              { num: '15+', label: 'Năm kinh nghiệm' },
-            ].map((stat, i) => (
-              <Grid item xs={6} md={3} key={i}>
-                <Typography variant="h3" sx={{ color: '#e68c55', fontWeight: 800, mb: 0.5 }}>{stat.num}</Typography>
-                <Typography variant="body1" sx={{ color: '#aaa' }}>{stat.label}</Typography>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-    </Box>
+    <div style={{ overflow: 'hidden' }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: isImages ? '1rem' : '2.5rem', animation: `${reverse ? 'marqueeRev' : 'marquee'} ${isImages ? 50 : 28}s linear infinite`, willChange: 'transform' }}>
+        {isImages ? items.map((src, i) => (
+          <div key={i} style={{ flexShrink: 0, borderRadius: 10, overflow: 'hidden', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <img src={src} alt="" loading="lazy" style={{ width: 190, height: 115, objectFit: 'cover', display: 'block' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(230,140,85,0.12), transparent)' }} />
+          </div>
+        )) : allLabels.map((label, i) => (
+          <span key={i} style={{ fontFamily: "'Kanit', sans-serif", fontWeight: i % 2 === 0 ? 700 : 300, fontSize: 'clamp(0.9rem,1.8vw,1.4rem)', color: i % 2 === 0 ? '#e68c55' : '#8B7355', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 };
 
-export default CustomerAboutPage;
+// Floating particles
+const Particles = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+    {[...Array(12)].map((_, i) => (
+      <div key={i} style={{
+        position: 'absolute',
+        width: Math.random() * 6 + 4,
+        height: Math.random() * 6 + 4,
+        borderRadius: '50%',
+        background: i % 3 === 0 ? '#e68c55' : i % 3 === 1 ? '#C9963A' : '#f0c080',
+        opacity: 0.25,
+        left: `${(i * 8.3) % 100}%`,
+        top: `${(i * 13.7) % 100}%`,
+        animation: `float${i % 4} ${5 + i * 0.7}s ${i * 0.4}s ease-in-out infinite`,
+      }} />
+    ))}
+  </div>
+);
+
+const services = [
+  { n: '01', name: 'Vật liệu thô', desc: 'Xi măng, cát, đá, sỏi — được tuyển chọn kỹ lưỡng từ nhà cung cấp uy tín.' },
+  { n: '02', name: 'Sắt thép xây dựng', desc: 'Hòa Phát, Pomina và các thương hiệu hàng đầu với chứng nhận quốc tế.' },
+  { n: '03', name: 'Vật liệu hoàn thiện', desc: 'Gạch ốp lát, sơn, kính, nhôm — nội ngoại thất cao cấp đa dạng.' },
+  { n: '04', name: 'Tư vấn kỹ thuật', desc: 'Chuyên gia hỗ trợ lựa chọn vật liệu tối ưu cho từng công trình.' },
+  { n: '05', name: 'Giao hàng & Lắp đặt', desc: 'Vận chuyển tận nơi, hỗ trợ lắp đặt với đội ngũ kỹ thuật chuyên nghiệp.' },
+];
+
+const DEFAULT_TEAM = [
+  { name: 'Trương Thanh Tuấn', id: '2001224546', role: 'Trưởng nhóm phát triển', avatar: 'https://fifth-gentle-45902158.figma.site/_components/v2/4de492f6d9cf8244ad5293233e5c6f52407d42fc/1.02464a56.png', bg: '#F4845F' },
+  { name: 'Phạm Hồ Thúy Vy', id: '2001225958', role: 'Thiết kế UI/UX', avatar: 'https://fifth-gentle-45902158.figma.site/_components/v2/4de492f6d9cf8244ad5293233e5c6f52407d42fc/2.b977faab.png', bg: '#6BBF7A' },
+  { name: 'Lê Trần Ngọc Yến', id: '2001226134', role: 'Phát triển Backend', avatar: 'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', bg: '#E882B4' },
+];
+
+const ORG = '#e68c55';
+const CREAM = '#fdf8f2';
+const WARM = '#f8f3eb';
+const DARK = '#2C1810';
+const MID = '#7C5C3E';
+
+export default function CustomerAboutPage() {
+  const navigate = useNavigate();
+  const [sRef, sV] = useFadeIn();
+  const [stRef, stV] = useFadeIn();
+  const [svRef, svV] = useFadeIn();
+  const [tRef, tV] = useFadeIn();
+
+  const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const data = await teamService.getAllTeamMembers();
+        if (data && data.length > 0) {
+          const updatedData = data.map(m => {
+            if (m.studentId === '2001226134' || m.id === '2001226134' || m.name?.includes('Ngọc Yến')) {
+              return {
+                ...m,
+                avatar: 'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png',
+                bg: '#5A9BD5'
+              };
+            }
+            return m;
+          });
+          setTeamMembers(updatedData);
+        }
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      }
+    };
+    fetchTeam();
+  }, []);
+
+  return (
+    <div style={{ background: CREAM, fontFamily: "'Kanit', sans-serif", overflowX: 'clip' }}>
+      <style>{`
+        @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
+        @keyframes marqueeRev{from{transform:translateX(-33.333%)}to{transform:translateX(0)}}
+        @keyframes float0{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
+        @keyframes float1{0%,100%{transform:translateY(0)}50%{transform:translateY(-24px)}}
+        @keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+        @keyframes float3{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes wave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.4)}}
+        @keyframes blob{0%,100%{border-radius:60% 40% 30% 70%/60% 30% 70% 40%}50%{border-radius:30% 60% 70% 40%/50% 60% 30% 60%}}
+        .sym-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.25rem; max-width: 960px; margin: 0 auto; }
+        .sym-card { width: calc(33.333% - 0.84rem); min-width: 260px; background: #fdf8f2; border: 1px solid rgba(230,140,85,.25); border-radius: 16px; padding: 1.5rem 1.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: transform .4s cubic-bezier(.4,0,.2,1), box-shadow .4s, background .4s, border-color .4s; box-shadow: 0 4px 20px rgba(0,0,0,.03); position: relative; overflow: hidden; }
+        .sym-card:hover { transform: translateY(-6px); background: #fff; border-color: #e68c55; box-shadow: 0 16px 32px rgba(230,140,85,.15); }
+        @media(max-width: 1024px) { .sym-card { width: calc(50% - 0.75rem); } }
+        @media(max-width: 640px) { .sym-card { width: 100%; } }
+        .team-card{transition:transform .4s cubic-bezier(.4,0,.2,1),box-shadow .4s}
+        .team-card:hover{transform:translateY(-12px);box-shadow:0 24px 50px rgba(230,140,85,.25)!important}
+        .cta-btn{background:linear-gradient(135deg,${ORG},#d4743a);border:none;color:#fff;font-family:'Kanit',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.12em;padding:10px 32px;border-radius:999px;cursor:pointer;font-size:clamp(.8rem,1.2vw,.95rem);box-shadow:0 8px 28px rgba(230,140,85,.4);transition:transform .2s,box-shadow .2s}
+        .cta-btn:hover{transform:scale(1.04);box-shadow:0 12px 40px rgba(230,140,85,.6)}
+        .ghost-btn2{background:transparent;border:2px solid rgba(230,140,85,.7);color:${DARK};font-family:'Kanit',sans-serif;font-weight:500;text-transform:uppercase;letter-spacing:.1em;padding:10px 32px;border-radius:999px;cursor:pointer;font-size:clamp(.8rem,1.2vw,.95rem);transition:all .2s}
+        .ghost-btn2:hover{background:rgba(230,140,85,.1);border-color:${ORG}}
+      `}</style>
+
+      <HeroCarousel />
+
+      <section style={{ background: '#fff', padding: '24px 0', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid rgba(230,140,85,.15)', borderBottom: '1px solid rgba(230,140,85,.15)' }}>
+        <MarqueeRow reverse={false} isImages={true} />
+        <MarqueeRow reverse={true} isImages={false} />
+        <MarqueeRow reverse={false} isImages={true} />
+      </section>
+
+      <section ref={sRef} style={{ background: WARM, padding: 'clamp(40px,5vw,60px) clamp(20px,5vw,80px)', position: 'relative', overflow: 'hidden' }}>
+        <Particles />
+        <div style={{ position: 'absolute', top: '-10%', right: '-5%', width: 400, height: 400, background: 'rgba(230,140,85,0.08)', borderRadius: '60% 40% 30% 70%/60% 30% 70% 40%', animation: 'blob 8s ease-in-out infinite', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: 300, height: 300, background: 'rgba(201,150,58,0.07)', borderRadius: '30% 60% 70% 40%/50% 60% 30% 60%', animation: 'blob 10s 3s ease-in-out infinite', pointerEvents: 'none' }} />
+
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '4rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+          <div style={{ opacity: sV ? 1 : 0, transform: sV ? 'translateX(0)' : 'translateX(-50px)', transition: 'all .9s ease' }}>
+            <p style={{ color: ORG, fontWeight: 600, letterSpacing: '.25em', textTransform: 'uppercase', fontSize: '.85rem', marginBottom: '1rem' }}>VLXD Thành Đạt — Từ 2009</p>
+            <h2 style={{ fontWeight: 900, fontSize: 'clamp(1.6rem,4.5vw,3rem)', lineHeight: 1.1, color: DARK, marginBottom: '1.2rem' }}>
+              Kiến tạo<br />
+              <span style={{ color: ORG }}>công trình</span><br />
+              của bạn
+            </h2>
+            <p style={{ color: MID, fontWeight: 300, lineHeight: 1.85, fontSize: 'clamp(.95rem,1.6vw,1.15rem)', marginBottom: '2rem' }}>
+              Hơn <strong style={{ color: DARK, fontWeight: 700 }}>15 năm</strong> đồng hành cùng hàng chục nghìn công trình — từ những nền móng đầu tiên đến những công trình hoàn thiện ấn tượng nhất.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button className="cta-btn" onClick={() => navigate('/contact')}>Liên hệ ngay</button>
+              <button className="ghost-btn2" onClick={() => navigate('/shopping')}>Xem sản phẩm</button>
+            </div>
+          </div>
+          <div style={{ opacity: sV ? 1 : 0, transform: sV ? 'translateX(0)' : 'translateX(50px)', transition: 'all .9s .2s ease', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            {imgs.slice(0, 4).map((src, i) => (
+              <div key={i} style={{ borderRadius: 16, overflow: 'hidden', aspectRatio: '4/3', animation: `float${i % 4} ${5 + i}s ${i * 0.5}s ease-in-out infinite`, boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
+                <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section ref={stRef} style={{ background: DARK, padding: 'clamp(36px,4vw,50px) clamp(20px,5vw,80px)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 50%, rgba(230,140,85,0.12), transparent 60%)`, pointerEvents: 'none' }} />
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '2.5rem', textAlign: 'center', position: 'relative', zIndex: 1 }}>
+          {[{ n: 2500, s: '+', l: 'Sản phẩm' }, { n: 150, s: '+', l: 'Thương hiệu' }, { n: 10000, s: '+', l: 'Khách hàng' }, { n: 15, s: '+', l: 'Năm kinh nghiệm' }].map((x, i) => (
+            <div key={i} style={{ opacity: stV ? 1 : 0, transform: stV ? 'translateY(0)' : 'translateY(40px)', transition: `all .7s ${i * .12}s ease` }}>
+              <p style={{ fontWeight: 900, fontSize: 'clamp(2rem,5.5vw,3.2rem)', lineHeight: 1, color: ORG, marginBottom: '.3rem' }}><Counter target={x.n} suffix={x.s} visible={stV} /></p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400, letterSpacing: '.15em', textTransform: 'uppercase', fontSize: '.8rem' }}>{x.l}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section ref={svRef} style={{ background: '#fff', borderRadius: 'clamp(24px,4vw,48px) clamp(24px,4vw,48px) 0 0', padding: 'clamp(30px,3vw,45px) clamp(20px,5vw,60px)' }}>
+        <h2 style={{ fontFamily: "'Kanit',sans-serif", fontWeight: 900, textTransform: 'uppercase', textAlign: 'center', color: DARK, fontSize: 'clamp(1.8rem,5vw,3.5rem)', lineHeight: 1.15, marginBottom: 'clamp(1.5rem,3vw,2.5rem)' }}>Dịch vụ</h2>
+        <div className="sym-grid">
+          {services.map((s, i) => (
+            <div key={i} className="sym-card" style={{ opacity: svV ? 1 : 0, transform: svV ? 'translateY(0)' : 'translateY(20px)', transition: `all .7s ${i * .1}s ease` }}>
+              <div style={{ position: 'absolute', right: -15, bottom: -15, fontSize: '6rem', fontWeight: 900, fontFamily: "'Anton', sans-serif", color: 'rgba(230,140,85,0.05)', pointerEvents: 'none', lineHeight: 1, userSelect: 'none' }}>
+                {s.n}
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                  <span style={{ fontWeight: 900, fontSize: '2rem', color: ORG, lineHeight: 1 }}>{s.n}</span>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(230,140,85,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: ORG, fontSize: '1rem' }}>
+                    ✦
+                  </div>
+                </div>
+                <p style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '1.15rem', color: DARK, marginBottom: '0.5rem', letterSpacing: '.03em' }}>{s.name}</p>
+                <p style={{ fontWeight: 300, fontSize: '0.88rem', color: '#6B7280', lineHeight: 1.5 }}>{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── TEAM ── */}
+      <section ref={tRef} style={{ background: WARM, borderRadius: 'clamp(24px,4vw,48px) clamp(24px,4vw,48px) 0 0', marginTop: -16, padding: 'clamp(30px,3vw,45px) clamp(20px,5vw,60px)', position: 'relative', overflow: 'hidden' }}>
+        <Particles />
+        <h2 style={{ fontFamily: "'Kanit',sans-serif", fontWeight: 900, textTransform: 'uppercase', textAlign: 'center', color: DARK, fontSize: 'clamp(1.8rem,5vw,3.5rem)', lineHeight: 1.15, marginBottom: 'clamp(1.5rem,3vw,2.5rem)' }}>
+          <span style={{ color: ORG }}>Đội</span> ngũ
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1.25rem', maxWidth: 820, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          {teamMembers.map((m, i) => (
+            <div key={i} className="team-card" style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', border: `1px solid rgba(230,140,85,.2)`, boxShadow: '0 4px 20px rgba(0,0,0,.06)', opacity: tV ? 1 : 0, transform: tV ? 'translateY(0)' : 'translateY(30px)', transition: `all .8s ${i * .15}s ease` }}>
+              {/* Character image with pastel bg */}
+              <div style={{ background: m.bg, height: 155, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
+                <img src={m.avatar} alt={m.name} style={{ height: 145, objectFit: 'contain', objectPosition: 'bottom' }} />
+              </div>
+              {/* Info */}
+              <div style={{ padding: '0.8rem 1.2rem', textAlign: 'center' }}>
+                <p style={{ fontWeight: 700, fontSize: '1rem', color: DARK, marginBottom: '.15rem' }}>{m.name}</p>
+                <p style={{ fontWeight: 400, fontSize: '.75rem', color: ORG, letterSpacing: '.05em' }}>MSSV: {m.id || m.studentId}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section style={{ background: DARK, padding: 'clamp(30px,3vw,45px) clamp(20px,5vw,60px)', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 50%, rgba(230,140,85,.1), transparent 60%)`, pointerEvents: 'none' }} />
+        <p style={{ color: ORG, fontWeight: 400, letterSpacing: '.25em', textTransform: 'uppercase', fontSize: '.8rem', marginBottom: '1.25rem', opacity: .8 }}>Sẵn sàng xây dựng cùng chúng tôi?</p>
+        <h2 style={{ fontFamily: "'Kanit',sans-serif", fontWeight: 900, textTransform: 'uppercase', fontSize: 'clamp(1.8rem,5vw,3.5rem)', lineHeight: 1.15, color: '#fff', marginBottom: '1.8rem' }}>
+          Bắt đầu <span style={{ color: ORG }}>ngay</span>
+        </h2>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          <button className="cta-btn" onClick={() => navigate('/contact')}>Liên hệ với chúng tôi</button>
+          <button style={{ background: 'transparent', border: '2px solid rgba(230,140,85,.6)', color: '#fff', fontFamily: "'Kanit',sans-serif", fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.1em', padding: '10px 32px', borderRadius: 999, cursor: 'pointer', fontSize: 'clamp(.8rem,1.2vw,.95rem)', transition: 'all .2s' }} onClick={() => navigate('/shopping')}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(230,140,85,.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >Mua sắm ngay</button>
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Container, Grid, Box, Typography, Button, 
   IconButton, Slider, Checkbox, FormControlLabel, Select, MenuItem, Skeleton, Divider, Snackbar, Alert
 } from '@mui/material';
-import { FavoriteBorder as FavoriteIcon, GridView as GridIcon, ViewList as ListIcon, ViewModule as Grid3Icon, ViewComfy as Grid4Icon } from '@mui/icons-material';
+import { FavoriteBorder as FavoriteIcon, GridView as GridIcon, ViewList as ListIcon, ViewModule as Grid3Icon, ViewComfy as Grid4Icon, ArrowBackIosNew as ArrowBackIosNewIcon, ArrowForwardIos as ArrowForwardIosIcon } from '@mui/icons-material';
 import productService from '../services/productService';
 import ProductCard from '../components/ProductCard';
 import cartService from '../services/cartService';
@@ -34,6 +34,29 @@ const CustomerCategoryPage = () => {
   const [viewMode, setViewMode] = useState('grid4'); // 'list', 'grid3', 'grid4'
   const [favorites, setFavorites] = useState(() => storageHelper.getFavorites());
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const recommendedScrollRef = useRef(null);
+  const favoriteScrollRef = useRef(null);
+
+  const handleCarouselScroll = (ref, dir, itemWidth) => {
+    const el = ref.current;
+    if (el) {
+      const scrollAmount = itemWidth + 24;
+      if (dir === 'left') {
+        if (el.scrollLeft <= 10) {
+          el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+        } else {
+          el.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+        }
+      } else {
+        if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 10) {
+          el.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -281,7 +304,13 @@ const CustomerCategoryPage = () => {
                     sx={{ cursor: 'pointer', color: viewMode === 'grid4' ? '#333' : '#aaa' }} 
                   />
                 </Box>
-                <Select size="small" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} sx={{ minWidth: 150, bgcolor: '#fff', borderRadius: '20px', '& fieldset': {border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'} }}>
+                <Select 
+                  size="small" 
+                  value={sortOrder} 
+                  onChange={(e) => setSortOrder(e.target.value)} 
+                  MenuProps={{ disableScrollLock: true }}
+                  sx={{ minWidth: 150, bgcolor: '#fff', borderRadius: '20px', '& fieldset': {border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'} }}
+                >
                   <MenuItem value="latest">Mới nhất</MenuItem>
                   <MenuItem value="popularity">Phổ biến</MenuItem>
                   <MenuItem value="price-asc">Giá: Thấp đến Cao</MenuItem>
@@ -327,53 +356,177 @@ const CustomerCategoryPage = () => {
       {/* Recommended / Other Products */}
       <Container maxWidth="xl" sx={{ mt: 10 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, color: '#333' }}>Có thể bạn sẽ thích</Typography>
-        <Grid container spacing={3}>
-           {loading ? (
-              Array(4).fill().map((_, i) => (
-                <Grid item xs={12} sm={6} md={3} key={i}>
+        <Box
+          sx={{
+            position: 'relative',
+            '& .carousel-arrow': { opacity: 0, transition: 'all 0.3s' },
+            '&:hover .carousel-arrow': { opacity: 1 }
+          }}
+        >
+          {/* Left Arrow Floating */}
+          <IconButton
+            className="carousel-arrow"
+            onClick={() => handleCarouselScroll(recommendedScrollRef, 'left', 260)}
+            sx={{
+              position: 'absolute',
+              left: { xs: -10, md: -20 },
+              top: '50%',
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              color: '#e68c55',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              zIndex: 10,
+              width: { xs: 38, md: 48 },
+              height: { xs: 38, md: 48 },
+              '&:hover': { bgcolor: '#fff', transform: 'translateY(-50%) scale(1.1)' }
+            }}
+          >
+            <ArrowBackIosNewIcon fontSize="small" />
+          </IconButton>
+
+          {/* Right Arrow Floating */}
+          <IconButton
+            className="carousel-arrow"
+            onClick={() => handleCarouselScroll(recommendedScrollRef, 'right', 260)}
+            sx={{
+              position: 'absolute',
+              right: { xs: -10, md: -20 },
+              top: '50%',
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              color: '#e68c55',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              zIndex: 10,
+              width: { xs: 38, md: 48 },
+              height: { xs: 38, md: 48 },
+              '&:hover': { bgcolor: '#fff', transform: 'translateY(-50%) scale(1.1)' }
+            }}
+          >
+            <ArrowForwardIosIcon fontSize="small" />
+          </IconButton>
+
+          <Box
+            ref={recommendedScrollRef}
+            sx={{
+              display: 'flex',
+              gap: 3,
+              overflowX: 'auto',
+              pb: 2,
+              px: 1,
+              '&::-webkit-scrollbar': { display: 'none' },
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {loading ? (
+              Array(6).fill().map((_, i) => (
+                <Box key={i} sx={{ minWidth: { xs: 200, sm: 240, md: 260 }, maxWidth: { xs: 200, sm: 240, md: 260 }, flexShrink: 0 }}>
                   <Skeleton variant="rectangular" height={360} sx={{ borderRadius: '12px' }} />
-                </Grid>
+                </Box>
               ))
-           ) : (
-             allProductsRaw.filter(p => p.maLoaiSP != id).slice(0, 4).map(p => (
-               <Grid item xs={12} sm={6} md={3} key={p.maSanPham || p.maSP}>
-                 <ProductCard 
-                   product={p} 
-                   isFavorite={favorites.includes(p.maSanPham || p.maSP)} 
-                   onToggleFav={handleToggleFavorite} 
-                   onAddToCart={handleAddToCart} 
-                 />
-               </Grid>
-             ))
-           )}
-        </Grid>
+            ) : (
+              allProductsRaw.filter(p => p.maLoaiSP != id).slice(0, 12).map(p => (
+                <Box key={p.maSanPham || p.maSP} sx={{ minWidth: { xs: 200, sm: 240, md: 260 }, maxWidth: { xs: 200, sm: 240, md: 260 }, flexShrink: 0 }}>
+                  <ProductCard 
+                    product={p} 
+                    isFavorite={favorites.includes(p.maSanPham || p.maSP)} 
+                    onToggleFav={handleToggleFavorite} 
+                    onAddToCart={handleAddToCart} 
+                  />
+                </Box>
+              ))
+            )}
+          </Box>
+        </Box>
       </Container>
 
       {/* Favorite Products */}
       <Container maxWidth="xl" sx={{ mt: 10, mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 4, color: '#333' }}>Sản phẩm yêu thích của bạn</Typography>
-        <Grid container spacing={3}>
-           {favorites.length === 0 ? (
-             <Grid item xs={12}>
-               <Typography sx={{ color: '#777', fontStyle: 'italic' }}>Bạn chưa có sản phẩm yêu thích nào.</Typography>
-             </Grid>
-           ) : (
-             favorites.slice(0, 4).map(favId => {
-               const p = allProductsRaw.find(prod => prod.maSanPham == favId || prod.maSP == favId);
-               if (!p) return null;
-               return (
-                 <Grid item xs={12} sm={6} md={3} key={p.maSanPham || p.maSP}>
-                   <ProductCard 
-                     product={p} 
-                     isFavorite={true} 
-                     onToggleFav={handleToggleFavorite} 
-                     onAddToCart={handleAddToCart} 
-                   />
-                 </Grid>
-               );
-             })
-           )}
-        </Grid>
+        <Box
+          sx={{
+            position: 'relative',
+            '& .carousel-arrow': { opacity: 0, transition: 'all 0.3s' },
+            '&:hover .carousel-arrow': { opacity: 1 }
+          }}
+        >
+          {/* Left Arrow Floating */}
+          <IconButton
+            className="carousel-arrow"
+            onClick={() => handleCarouselScroll(favoriteScrollRef, 'left', 260)}
+            sx={{
+              position: 'absolute',
+              left: { xs: -10, md: -20 },
+              top: '50%',
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              color: '#e68c55',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              zIndex: 10,
+              width: { xs: 38, md: 48 },
+              height: { xs: 38, md: 48 },
+              '&:hover': { bgcolor: '#fff', transform: 'translateY(-50%) scale(1.1)' }
+            }}
+          >
+            <ArrowBackIosNewIcon fontSize="small" />
+          </IconButton>
+
+          {/* Right Arrow Floating */}
+          <IconButton
+            className="carousel-arrow"
+            onClick={() => handleCarouselScroll(favoriteScrollRef, 'right', 260)}
+            sx={{
+              position: 'absolute',
+              right: { xs: -10, md: -20 },
+              top: '50%',
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              color: '#e68c55',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              zIndex: 10,
+              width: { xs: 38, md: 48 },
+              height: { xs: 38, md: 48 },
+              '&:hover': { bgcolor: '#fff', transform: 'translateY(-50%) scale(1.1)' }
+            }}
+          >
+            <ArrowForwardIosIcon fontSize="small" />
+          </IconButton>
+
+          <Box
+            ref={favoriteScrollRef}
+            sx={{
+              display: 'flex',
+              gap: 3,
+              overflowX: 'auto',
+              pb: 2,
+              px: 1,
+              '&::-webkit-scrollbar': { display: 'none' },
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {favorites.length === 0 ? (
+              <Box sx={{ width: '100%', py: 4 }}>
+                <Typography sx={{ color: '#777', fontStyle: 'italic' }}>Bạn chưa có sản phẩm yêu thích nào.</Typography>
+              </Box>
+            ) : (
+              favorites.map(favId => {
+                const p = allProductsRaw.find(prod => prod.maSanPham == favId || prod.maSP == favId);
+                if (!p) return null;
+                return (
+                  <Box key={p.maSanPham || p.maSP} sx={{ minWidth: { xs: 200, sm: 240, md: 260 }, maxWidth: { xs: 200, sm: 240, md: 260 }, flexShrink: 0 }}>
+                    <ProductCard 
+                      product={p} 
+                      isFavorite={true} 
+                      onToggleFav={handleToggleFavorite} 
+                      onAddToCart={handleAddToCart} 
+                    />
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
       </Container>
 
       <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })}>

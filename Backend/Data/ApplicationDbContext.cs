@@ -68,6 +68,9 @@ namespace BuildingMaterialAPI.Data
         public DbSet<LichHenTraNo> LichHenTraNos { get; set; }
         public DbSet<ContactMessage> ContactMessages { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<Banner> Banners { get; set; }
+        public DbSet<TeamMember> TeamMembers { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -218,7 +218,12 @@ const SearchResultsPage = () => {
                     sx={{ cursor: 'pointer', color: viewMode === 'grid4' ? '#333' : '#aaa' }} 
                   />
                 </Box>
-                <Select size="small" defaultValue="relevance" sx={{ minWidth: 150, bgcolor: '#fff', borderRadius: '20px', '& fieldset': {border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'} }}>
+                <Select 
+                  size="small" 
+                  defaultValue="relevance" 
+                  MenuProps={{ disableScrollLock: true }}
+                  sx={{ minWidth: 150, bgcolor: '#fff', borderRadius: '20px', '& fieldset': {border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'} }}
+                >
                   <MenuItem value="relevance">Liên quan nhất</MenuItem>
                   <MenuItem value="latest">Mới nhất</MenuItem>
                   <MenuItem value="popularity">Phổ biến nhất</MenuItem>
