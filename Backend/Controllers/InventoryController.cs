@@ -685,6 +685,12 @@ namespace BuildingMaterialAPI.Controllers
 
             if (p.PhieuGiaoHang != null)
             {
+                // Kiểm tra xem đơn hàng này đã có bất kỳ sản phẩm nào giao thành công (ở bất kỳ chuyến nào) chưa
+                bool hasDeliveredItems = await _ctx.CTPhieuGiaoHangs
+                    .AnyAsync(x => x.PhieuGiaoHang.MaHoaDon == p.MaHoaDon && 
+                                   x.TrangThai != null && 
+                                   (x.TrangThai.Contains("Đã giao") || x.TrangThai.Contains("một phần")));
+
                 p.PhieuGiaoHang.TrangThai = isAllFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
                 p.PhieuGiaoHang.NgayCapNhat = DateTime.UtcNow;
 
@@ -692,6 +698,12 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     foreach (var item in p.PhieuGiaoHang.CTPhieuGiaoHangs)
                     {
+                        // BỎ QUA sản phẩm đã giao thành công (Xong)
+                        if (item.TrangThai != null && item.TrangThai == "Đã giao")
+                        {
+                            continue;
+                        }
+
                         var ctxk = p.ChiTiet.FirstOrDefault(x => x.MaSanPham == item.MaSanPham);
                         if (ctxk != null)
                         {
@@ -705,13 +717,25 @@ namespace BuildingMaterialAPI.Controllers
                     }
                 }
 
-                // Cập nhật trạng thái Hóa đơn
+                // Cập nhật trạng thái Hóa đơn — giữ "Đã giao một phần" nếu đã có sản phẩm giao trước đó
                 var hd = await _ctx.HoaDons.FindAsync(p.MaHoaDon);
                 if (hd != null)
                 {
                     string oldHdStatus = hd.TrangThai;
-                    hd.TrangThai = isAllFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
+
+                    if (hasDeliveredItems)
+                    {
+                        // Nếu đã có hàng giao trước đó và giờ đang nhận thêm hàng từ kho
+                        // thì trạng thái đơn hàng là "Đang giao phần còn lại"
+                        hd.TrangThai = "Đang giao phần còn lại";
+                    }
+                    else
+                    {
+                        hd.TrangThai = isAllFull ? "Đang giao" : "Đang giao (Thiếu hàng)";
+                    }
                     hd.NgayCapNhat = DateTime.UtcNow;
+
+
 
                     _ctx.LichSuHoaDons.Add(new LichSuHoaDon
                     {

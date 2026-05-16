@@ -170,7 +170,7 @@ namespace BuildingMaterialAPI.Controllers
                             MaCTHD = item.MaCTHD,
                             SoLuongGiao = item.SoLuongGiao,
                             GhiChu = item.GhiChu,
-                            TrangThai = item.TrangThai ?? "Đang giao",
+                            TrangThai = item.TrangThai ?? "Chờ giao",
                             NgayTao = DateTime.UtcNow
                         });
 
@@ -251,19 +251,21 @@ namespace BuildingMaterialAPI.Controllers
                 }
             }
 
-            // Chặn "Đã giao" nếu đơn hàng vẫn còn sản phẩm chưa giao đủ
+            // Chặn "Đã giao" nếu tài xế chưa nhận đủ hàng thực tế từ kho
             if (dto.TrangThai == "Đã giao")
             {
                 var totalOrdered = await _context.CTHDs
                     .Where(ct => ct.MaHoaDon == existing.MaHoaDon)
                     .SumAsync(ct => ct.SoLuong);
-                var totalAssigned = await _context.CTPhieuGiaoHangs
-                    .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon)
-                    .SumAsync(c => c.SoLuongGiao);
 
-                if (totalAssigned < totalOrdered)
+                // Dùng SoLuongThucNhan thực tế từ tất cả phiếu xuất kho (không phải số kế hoạch SoLuongGiao)
+                var totalThucNhan = await _context.CTPhieuXuatKhos
+                    .Where(ct => ct.PhieuXuatKho.MaHoaDon == existing.MaHoaDon)
+                    .SumAsync(ct => (int?)(ct.SoLuongThucNhan ?? 0)) ?? 0;
+
+                if (totalThucNhan < totalOrdered)
                 {
-                    // Tài xế chưa nhận hàng tiếp từ kho để giao phần còn lại → ép về "Đã giao một phần"
+                    // Tài xế chưa nhận đủ hàng thực tế → ép về "Đã giao một phần"
                     dto.TrangThai = "Đã giao một phần";
                 }
             }
@@ -433,7 +435,8 @@ namespace BuildingMaterialAPI.Controllers
                         .ToListAsync();
                     var totalOrdered = cthdList.Sum(ct => ct.SoLuong);
 
-                    // Số lượng đã giao thực sự ở các chuyến KHÁC (đã hoàn thành)
+                    // Tính tổng thực nhận từ tất cả phiếu xuất kho liên quan đến đơn hàng (trừ chuyến hiện tại)
+                    // Đây là cách chính xác nhất để biết bao nhiêu hàng đã được giao thực tế
                     var previousTripsDelivered = await _context.CTPhieuGiaoHangs
                         .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon && c.MaPhieuGH != id && c.TrangThai.Contains("Đã giao"))
                         .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
@@ -441,17 +444,17 @@ namespace BuildingMaterialAPI.Controllers
                     int currentTripDelivered = 0;
                     if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần") 
                     {
-                        // Sử dụng SoLuongThucNhan từ xuất kho nếu có (số thực nhận), 
-                        // chứ không phải SoLuongGiao (số kế hoạch trên phiếu giao)
+                        // Ưu tiên dùng SoLuongThucNhan (thực nhận từ kho) thay vì SoLuongGiao (kế hoạch)
+                        // để đảm bảo chính xác khi tài xế nhận nhiều hơn hoặc ít hơn kế hoạch
                         foreach (var detail in details.Where(c => c.TrangThai != null && c.TrangThai.Contains("Đã giao")))
                         {
                             if (pxk != null)
                             {
                                 var ctxk = pxk.ChiTiet?.FirstOrDefault(x => x.MaSanPham == detail.MaSanPham);
-                                if (ctxk != null)
+                                if (ctxk != null && ctxk.SoLuongThucNhan.HasValue)
                                 {
-                                    // Lấy số nhỏ hơn giữa kế hoạch và thực nhận
-                                    currentTripDelivered += Math.Min(detail.SoLuongGiao, ctxk.SoLuongThucNhan ?? 0);
+                                    // Dùng thực nhận từ kho (có thể nhiều hơn kế hoạch trong chuyến bù)
+                                    currentTripDelivered += ctxk.SoLuongThucNhan.Value;
                                 }
                                 else
                                 {
@@ -466,6 +469,45 @@ namespace BuildingMaterialAPI.Controllers
                     }
 
                     var totalDelivered = previousTripsDelivered + currentTripDelivered;
+
+                    // ĐỒNG BỘ: Cập nhật số lượng đã giao thực tế vào Chi tiết hóa đơn (CTHD)
+                    // để trang chi tiết đơn hàng của khách hiển thị đúng (ví dụ 4/4 đã nhận)
+                    if (dto.TrangThai == "Đã giao" || dto.TrangThai == "Đã giao một phần")
+                    {
+                        foreach (var detail in details.Where(c => c.TrangThai != null && c.TrangThai.Contains("Đã giao")))
+                        {
+                            var cthd = cthdList.FirstOrDefault(x => x.MaSanPham == detail.MaSanPham);
+                            if (cthd != null)
+                            {
+                                int thucGiaoChuyenNay = detail.SoLuongGiao;
+                                if (pxk != null)
+                                {
+                                    var ctxk = pxk.ChiTiet?.FirstOrDefault(x => x.MaSanPham == detail.MaSanPham);
+                                    if (ctxk != null && ctxk.SoLuongThucNhan.HasValue)
+                                    {
+                                        thucGiaoChuyenNay = ctxk.SoLuongThucNhan.Value;
+                                    }
+                                }
+                                
+                                // Reset và tính lại tổng đã giao từ TẤT CẢ các chuyến đã thành công của SP này
+                                var allSuccessfulDeliveriesForThisSp = await _context.CTPhieuGiaoHangs
+                                    .Where(c => c.PhieuGiaoHang.MaHoaDon == existing.MaHoaDon && 
+                                                c.MaSanPham == detail.MaSanPham && 
+                                                (c.TrangThai.Contains("Đã giao") || c.MaCTGH == detail.MaCTGH))
+                                    .ToListAsync();
+
+                                // Lưu ý: chuyến hiện tại (detail) có thể chưa lưu DB nên ta dùng giá trị mới nhất
+                                int sumDelivered = 0;
+                                foreach(var d in allSuccessfulDeliveriesForThisSp)
+                                {
+                                    if (d.MaCTGH == detail.MaCTGH) sumDelivered += thucGiaoChuyenNay;
+                                    else sumDelivered += d.SoLuongGiao;
+                                }
+
+                                cthd.SoLuongDaGiao = sumDelivered;
+                            }
+                        }
+                    }
 
                     if (totalDelivered >= totalOrdered)
                     {
@@ -718,7 +760,9 @@ namespace BuildingMaterialAPI.Controllers
                         soLuongNhanKho = ctxk?.SoLuongThucNhan ?? 0,
                         donGia = cthd?.DonGia ?? ct.SanPham?.GiaBan ?? 0,
                         thanhTien = cthd?.ThanhTien ?? 0,
-                        trangThai = ct.TrangThai ?? "Đang giao",
+                        trangThai = (ct.TrangThai == "Chờ giao" && (ctxk?.SoLuongThucNhan ?? 0) > 0) 
+                                    ? "Đang giao" 
+                                    : (ct.TrangThai ?? "Chờ giao"),
                         ghiChu = ct.GhiChu
                     };
                 }).ToList()

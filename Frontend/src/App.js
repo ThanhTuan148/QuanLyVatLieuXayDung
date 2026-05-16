@@ -38,8 +38,12 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import PriceHistoryPage from './pages/PriceHistoryPage';
 import ReportsPage from './pages/ReportsPage';
+import ContactMessagesPage from './pages/ContactMessagesPage';
+import AdminChatPage from './pages/AdminChatPage';
 import ShoppingLayout from './components/ShoppingLayout';
 import ScrollToTop from './components/ScrollToTop';
+import FloatingChat from './components/FloatingChat';
+import StaffChatManager from './components/StaffChatManager';
 import { PermissionProvider } from './contexts/PermissionContext';
 
 const AdminRoute = ({ children, isAuthenticated, userRole, isAdminUser }) => {
@@ -179,10 +183,14 @@ function App() {
             <Route path="/employees" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><EmployeesPage /></AdminRoute>} />
             <Route path="/price-history" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><PriceHistoryPage /></AdminRoute>} />
             <Route path="/reports" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ReportsPage /></AdminRoute>} />
+            <Route path="/contact-messages" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ContactMessagesPage /></AdminRoute>} />
+            <Route path="/admin-chat" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><AdminChatPage /></AdminRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/shopping" />} />
           </Routes>
+          <FloatingChat />
+          <StaffChatManager />
         </Router>
       </PermissionProvider>
     </Provider>

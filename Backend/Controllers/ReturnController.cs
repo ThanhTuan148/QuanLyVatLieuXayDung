@@ -81,7 +81,7 @@ namespace BuildingMaterialAPI.Controllers
                 foreach(var name in fkNames) {
                     // Note: This is an ugly way to check but ExecuteSqlRawAsync doesn't return scalar easily
                     try {
-                        await _ctx.Database.ExecuteSqlRawAsync($"SELECT 1 FROM sys.foreign_keys WHERE name = '{name}'");
+                        await _ctx.Database.ExecuteSqlRawAsync("SELECT 1 FROM sys.foreign_keys WHERE name = {0}", name);
                         existingFks.Add(name); 
                     } catch { }
                 }

@@ -119,6 +119,7 @@ const CustomerOrderDetailPage = () => {
       case 'cho_xac_nhan': case 'chờ xác nhận': return 'warning';
       case 'da_xac_nhan': case 'đã xác nhận': return 'info';
       case 'dang_giao': case 'đang giao': return 'primary';
+      case 'đang giao phần còn lại': return 'primary';
       case 'hoan_thanh': case 'hoàn thành': return 'success';
       case 'da_huy': case 'đã hủy': return 'error';
       case 'yêu cầu đổi/trả hàng': return 'error';
@@ -136,6 +137,7 @@ const CustomerOrderDetailPage = () => {
       case 'cho_xu_ly': case 'chờ xử lý': return 'Chờ xử lý';
       case 'da_xac_nhan': return 'Đã xác nhận';
       case 'dang_giao': return 'Đang giao hàng';
+      case 'đang giao phần còn lại': return 'Đang giao phần còn lại';
       case 'hoan_thanh': return 'Hoàn thành';
       case 'da_huy': return 'Đã hủy';
       default: return status || 'N/A';
@@ -380,14 +382,14 @@ const CustomerOrderDetailPage = () => {
                               />
                               {(item.soLuongDangGiao > 0) && (
                                 <Chip
-                                  label={`${item.soLuongDangGiao} đang đến`}
+                                  label={`${item.soLuongDangGiao} đang giao`}
                                   size="small"
                                   color="primary"
                                   variant="filled"
                                   sx={{ height: 18, fontSize: '0.6rem', fontWeight: 'bold', width: '100%' }}
                                 />
                               )}
-                              {(item.soLuongChoGiao > 0) && (
+                              {(item.soLuongChoGiao > 0 && item.soLuongDangGiao <= 0) && (
                                 <Chip
                                   label={`${item.soLuongChoGiao} chờ giao`}
                                   size="small"
@@ -426,7 +428,7 @@ const CustomerOrderDetailPage = () => {
 
                     {/* Actual Gift Items */}
                     {groupData.items.filter(i => i.donGia === 0 && !(['Xi măng', 'Thép', 'Gạch', 'Cát', 'Đá', 'Sắt'].some(kw => i.tenSanPham?.includes(kw)))).map((item, iIdx) => (
-                      <TableRow key={`gift-${iIdx}`} sx={{ bgcolor: '#fffdf9' }}>
+                      <TableRow key={`gift-${iIdx}`}>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" fontWeight={600}>{item.tenSanPham}</Typography>
@@ -447,9 +449,9 @@ const CustomerOrderDetailPage = () => {
                             />
                             {(item.soLuongDangGiao > 0) && (
                               <Chip
-                                label={`${item.soLuongDangGiao} đang đến`}
+                                label={`${item.soLuongDangGiao} đang giao`}
                                 size="small"
-                                color="warning"
+                                color="primary"
                                 variant="filled"
                                 sx={{ height: 18, fontSize: '0.6rem', fontWeight: 'bold', width: '100%' }}
                               />

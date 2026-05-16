@@ -87,6 +87,7 @@ function DashboardPage() {
     { title: '👷 Nhân Viên', value: stats?.tongNhanVien || 0, bgColor: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', icon: '👷', path: '/employees' },
     { title: '📋 Phiếu Nhập', value: stats?.tongPhieuNhap || 0, bgColor: 'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)', icon: '📋', path: '/procurement' },
     { title: '💳 Công Nợ', value: formatVND(stats?.tongCongNo), bgColor: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', icon: '💳', path: '/debts' },
+    { title: '📧 Tin Nhắn', value: `${stats?.tongTinNhan || 0} (${stats?.tongTinNhanChuaDoc || 0} mới)`, bgColor: 'linear-gradient(135deg, #2af598 0%, #009efd 100%)', icon: '📧', path: '/contact-messages' },
   ];
 
   // Pie data from top products

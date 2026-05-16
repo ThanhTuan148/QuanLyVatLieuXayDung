@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { Box, Container, Grid, Typography, TextField, Button, Paper, Divider, Snackbar, Alert } from '@mui/material';
+import { Box, Container, Grid, Typography, TextField, Button, Paper, Divider, Snackbar, Alert, CircularProgress } from '@mui/material';
 import { LocationOn, Phone, Email, AccessTime, Send } from '@mui/icons-material';
+import axios from 'axios';
 
 const CustomerContactPage = () => {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulate API call
-    setTimeout(() => {
-      setSnackbar({ open: true, message: 'Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.', severity: 'success' });
+    setLoading(true);
+    try {
+      await axios.post('http://localhost:5000/api/Contact', formData);
+      setSnackbar({ open: true, message: 'Cảm ơn bạn đã liên hệ! Chúng tôi đã nhận được tin nhắn và sẽ phản hồi sớm nhất.', severity: 'success' });
       setFormData({ name: '', email: '', subject: '', message: '' });
-    }, 1000);
+    } catch (error) {
+      console.error('Contact error:', error);
+      setSnackbar({ open: true, message: 'Có lỗi xảy ra khi gửi tin nhắn. Vui lòng thử lại sau.', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -101,8 +109,16 @@ const CustomerContactPage = () => {
                     <TextField fullWidth label="Nội dung lời nhắn" name="message" value={formData.message} onChange={handleChange} required multiline rows={5} variant="outlined" />
                   </Grid>
                   <Grid item xs={12}>
-                    <Button type="submit" variant="contained" size="large" endIcon={<Send />} sx={{ bgcolor: '#e68c55', '&:hover': { bgcolor: '#cc7a4a' }, borderRadius: '8px', px: 4, py: 1.5, fontWeight: 'bold' }}>
-                      Gửi Tin Nhắn
+                    <Button 
+                      type="submit" 
+                      variant="contained" 
+                      size="large" 
+                      disabled={loading}
+                      startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+                      endIcon={!loading && <Send />} 
+                      sx={{ bgcolor: '#e68c55', '&:hover': { bgcolor: '#cc7a4a' }, borderRadius: '8px', px: 4, py: 1.5, fontWeight: 'bold' }}
+                    >
+                      {loading ? 'Đang gửi...' : 'Gửi Tin Nhắn'}
                     </Button>
                   </Grid>
                 </Grid>

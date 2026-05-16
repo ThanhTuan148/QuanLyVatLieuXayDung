@@ -25,6 +25,8 @@ namespace BuildingMaterialAPI.Controllers
             var tongNhanVien = await _context.NhanViens.CountAsync();
             var tongPhieuNhap = await _context.PhieuNhaps.CountAsync();
             var tongCongNo = await _context.CongNos.SumAsync(c => c.SoTienConLai ?? 0);
+            var tongTinNhan = await _context.ContactMessages.CountAsync();
+            var tongTinNhanChuaDoc = await _context.ContactMessages.CountAsync(m => !m.IsRead);
 
             return Ok(new
             {
@@ -35,7 +37,9 @@ namespace BuildingMaterialAPI.Controllers
                 tongNhaCungCap,
                 tongNhanVien,
                 tongPhieuNhap,
-                tongCongNo
+                tongCongNo,
+                tongTinNhan,
+                tongTinNhanChuaDoc
             });
         }
 

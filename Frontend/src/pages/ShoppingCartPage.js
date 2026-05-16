@@ -47,13 +47,9 @@ const ShoppingCartPage = () => {
   const [loading, setLoading] = useState(!cachedCartItems);
   const [selectedIds, setSelectedIds] = useState(() => (cachedCartItems || []).map(i => i.cartId));
 
-  // Manual Coupon state (from text input)
-  const [appliedManualCoupon, setAppliedManualCoupon] = useState(null);
-  const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
-
-  // Selected Promo state (from browsing list)
-  const [appliedPromoCoupon, setAppliedPromoCoupon] = useState(null);
-  const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
+  // Unified Coupon state (only 1 code at a time)
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [dynamicDiscount, setDynamicDiscount] = useState(0);
 
   // Rewards state
   const [allVouchers, setAllVouchers] = useState(cachedVouchers || []);
@@ -135,34 +131,32 @@ const ShoppingCartPage = () => {
   
   const shippingFee = 30000; // Cố định 30k
   const freeShipThreshold = 500000;
-  const isAutoFreeShip = (subtotalSelected - productDiscount) >= freeShipThreshold;
+  const currentBaseTotal = subtotalSelected - productDiscount;
+  const isAutoFreeShip = currentBaseTotal >= freeShipThreshold;
   
   // Calculate current shipping fee before discounts
   let currentShippingFee = isAutoFreeShip ? 0 : shippingFee;
   let shippingDiscount = 0;
 
-  // Check if any applied coupon is FREESHIP
-  const isManualFreeship = appliedManualCoupon?.type === 'Freeship';
-  const isPromoFreeship = appliedPromoCoupon?.type === 'Freeship';
-
-  if (isManualFreeship || isPromoFreeship) {
-    if (isAutoFreeShip) {
-      // Nếu đã được freeship tự động mà áp mã freeship -> Báo lỗi và hủy mã đó
-      alert("Đơn hàng đã được freeship, vui lòng sử dụng mã khác");
-      if (isManualFreeship) {
-        setAppliedManualCoupon(null);
-        setManualDiscountAmount(0);
-      } else {
-        setAppliedPromoCoupon(null);
-        setPromoDiscountAmount(0);
+  // Calculate dynamic discount (Single Coupon Policy)
+  let currentDynamicDiscount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.type === 'Freeship') {
+      shippingDiscount = shippingFee;
+    } else if (appliedCoupon.type === 'PhanTram') {
+      currentDynamicDiscount = (currentBaseTotal * appliedCoupon.value) / 100;
+      if (appliedCoupon.limit && currentDynamicDiscount > appliedCoupon.limit) {
+        currentDynamicDiscount = appliedCoupon.limit;
       }
     } else {
-      // Nếu chưa được freeship tự động -> mã Freeship trừ vào phí ship
-      shippingDiscount = shippingFee;
+      currentDynamicDiscount = appliedCoupon.value;
     }
   }
 
-  const total = Math.max(0, subtotalSelected - productDiscount - (isManualFreeship ? 0 : manualDiscountAmount) - (isPromoFreeship ? 0 : promoDiscountAmount) + currentShippingFee - shippingDiscount);
+  // Ensure discount doesn't exceed order amount
+  currentDynamicDiscount = Math.min(currentDynamicDiscount, currentBaseTotal);
+
+  const total = Math.max(0, currentBaseTotal - currentDynamicDiscount + currentShippingFee - shippingDiscount);
 
   // Selection handlers
   const handleToggleSelect = (id) => {
@@ -229,33 +223,62 @@ const ShoppingCartPage = () => {
     }
   };
 
-  // Handle manual coupon apply (receives data from CouponInput)
   const handleApplyManualCoupon = (couponData) => {
     if (couponData && couponData.code) {
-      setAppliedManualCoupon({ code: couponData.code, type: couponData.type });
-      setManualDiscountAmount(couponData.discount);
+      if (appliedCoupon?.code === couponData.code) return;
+      if (couponData.type === 'Freeship' && isAutoFreeShip) {
+        alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+        return;
+      }
+      setAppliedCoupon({ 
+        id: couponData.id, 
+        code: couponData.code, 
+        type: couponData.type,
+        value: couponData.discountValue, 
+        limit: couponData.maxDiscount,
+        minOrderAmount: couponData.minOrderAmount || 0
+      });
     }
   };
 
-  // Handle promo selection (receives data from CouponsModal)
   const handleSelectPromo = (uudai) => {
     if (uudai) {
-      const discount = uudai.loaiGiamGia === 'PhanTram'
-        ? (total * uudai.giaTriGiam / 100)
-        : uudai.giaTriGiam;
-
-      setAppliedPromoCoupon({ code: uudai.maApDung, type: uudai.loaiGiamGia });
-      setPromoDiscountAmount(discount);
+      if (appliedCoupon?.code === uudai.maApDung) return;
+      if (uudai.loaiGiamGia === 'Freeship' && isAutoFreeShip) {
+        alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+        return;
+      }
+      setAppliedCoupon({ 
+        id: uudai.maKhuyenMai, 
+        code: uudai.maApDung, 
+        type: uudai.loaiGiamGia,
+        value: uudai.giaTriGiam,
+        limit: uudai.giamToiDa,
+        minOrderAmount: uudai.donHangToiThieu || 0
+      });
+      setCouponsOpen(false);
     }
   };
 
   const handleModalApplyCoupon = async (code) => {
     try {
-      const result = await couponService.validateCoupon(code, subtotalSelected - productDiscount);
+      const result = await couponService.validateCoupon(code, currentBaseTotal);
       if (result.valid) {
-        setAppliedManualCoupon({ code: result.code, type: result.type });
-        setManualDiscountAmount(result.discount);
+        if (appliedCoupon?.code === result.code) return;
+        if (result.type === 'Freeship' && isAutoFreeShip) {
+          alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+          return;
+        }
+        setAppliedCoupon({ 
+          id: result.maKhuyenMai, 
+          code: result.code, 
+          type: result.type,
+          value: result.discountValue || result.discount,
+          limit: result.maxDiscount,
+          minOrderAmount: result.minOrderAmount || 0
+        });
         alert(`Áp dụng mã Coupon ${result.code} thành công!`);
+        setCouponsOpen(false);
       } else {
         alert(result.message || "Mã không hợp lệ");
       }
@@ -264,19 +287,19 @@ const ShoppingCartPage = () => {
     }
   };
 
-  // Determine gift limit
+  // Determine gift limit (using red box subtotal)
   let giftLimit = 0;
-  if (total >= 3000000) giftLimit = 3;
-  else if (total >= 2000000) giftLimit = 2;
-  else if (total >= 500000) giftLimit = 1;
+  if (currentBaseTotal >= 3000000) giftLimit = 3;
+  else if (currentBaseTotal >= 2000000) giftLimit = 2;
+  else if (currentBaseTotal >= 500000) giftLimit = 1;
 
   // Find next best voucher for progress bar
-  const nextVouchers = allVouchers.filter(v => total < (v.donHangToiThieu || 0));
+  const nextVouchers = allVouchers.filter(v => currentBaseTotal < (v.donHangToiThieu || 0));
   const nextVoucher = nextVouchers.length > 0 ? nextVouchers.reduce((prev, curr) =>
     (curr.donHangToiThieu < prev.donHangToiThieu ? curr : prev), nextVouchers[0]) : null;
 
   // Calculate eligible vouchers count
-  const eligibleVouchersCount = allVouchers.filter(v => total >= (v.donHangToiThieu || 0)).length;
+  const eligibleVouchersCount = allVouchers.filter(v => currentBaseTotal >= (v.donHangToiThieu || 0)).length;
 
   // Sync selected gifts with limit
   useEffect(() => {
@@ -284,6 +307,16 @@ const ShoppingCartPage = () => {
       setSelectedGifts(prev => prev.slice(0, giftLimit));
     }
   }, [giftLimit, selectedGifts.length]);
+
+  // Auto-remove coupon if conditions no longer met
+  useEffect(() => {
+    if (appliedCoupon && appliedCoupon.minOrderAmount > 0) {
+      if (currentBaseTotal < appliedCoupon.minOrderAmount) {
+        setAppliedCoupon(null);
+        alert(`Mã giảm giá ${appliedCoupon.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${appliedCoupon.minOrderAmount.toLocaleString('vi-VN')}₫).`);
+      }
+    }
+  }, [currentBaseTotal, appliedCoupon]);
 
   if (loading) {
     return (
@@ -443,7 +476,8 @@ const ShoppingCartPage = () => {
 
               {/* Rewards Section */}
               <PromotionSection
-                currentTotal={total}
+                currentTotal={currentBaseTotal}
+                appliedCode={appliedCoupon?.code}
                 onOpenCoupons={() => setCouponsOpen(true)}
                 onOpenGifts={() => setGiftsOpen(true)}
                 bestCoupon={nextVoucher}
@@ -474,19 +508,11 @@ const ShoppingCartPage = () => {
                         </Typography>
                       </Box>
                     )}
-                    {manualDiscountAmount > 0 && (
+                    {currentDynamicDiscount > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Mã giảm giá ({appliedManualCoupon?.code}):</Typography>
+                        <Typography color="text.secondary">Mã giảm giá ({appliedCoupon?.code}):</Typography>
                         <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                          -₫{manualDiscountAmount.toLocaleString('vi-VN')}
-                        </Typography>
-                      </Box>
-                    )}
-                    {promoDiscountAmount > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography color="text.secondary">Khuyến mãi ({appliedPromoCoupon?.code}):</Typography>
-                        <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>
-                          -₫{promoDiscountAmount.toLocaleString('vi-VN')}
+                          -₫{currentDynamicDiscount.toLocaleString('vi-VN')}
                         </Typography>
                       </Box>
                     )}
@@ -519,7 +545,7 @@ const ShoppingCartPage = () => {
                       </Typography>
                     </Box>
                     <Typography variant="caption" sx={{ color: '#666', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
-                      (Tiết kiệm được ₫{(productDiscount + manualDiscountAmount + promoDiscountAmount + shippingDiscount).toLocaleString('vi-VN')})
+                      (Tiết kiệm được ₫{(productDiscount + currentDynamicDiscount + shippingDiscount).toLocaleString('vi-VN')})
                     </Typography>
                   </Box>
 
@@ -564,10 +590,10 @@ const ShoppingCartPage = () => {
                             total,
                             subtotalSelected,
                             productDiscount,
-                            manualDiscountAmount,
-                            promoDiscountAmount,
-                            appliedManualCoupon,
-                            appliedPromoCoupon,
+                            manualDiscountAmount: currentDynamicDiscount,
+                            promoDiscountAmount: 0, 
+                            appliedManualCoupon: appliedCoupon,
+                            appliedPromoCoupon: null,
                             gifts: selectedGifts
                           }
                         });
@@ -604,8 +630,8 @@ const ShoppingCartPage = () => {
         open={couponsOpen}
         onClose={() => setCouponsOpen(false)}
         coupons={allVouchers}
-        currentTotal={total}
-        appliedCode={appliedPromoCoupon?.code}
+        currentTotal={currentBaseTotal}
+        appliedCode={appliedCoupon?.code}
         onApply={handleSelectPromo}
         onApplyManual={handleModalApplyCoupon}
       />
@@ -613,7 +639,7 @@ const ShoppingCartPage = () => {
       <GiftsModal
         open={giftsOpen}
         onClose={() => setGiftsOpen(false)}
-        currentTotal={total}
+        currentTotal={currentBaseTotal}
         selectedGifts={selectedGifts}
         onSelect={(gifts) => setSelectedGifts(gifts)}
       />

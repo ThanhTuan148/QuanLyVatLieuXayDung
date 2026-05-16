@@ -23,20 +23,39 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Chip
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CancelIcon from '@mui/icons-material/Cancel';
 import orderService from '../services/orderService';
 import cartService from '../services/cartService';
 import customerService from '../services/customerService';
+import couponService from '../services/couponService';
+import voucherUuDaiService from '../services/voucherUuDaiService';
+import CouponInput from '../components/CouponInput';
+import GiftsModal from '../components/GiftsModal';
+import PromotionSection from '../components/PromotionSection';
+import CouponsModal from '../components/CouponsModal';
 
 const formatVND = (amount) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 };
 
 const CheckoutPage = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const {
+    selectedItems: stateItems = [],
+    total: stateTotal = 0,
+    gifts: stateGifts = [],
+    productDiscount: stateProductDiscount = 0,
+    manualDiscountAmount: stateManualDiscount = 0,
+    promoDiscountAmount: statePromoDiscount = 0,
+    appliedManualCoupon: stateManualCoupon = null,
+    appliedPromoCoupon: statePromoCoupon = null,
+    reorderFrom
+  } = location.state || {};
 
   const [addressForm, setAddressForm] = useState({
     fullName: '',
@@ -129,8 +148,18 @@ const CheckoutPage = () => {
     if (isLoggedIn) {
       fetchCustomerInfo();
       fetchDebtStatus();
+      fetchVouchers();
     }
   }, [isLoggedIn]);
+
+  const fetchVouchers = async () => {
+    try {
+      const res = await voucherUuDaiService.getAll();
+      setAllVouchers(Array.isArray(res.data) ? res.data : (res || []));
+    } catch (err) {
+      console.error("Failed to fetch vouchers:", err);
+    }
+  };
 
   const fetchDebtStatus = async () => {
     const userStr = localStorage.getItem('user');
@@ -221,6 +250,12 @@ const CheckoutPage = () => {
 
   const [customerDebtInfo, setCustomerDebtInfo] = useState({ currentDebt: 0, limit: 20000000, rank: 'Đồng' });
 
+  // Unified Promotion State (initialized from shopping cart if provided)
+  const [appliedCoupon, setAppliedCoupon] = useState(stateManualCoupon || statePromoCoupon || null);
+  const [allVouchers, setAllVouchers] = useState([]);
+  const [giftsModalOpen, setGiftsModalOpen] = useState(false);
+  const [couponsOpen, setCouponsOpen] = useState(false);
+
 
 
 
@@ -269,122 +304,222 @@ const CheckoutPage = () => {
 
 
 
-  const {
-    selectedItems: stateItems = [],
-    total: stateTotal = 0,
-    gifts: stateGifts = [],
-    productDiscount: stateProductDiscount = 0,
-    manualDiscountAmount: stateManualDiscount = 0,
-    promoDiscountAmount: statePromoDiscount = 0,
-    appliedManualCoupon: stateManualCoupon = null,
-    appliedPromoCoupon: statePromoCoupon = null,
-    reorderFrom
-  } = location.state || {};
 
   const totalDiscount = stateProductDiscount + stateManualDiscount + statePromoDiscount;
 
   const [selectedItems, setSelectedItems] = useState(stateItems);
   const [gifts, setGifts] = useState(stateGifts);
-  const [initialTotal, setInitialTotal] = useState(stateTotal);
+  
+  // Computed Initial Total based on current product prices (the "red box" sum)
+  const initialTotal = selectedItems.reduce((sum, item) => 
+    sum + ((item.currentPrice || item.price || 0) * (parseInt(item.quantity) || 0)), 0
+  );
 
   useEffect(() => {
-    if (reorderFrom && reorderFrom.chiTiet) {
-      // 1. Separate regular items and gifts from the old order
-      const regularItems = reorderFrom.chiTiet.filter(i => i.donGia > 0).map(i => ({
-        id: i.maSanPham,
-        maSanPham: i.maSanPham,
-        tenSanPham: i.tenSanPham,
-        price: i.donGia,
-        quantity: i.soLuong,
-        currentPrice: i.donGia, // Use price from order
-        cartId: i.maSanPham // Fake cartId for matching
-      }));
+    const initReorder = async () => {
+      if (reorderFrom && reorderFrom.chiTiet) {
+        // 1. Map items and fetch latest info for stock validation and images
+        const regularItemsRaw = reorderFrom.chiTiet.filter(i => i.donGia > 0);
+        const giftItemsRaw = reorderFrom.chiTiet.filter(i => i.donGia === 0);
 
-      const giftItems = reorderFrom.chiTiet.filter(i => i.donGia === 0).map(i => ({
-        id: i.maSanPham,
-        maSanPham: i.maSanPham,
-        tenSanPham: i.tenSanPham,
-        quantity: i.soLuong,
-      }));
+        try {
+          const detailedItems = await Promise.all(regularItemsRaw.map(async (i) => {
+            try {
+              const pRes = await axios.get(`http://localhost:5000/api/products/${i.maSanPham}`);
+              const p = pRes.data;
+              return {
+                id: i.maSanPham,
+                maSanPham: i.maSanPham,
+                tenSanPham: i.tenSanPham,
+                productName: i.tenSanPham,
+                price: p.giaBan || i.donGia, 
+                quantity: i.soLuong,
+                currentPrice: p.giaBan || i.donGia,
+                cartId: i.maSanPham,
+                hinhAnh: p.hinhAnh || i.hinhAnh,
+                image: p.hinhAnh || i.hinhAnh, // Consistent with checkout expectation
+                soLuongTon: p.soLuongTon || 0,
+                sku: p.sku
+              };
+            } catch (err) {
+              return {
+                id: i.maSanPham, maSanPham: i.maSanPham, tenSanPham: i.tenSanPham, productName: i.tenSanPham,
+                price: i.donGia, quantity: i.soLuong, currentPrice: i.donGia, cartId: i.maSanPham, soLuongTon: 999 
+              };
+            }
+          }));
 
-      setSelectedItems(regularItems);
-      setGifts(giftItems);
-      // For reorder, reorderFrom.tongTien is the final amount. 
-      // We want initialTotal to be the subtotal BEFORE discount and shipping.
-      setInitialTotal(reorderFrom.tongTien - (reorderFrom.phiVanChuyen || 0) + (reorderFrom.giamGia || 0));
-      setDiscountAmount(reorderFrom.giamGia || 0);
+          const detailedGifts = await Promise.all(giftItemsRaw.map(async (i) => {
+            try {
+              const pRes = await axios.get(`http://localhost:5000/api/products/${i.maSanPham}`);
+              const p = pRes.data;
+              return {
+                id: i.maSanPham, maSanPham: i.maSanPham, tenSanPham: i.tenSanPham, productName: i.tenSanPham,
+                quantity: i.soLuong, hinhAnh: p.hinhAnh, image: p.hinhAnh, soLuongTon: p.soLuongTon
+              };
+            } catch (err) {
+              return { id: i.maSanPham, maSanPham: i.maSanPham, tenSanPham: i.tenSanPham, productName: i.tenSanPham, quantity: i.soLuong, soLuongTon: 999 };
+            }
+          }));
 
-      // 2. Detect if it was split shipping
-      const itemAddresses = reorderFrom.chiTiet.map(i => i.diaChiGiaoHang).filter(Boolean);
-      const uniqueAddresses = [...new Set(itemAddresses)];
-      const isSplit = reorderFrom.diaChiGiaoHang === 'Giao hàng nhiều địa chỉ' || uniqueAddresses.length > 1;
+          setSelectedItems(detailedItems);
+          setGifts(detailedGifts);
+          setDiscountAmount(reorderFrom.giamGia || 0);
+        } catch (err) {
+          console.error("Error fetching product details for reorder:", err);
+        }
 
-      // 3. Populate contact info (fallback to customer info if main is empty)
-      const fallbackName = reorderFrom.tenNguoiNhan || reorderFrom.tenKhachHang || '';
-      const fallbackPhone = reorderFrom.sdtNguoiNhan || reorderFrom.sdtKhachHang || '';
-      const fallbackEmail = reorderFrom.emailNguoiNhan || reorderFrom.emailKhachHang || '';
+        // 2. Detect if it was split shipping
+        const itemAddresses = reorderFrom.chiTiet.map(i => i.diaChiGiaoHang).filter(Boolean);
+        const uniqueAddresses = [...new Set(itemAddresses)];
+        const isSplit = reorderFrom.diaChiGiaoHang === 'Giao hàng nhiều địa chỉ' || uniqueAddresses.length > 1;
 
-      setAddressForm(prev => ({
-        ...prev,
-        fullName: fallbackName,
-        phone: fallbackPhone,
-        email: fallbackEmail,
-        address: isSplit ? '' : (reorderFrom.diaChiGiaoHang || '')
-      }));
+        // 3. Populate contact info
+        const fallbackName = reorderFrom.tenNguoiNhan || reorderFrom.tenKhachHang || '';
+        const fallbackPhone = reorderFrom.sdtNguoiNhan || reorderFrom.sdtKhachHang || '';
+        const fallbackEmail = reorderFrom.emailNguoiNhan || reorderFrom.emailKhachHang || '';
 
-      // 4. Multi-address logic
-      if (isSplit) {
-        setSplitShipping(true);
-        const groups = [];
-        const addressMap = {};
+        // Attempt to parse address if not split
+        let parsedAddr = { province: '', district: '', ward: '', street: '', pCode: '', dCode: '', wCode: '' };
+        if (!isSplit && reorderFrom.diaChiGiaoHang) {
+          const parts = reorderFrom.diaChiGiaoHang.split(',').map(p => p.trim());
+          if (parts.length >= 4) {
+            parsedAddr.province = parts[parts.length - 1];
+            parsedAddr.district = parts[parts.length - 2];
+            parsedAddr.ward = parts[parts.length - 3];
+            parsedAddr.street = parts.slice(0, parts.length - 3).join(', ');
 
-        reorderFrom.chiTiet.forEach(item => {
-          const addr = item.diaChiGiaoHang || 'Địa chỉ mặc định';
-          if (!addressMap[addr]) {
-            addressMap[addr] = {
-              id: Date.now() + Math.random(),
-              fullName: fallbackName,
-              phone: fallbackPhone,
-              email: fallbackEmail,
-              address: addr,
-              province: '', district: '', ward: '',
-              provinceCode: '', districtCode: '', wardCode: '',
-              districts: [],
-              wards: [],
-              selectedItemIds: [],
-              includeGifts: item.donGia === 0
-            };
-            groups.push(addressMap[addr]);
-          }
-          if (item.donGia > 0) {
-            addressMap[addr].selectedItemIds.push(item.maSanPham);
+            // Find codes to enable dropdowns
+            if (provinces.length > 0) {
+              const pMatch = provinces.find(p => p.name.includes(parsedAddr.province) || parsedAddr.province.includes(p.name));
+              if (pMatch) {
+                parsedAddr.pCode = pMatch.code;
+                setSelectedCodes(prev => ({ ...prev, provinceCode: pMatch.code }));
+                
+                // Fetch districts
+                const dRes = await axios.get(`https://provinces.open-api.vn/api/p/${pMatch.code}?depth=2`);
+                const dists = dRes.data.districts;
+                setDistricts(dists);
+                
+                const dMatch = dists.find(d => d.name.includes(parsedAddr.district) || parsedAddr.district.includes(d.name));
+                if (dMatch) {
+                  parsedAddr.dCode = dMatch.code;
+                  setSelectedCodes(prev => ({ ...prev, districtCode: dMatch.code }));
+                  
+                  // Fetch wards
+                  const wRes = await axios.get(`https://provinces.open-api.vn/api/d/${dMatch.code}?depth=2`);
+                  const wrds = wRes.data.wards;
+                  setWards(wrds);
+                  
+                  const wMatch = wrds.find(w => w.name.includes(parsedAddr.ward) || parsedAddr.ward.includes(w.name));
+                  if (wMatch) {
+                    parsedAddr.wCode = wMatch.code;
+                    setSelectedCodes(prev => ({ ...prev, wardCode: wMatch.code }));
+                  }
+                }
+              }
+            }
           } else {
-            addressMap[addr].includeGifts = true;
+            parsedAddr.street = reorderFrom.diaChiGiaoHang;
           }
-        });
-        setDeliveryGroups(groups);
-      }
+        }
 
-      // 5. VAT Info
-      if (reorderFrom.yeuCauVat) {
-        setRequestVat(true);
-        setVatType(reorderFrom.vatType || 'individual');
-        setVatDetails({
-          buyerName: reorderFrom.vatBuyerName || '',
-          email: reorderFrom.vatEmail || '',
-          address: reorderFrom.vatAddress || '',
-          idCard: reorderFrom.vatIdCard || '',
-          companyName: reorderFrom.vatCompanyName || '',
-          companyAddress: reorderFrom.vatCompanyAddress || '',
-          taxId: reorderFrom.vatTaxId || '',
-        });
-      }
+        setAddressForm(prev => ({
+          ...prev,
+          fullName: fallbackName,
+          phone: fallbackPhone,
+          email: fallbackEmail,
+          address: parsedAddr.street || (isSplit ? '' : (reorderFrom.diaChiGiaoHang || '')),
+          province: parsedAddr.province,
+          district: parsedAddr.district,
+          ward: parsedAddr.ward
+        }));
 
-      setNote(reorderFrom.ghiChu || '');
-      setHasNote(!!reorderFrom.ghiChu);
-      setPaymentMethod(reorderFrom.pttt?.includes('ATM') ? 'atm' : 'cod');
-    }
-  }, [reorderFrom]);
+        // 4. Multi-address logic
+        if (isSplit) {
+          setSplitShipping(true);
+          const groups = [];
+          const addressMap = {};
+
+          for (const item of reorderFrom.chiTiet) {
+            const addrStr = item.diaChiGiaoHang || 'Địa chỉ mặc định';
+            if (!addressMap[addrStr]) {
+              const gParts = addrStr.split(',').map(p => p.trim());
+              let gP = '', gD = '', gW = '', gS = addrStr;
+              let gPCode = '', gDCode = '', gWCode = '', gDists = [], gWrds = [];
+              
+              if (gParts.length >= 4) {
+                gP = gParts[gParts.length - 1];
+                gD = gParts[gParts.length - 2];
+                gW = gParts[gParts.length - 3];
+                gS = gParts.slice(0, gParts.length - 3).join(', ');
+
+                if (provinces.length > 0) {
+                  const pMatch = provinces.find(p => p.name.includes(gP) || gP.includes(p.name));
+                  if (pMatch) {
+                    gPCode = pMatch.code;
+                    const dRes = await axios.get(`https://provinces.open-api.vn/api/p/${pMatch.code}?depth=2`);
+                    gDists = dRes.data.districts;
+                    const dMatch = gDists.find(d => d.name.includes(gD) || gD.includes(d.name));
+                    if (dMatch) {
+                      gDCode = dMatch.code;
+                      const wRes = await axios.get(`https://provinces.open-api.vn/api/d/${dMatch.code}?depth=2`);
+                      gWrds = wRes.data.wards;
+                      const wMatch = gWrds.find(w => w.name.includes(gW) || gW.includes(w.name));
+                      if (wMatch) gWCode = wMatch.code;
+                    }
+                  }
+                }
+              }
+
+              addressMap[addrStr] = {
+                id: Date.now() + Math.random(),
+                fullName: item.tenNguoiNhan || fallbackName,
+                phone: item.sdtNguoiNhan || fallbackPhone,
+                email: item.emailNguoiNhan || fallbackEmail,
+                address: gS,
+                province: gP, district: gD, ward: gW,
+                provinceCode: gPCode, districtCode: gDCode, wardCode: gWCode,
+                districts: gDists,
+                wards: gWrds,
+                selectedItemIds: [],
+                includeGifts: item.donGia === 0
+              };
+              groups.push(addressMap[addrStr]);
+            }
+            if (item.donGia > 0) {
+              addressMap[addrStr].selectedItemIds.push(item.maSanPham);
+            } else {
+              addressMap[addrStr].includeGifts = true;
+            }
+          }
+          setDeliveryGroups(groups);
+        }
+
+        // 5. VAT Info
+        if (reorderFrom.yeuCauVat) {
+          setRequestVat(true);
+          setVatType(reorderFrom.vatType || 'individual');
+          setVatDetails({
+            buyerName: reorderFrom.vatBuyerName || '',
+            email: reorderFrom.vatEmail || '',
+            address: reorderFrom.vatAddress || '',
+            idCard: reorderFrom.vatIdCard || '',
+            passport: reorderFrom.vatPassport || '',
+            companyName: reorderFrom.vatCompanyName || '',
+            companyAddress: reorderFrom.vatCompanyAddress || '',
+            taxId: reorderFrom.vatTaxId || '',
+            budgetCode: reorderFrom.vatBudgetCode || '',
+          });
+        }
+
+        setNote(reorderFrom.ghiChu || '');
+        setHasNote(!!reorderFrom.ghiChu);
+        setPaymentMethod(reorderFrom.pttt?.includes('ATM') ? 'atm' : 'cod');
+      }
+    };
+    initReorder();
+  }, [reorderFrom, provinces]);
 
   const getUniqueAddressesCount = () => {
     if (!splitShipping) return 1;
@@ -393,24 +528,49 @@ const CheckoutPage = () => {
 
   const [discountAmount, setDiscountAmount] = useState(totalDiscount);
 
-  const isManualFreeship = stateManualCoupon?.type === 'Freeship';
-  const isPromoFreeship = statePromoCoupon?.type === 'Freeship';
+  const isManualFreeship = appliedCoupon?.type === 'Freeship' || stateManualCoupon?.type === 'Freeship';
+  const isPromoFreeship = appliedCoupon?.type === 'Freeship' || statePromoCoupon?.type === 'Freeship';
 
-  const baseShippingFee = 30000; // Cố định 30k thay vì 50k
-  const freeShipThreshold = 500000; // Freeship từ 500k theo yêu cầu mới nhất
+  const baseShippingFee = 30000;
+  const freeShipThreshold = 500000;
   const isAutoFreeShip = initialTotal >= freeShipThreshold;
 
   let currentShippingFee = isAutoFreeShip ? 0 : (getUniqueAddressesCount() * baseShippingFee);
   let shippingDiscount = 0;
 
   if ((isManualFreeship || isPromoFreeship) && !isAutoFreeShip) {
-    shippingDiscount = currentShippingFee; // Freeship coupon covers the fee
+    shippingDiscount = Math.min(currentShippingFee, baseShippingFee); 
   }
 
-  // Adjust discountAmount to exclude freeship (since it's handled separately now)
-  const actualDiscountAmount = discountAmount - (isManualFreeship ? stateManualDiscount : 0) - (isPromoFreeship ? statePromoDiscount : 0);
+  // Calculate Dynamic Discount (Single Coupon Policy)
+  let dynamicDiscount = 0;
+  const currentCoupon = appliedCoupon || stateManualCoupon || statePromoCoupon;
+  
+  if (currentCoupon && currentCoupon.type !== 'Freeship') {
+    if (currentCoupon.type === 'PhanTram') {
+      dynamicDiscount = (initialTotal * currentCoupon.value) / 100;
+      if (currentCoupon.limit && dynamicDiscount > currentCoupon.limit) dynamicDiscount = currentCoupon.limit;
+    } else {
+      dynamicDiscount = currentCoupon.value || stateManualDiscount || statePromoDiscount;
+    }
+  }
 
-  const grandTotal = Math.max(0, initialTotal + currentShippingFee - shippingDiscount - actualDiscountAmount);
+  const grandTotal = Math.max(0, initialTotal + currentShippingFee - shippingDiscount - dynamicDiscount);
+  const actualDiscountAmount = dynamicDiscount + stateProductDiscount;
+
+  // Auto-remove coupon if conditions no longer met (e.g. user removed items)
+  useEffect(() => {
+    const couponToValidate = appliedCoupon || stateManualCoupon || statePromoCoupon;
+    if (couponToValidate && couponToValidate.minOrderAmount > 0) {
+      if (initialTotal < couponToValidate.minOrderAmount) {
+        if (appliedCoupon) setAppliedCoupon(null);
+        // Note: state coupons are from navigation, we can't 'null' them easily without complex logic,
+        // but since initialTotal is used in calculation, the discount will naturally drop if we handle it there.
+        // For simplicity, we just notify and clear the 'appliedCoupon' override.
+        alert(`Mã giảm giá ${couponToValidate.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${couponToValidate.minOrderAmount.toLocaleString('vi-VN')}₫).`);
+      }
+    }
+  }, [initialTotal, appliedCoupon, stateManualCoupon, statePromoCoupon]);
 
   useEffect(() => {
     if (paymentType === 'deposit') {
@@ -663,6 +823,19 @@ const CheckoutPage = () => {
             sdtNguoiNhan: addressForm.phone
           });
         });
+
+        // Add gifts to single address
+        gifts.forEach(gift => {
+          orderItems.push({
+            maSanPham: gift.productId || gift.id || gift.maSanPham,
+            soLuong: gift.quantity || 1,
+            donGia: 0,
+            giamGia: 0,
+            diaChiGiaoHang: mainFullAddress,
+            tenNguoiNhan: addressForm.fullName,
+            sdtNguoiNhan: addressForm.phone
+          });
+        });
       } else {
         deliveryGroups.forEach(g => {
           const groupAddress = `${g.address}, ${g.ward}, ${g.district}, ${g.province}`;
@@ -722,7 +895,8 @@ const CheckoutPage = () => {
         maKhachHang: user?.maKhachHang || user?.MaKhachHang,
         tongTien: grandTotal,
         thanhToan: paymentType === 'deposit' ? depositAmount : grandTotal,
-        giamGia: discountAmount,
+        giamGia: dynamicDiscount,
+        maKhuyenMai: appliedCoupon?.id || stateManualCoupon?.id || statePromoCoupon?.id,
         pttt: paymentMethod === 'atm' ? 'Chuyển khoản ATM/Banking (VietQR)' : 'Thanh toán khi nhận hàng (COD)',
         ghiChu: note,
         anhBangChung: receiptImage,
@@ -997,6 +1171,53 @@ const CheckoutPage = () => {
                   </Grid>
                 </Paper>
 
+                {/* KHUYẾN MÃI & QUÀ TẶNG (NEW FOR REORDER) */}
+                <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '4px', borderLeft: '4px solid #4caf50' }}>
+                  <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, textTransform: 'uppercase' }}>
+                    🎁 Ưu đãi & Quà tặng
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                       <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Mã giảm giá (Coupon):</Typography>
+                       <CouponInput 
+                         orderAmount={initialTotal}
+                         onCouponApply={(data) => {
+                           if (appliedCoupon?.code === data.code) return;
+                           if (data.type === 'Freeship' && isAutoFreeShip) {
+                             window.alert("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác");
+                             return;
+                           }
+                           setAppliedCoupon({
+                             id: data.id, code: data.code, type: data.type, value: data.discountValue, limit: data.maxDiscount,
+                             minOrderAmount: data.minOrderAmount || 0
+                           });
+                         }}
+                         systemVoucherCodes={allVouchers.map(v => v.maApDung)}
+                       />
+                       
+                       <Box sx={{ mt: 3 }}>
+                         <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Ưu đãi hệ thống & Quà tặng:</Typography>
+                         <PromotionSection 
+                           currentTotal={initialTotal}
+                           appliedCode={(appliedCoupon || stateManualCoupon || statePromoCoupon)?.code}
+                           onOpenCoupons={() => setCouponsOpen(true)}
+                           onOpenGifts={() => setGiftsModalOpen(true)}
+                           onBuyMore={() => {
+                             if (window.confirm('Xác nhận quay về trang chủ để mua thêm sản phẩm?')) {
+                               navigate('/shopping');
+                             }
+                           }}
+                           eligibleCount={allVouchers.filter(v => v.donHangToiThieu <= initialTotal).length}
+                           selectedGiftsCount={gifts.length}
+                           giftLimit={3}
+                         />
+                       </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
+
 
 
 
@@ -1215,17 +1436,17 @@ const CheckoutPage = () => {
                               <Grid container spacing={2} alignItems="center" sx={{ mb: 1, pl: 2 }}>
                                 <Grid item xs={2} sm={1}>
                                   <Box sx={{ position: 'relative' }}>
-                                    <img src={item.image} alt={item.productName || item.name} style={{ width: '100%', borderRadius: '4px', filter: item.isGift ? 'grayscale(0.2)' : 'none' }} />
+                                    <img src={item.image} alt={item.productName || item.name} style={{ width: '100%', borderRadius: '4px' }} />
                                     {item.isGift && (
                                       <Box sx={{ position: 'absolute', top: -5, left: -5, bgcolor: '#d32f2f', color: '#fff', fontSize: '10px', px: 0.5, borderRadius: '2px' }}>Quà tặng</Box>
                                     )}
                                   </Box>
                                 </Grid>
                                 <Grid item xs={5} sm={7}>
-                                  <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.productName || item.name}</Typography>
+                                  <Typography variant="body2">{item.productName || item.name}</Typography>
                                 </Grid>
                                 <Grid item xs={2} sm={1} textAlign="right">
-                                  <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.isGift ? '0đ' : formatVND(item.currentPrice)}</Typography>
+                                  <Typography variant="body2">{item.isGift ? '0đ' : formatVND(item.currentPrice)}</Typography>
                                   {item.hasDiscount && !item.isGift && (
                                     <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through' }}>
                                       {formatVND(item.originalPrice)}
@@ -1233,7 +1454,7 @@ const CheckoutPage = () => {
                                   )}
                                 </Grid>
                                 <Grid item xs={1} sm={1} textAlign="center">
-                                  <Typography variant="body2" color={item.isGift ? "text.secondary" : "inherit"}>{item.quantity || 1}</Typography>
+                                  <Typography variant="body2">{item.quantity || 1}</Typography>
                                 </Grid>
                                 <Grid item xs={2} sm={2} textAlign="right">
                                   <Typography variant="body2" fontWeight="bold" color="#e68c55">
@@ -1354,6 +1575,22 @@ const CheckoutPage = () => {
                               <TableCell align="right">{formatVND(item.currentPrice)}</TableCell>
                               <TableCell align="center">{item.quantity}</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatVND(item.currentPrice * item.quantity)}</TableCell>
+                            </TableRow>
+                          ))}
+                          {gifts.map((item, idx) => (
+                            <TableRow key={`gift-${idx}`}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <img src={item.image} width="40" height="40" style={{ borderRadius: 4 }} alt="" />
+                                  <Box>
+                                    <Typography variant="body2">{item.productName}</Typography>
+                                    <Chip label="Quà tặng" size="small" sx={{ height: 18, fontSize: '10px', bgcolor: '#e68c55', color: '#fff' }} />
+                                  </Box>
+                                </Box>
+                              </TableCell>
+                              <TableCell align="right">Miễn phí</TableCell>
+                              <TableCell align="center">{item.quantity}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold' }}>0đ</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1528,6 +1765,43 @@ const CheckoutPage = () => {
           </Grid>
         </Grid>
       </Container>
+
+      <GiftsModal
+        open={giftsModalOpen}
+        onClose={() => setGiftsModalOpen(false)}
+        currentTotal={initialTotal}
+        selectedGifts={gifts}
+        onSelect={(newGifts) => setGifts(newGifts)}
+      />
+
+      <CouponsModal
+        open={couponsOpen}
+        onClose={() => setCouponsOpen(false)}
+        coupons={allVouchers}
+        currentTotal={initialTotal}
+        appliedCode={(appliedCoupon || statePromoCoupon)?.code}
+        onApply={(uudai) => {
+          if (uudai) {
+            if (appliedCoupon?.code === uudai.maApDung) {
+              setCouponsOpen(false);
+              return;
+            }
+            if (uudai.loaiGiamGia === 'Freeship' && isAutoFreeShip) {
+              alert("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác");
+              return;
+            }
+            setAppliedCoupon({ 
+              id: uudai.maKhuyenMai, 
+              code: uudai.maApDung, 
+              type: uudai.loaiGiamGia,
+              value: uudai.giaTriGiam,
+              limit: uudai.giamToiDa,
+              minOrderAmount: uudai.donHangToiThieu || 0
+            });
+            setCouponsOpen(false);
+          }
+        }}
+      />
 
       {/* STICKY BOTTOM BAR */}
       <Box sx={{

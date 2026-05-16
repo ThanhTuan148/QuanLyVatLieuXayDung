@@ -74,7 +74,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
       // Initialize item updates
       const initialItems = {};
       data.chiTiet?.forEach(it => {
-        let defaultStatus = it.trangThai || 'Đang giao';
+        let defaultStatus = it.trangThai || 'Chờ giao';
         if (it.soLuongNhanKho < it.soLuongGiao) {
             defaultStatus = 'Đang giao một phần';
         }
@@ -105,19 +105,19 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
       const allDelivered = items.every(it => it.trangThai === 'Đã giao');
       const anyDelivered = items.some(it => it.trangThai === 'Đã giao' || it.trangThai === 'Đã giao một phần');
 
-      // Nếu đơn hàng vẫn còn sản phẩm chưa giao (coTheGiaoTiep = true),
-      // thì KHÔNG được chuyển trạng thái tổng thể thành "Đã giao"
-      // vì tài xế chưa nhận hàng tiếp từ kho để giao phần còn lại
-      const orderStillHasRemaining = delivery?.coTheGiaoTiep === true;
+      // Nếu tài xế nhận đủ số lượng từ kho so với số lượng khách đặt → cho phép "Đã giao"
+      const totalNhanKho = delivery?.chiTiet?.reduce((sum, item) => sum + (item.soLuongNhanKho || 0), 0) || 0;
+      const totalOrder = delivery?.chiTiet?.reduce((sum, item) => sum + (item.soLuongOrder || 0), 0) || 0;
+      const driverReceivedAll = totalNhanKho >= totalOrder;
 
-      if (allDelivered && !orderStillHasRemaining) {
+      if (allDelivered && driverReceivedAll) {
         setStatus('Đã giao');
-      } else if (allDelivered && orderStillHasRemaining) {
+      } else if (allDelivered && !driverReceivedAll) {
         setStatus('Đã giao một phần');
       } else if (anyDelivered) {
         setStatus('Đã giao một phần');
       } else {
-        setStatus('Đang giao');
+        setStatus('Chờ giao');
       }
     }
   };
@@ -155,7 +155,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
 
     let total = 0;
     delivery.chiTiet.forEach(item => {
-      const currentStatus = itemUpdates[item.maCTGH]?.trangThai || item.trangThai || 'Đang giao';
+      const currentStatus = itemUpdates[item.maCTGH]?.trangThai || item.trangThai || 'Chờ giao';
       if (currentStatus === 'Đã giao') {
         if (item.thanhTien != null && item.soLuongOrder > 0) {
           const unitValue = item.thanhTien / item.soLuongOrder;
@@ -178,12 +178,25 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   const dynamicCOD = calculateDynamicCOD();
 
   const isAnyItemDelivered = delivery?.chiTiet?.some(item => {
-    const currentStatus = itemUpdates[item.maCTGH]?.trangThai || item.trangThai || 'Đang giao';
+    const currentStatus = itemUpdates[item.maCTGH]?.trangThai || item.trangThai || 'Chờ giao';
     return currentStatus === 'Đã giao' || currentStatus === 'Đã giao một phần';
   });
   const showPaymentAndPhoto = status === 'Đã giao' || status === 'Đã giao một phần' || isAnyItemDelivered || dynamicCOD > 0;
 
+  // Kiểm tra: có sản phẩm nào bị thiếu hàng và chưa nhận đủ từ kho không?
+  const hasUnpickedShortageItems = delivery?.chiTiet?.some(item => {
+    const currentStatus = itemUpdates[item.maCTGH]?.trangThai || item.trangThai || 'Chờ giao';
+    const isAlreadyDelivered = currentStatus === 'Đã giao' || currentStatus === 'Đã giao một phần';
+    return !isAlreadyDelivered && item.soLuongNhanKho < item.soLuongGiao;
+  }) && delivery?.trangThaiXuatKho !== 'Đã nhận đủ';
+
   const handleSaveStatus = async () => {
+    // Chặn nếu có sản phẩm thiếu hàng chưa nhận đủ từ kho
+    if (hasUnpickedShortageItems) {
+      alert('⚠️ KHOONG THỂ CẬP NHẬT: Một số sản phẩm vẫn còn thiếu hàng chưa được nhận đủ từ kho!\n\nVui lòng qua mục "Kho hàng → Lịch sử xuất kho" để xác nhận nhận hàng còn lại trước khi cập nhật trạng thái giao.');
+      return;
+    }
+
     const confirmedPxkStatuses = ['Đã xuất', 'Đã nhận một phần', 'Đã nhận đủ'];
     const pxkConfirmed = confirmedPxkStatuses.includes(delivery?.trangThaiXuatKho);
     const isTryingToDeliver = status === 'Đã giao' || status === 'Đã giao một phần' || status === 'Đang giao một phần' || isAnyItemDelivered;
@@ -254,6 +267,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   ];
 
   const itemStatusOptions = [
+    { value: 'Chờ giao', label: '⏳ Chờ giao' },
     { value: 'Đang giao', label: '🚚 Đang giao' },
     { value: 'Đang giao một phần', label: '🚚 Đang giao một phần' },
     { value: 'Đã giao một phần', label: '🌤️ Đã giao một phần' },
@@ -316,7 +330,21 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
 
             <Divider sx={{ mb: 3 }} />
 
-            {!['Đã xuất', 'Đã nhận một phần', 'Đã nhận đủ'].includes(delivery.trangThaiXuatKho) && (
+            {/* Banner cảnh báo: Có hàng thiếu chưa nhận đủ từ kho */}
+            {hasUnpickedShortageItems && (
+              <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>🚫 Có sản phẩm thiếu hàng chưa nhận đủ từ kho!</Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  Tài xế chưa xác nhận nhận hàng còn lại từ kho. Không thể cập nhật trạng thái giao khi hàng còn chưa được nhận đủ.
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 'bold' }}>
+                  ➔ Vui lòng qua <b>Kho hàng → Lịch sử xuất kho</b> để xác nhận nhận hàng còn lại trước khi cập nhật.
+                </Typography>
+              </Alert>
+            )}
+
+            {/* Banner cảnh báo: Chưa xác nhận nhận hàng từ kho (lần đầu) */}
+            {!hasUnpickedShortageItems && !['Đã xuất', 'Đã nhận một phần', 'Đã nhận đủ'].includes(delivery.trangThaiXuatKho) && (
               <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>🚫 Chưa xác nhận nhận hàng từ kho!</Typography>
                 <Typography variant="body2" sx={{ mt: 0.5 }}>
@@ -342,7 +370,7 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                 </TableHead>
                 <TableBody>
                   {delivery.chiTiet?.map((item, index) => {
-                    const currentStatus = itemUpdates[item.maCTGH]?.trangThai || 'Đang giao';
+                    const currentStatus = itemUpdates[item.maCTGH]?.trangThai || 'Chờ giao';
                     const isDone = currentStatus === 'Đã giao';
 
                     return (
@@ -496,14 +524,35 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
                     select fullWidth size="small"
                     label="Trạng Thái Giao"
                     value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      setStatus(newStatus);
+                      
+                      // Đồng bộ xuống từng món nếu là trạng thái chuyển tiếp (Đang giao, Đã giao, Đã giao một phần)
+                      if (newStatus === 'Đang giao' || newStatus === 'Đã giao' || newStatus === 'Đã giao một phần') {
+                        const newUpdates = { ...itemUpdates };
+                        Object.keys(newUpdates).forEach(maCTGH => {
+                          const item = delivery.chiTiet.find(it => it.maCTGH === parseInt(maCTGH));
+                          // Chỉ cập nhật những món chưa giao thành công
+                          if (item && item.trangThai !== 'Đã giao' && item.trangThai !== 'Đã giao một phần') {
+                            newUpdates[maCTGH] = { ...newUpdates[maCTGH], trangThai: newStatus };
+                          }
+                        });
+                        setItemUpdates(newUpdates);
+                      }
+                    }}
                     disabled={!canUpdate}
                     sx={{ bgcolor: '#fff' }}
                   >
                     {statusOptions
                       .filter(opt => {
-                        // Ẩn "Đã giao" nếu đơn hàng vẫn còn sản phẩm chưa giao đủ
-                        if (opt.value === 'Đã giao' && delivery?.coTheGiaoTiep === true) return false;
+                        // Ẩn "Đã giao" chỉ khi tài xế chưa nhận đủ hàng từ kho so với số lượng khách đặt
+                        if (opt.value === 'Đã giao') {
+                          const totalNhanKho = delivery?.chiTiet?.reduce((sum, item) => sum + (item.soLuongNhanKho || 0), 0) || 0;
+                          const totalOrder = delivery?.chiTiet?.reduce((sum, item) => sum + (item.soLuongOrder || 0), 0) || 0;
+                          // Nếu tổng nhận từ kho đủ số lượng khách đặt → cho phép chọn "Đã giao"
+                          if (totalNhanKho < totalOrder) return false;
+                        }
                         return true;
                       })
                       .map((opt) => (
@@ -692,10 +741,11 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
         <Button onClick={onClose} variant="outlined" color="inherit">Đóng</Button>
         <Button
           variant="contained"
-          color="primary"
+          color={hasUnpickedShortageItems ? 'error' : 'primary'}
           onClick={handleSaveStatus}
-          disabled={actionLoading || !delivery || !canUpdate}
+          disabled={actionLoading || !delivery || !canUpdate || hasUnpickedShortageItems}
           sx={{ px: 4, fontWeight: 'bold' }}
+          title={hasUnpickedShortageItems ? 'Cần xác nhận nhận hàng còn lại từ kho trước' : ''}
         >
           {actionLoading ? <CircularProgress size={24} /> : 'LƯU CẬP NHẬT'}
         </Button>

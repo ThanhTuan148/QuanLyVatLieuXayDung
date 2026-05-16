@@ -58,9 +58,12 @@ function CouponInput({ orderAmount, onCouponApply, systemVoucherCodes = [] }) {
         if (onCouponApply) {
           onCouponApply({
             code: couponCode,
+            id: result.maKhuyenMai,
             discount: result.discount,
             finalAmount: result.finalAmount,
-            type: result.type // Pass type to parent
+            type: result.type,
+            discountValue: result.discountValue,
+            maxDiscount: result.maxDiscount
           });
         }
       } else {

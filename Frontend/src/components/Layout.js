@@ -14,6 +14,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CategoryIcon from '@mui/icons-material/Category';
+import Email from '@mui/icons-material/Email';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
@@ -57,6 +58,8 @@ function Layout({ children }) {
     { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'orders' },
     { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' },
     { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'dashboard' },
+    { text: '📧 Tin nhắn', icon: <Email />, path: '/contact-messages', moduleKey: 'dashboard' },
+    { text: '💬 Chat trực tuyến', icon: <Email />, path: '/admin-chat', moduleKey: 'dashboard' },
 
     { text: '👨‍💼 Nhân Viên', icon: <ManageAccountsIcon />, path: '/employees', moduleKey: 'employees' },
     { text: '⚙️ Cài Đặt', icon: <SettingsIcon />, path: '/settings', moduleKey: 'settings' },

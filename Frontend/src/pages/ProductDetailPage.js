@@ -228,8 +228,8 @@ const ProductDetailPage = () => {
 
   const isFlashSale = product.loaiGia === 'FlashSale';
   const currentStock = product?.soLuongTon !== undefined ? product.soLuongTon : 0;
-  const soldCount = product?.daBan !== undefined ? product.daBan : Math.floor((product?.maSanPham || 1) % 50); // Mock sold count
-  const totalCount = product?.soLuongBanDau || (currentStock + soldCount) || 100;
+  const soldCount = product?.daBan || 0;
+  const totalCount = product?.soLuongBanDau || 100;
   const percentSold = totalCount > 0 ? Math.min(100, Math.round((soldCount / totalCount) * 100)) : 0;
   const isFlashSaleEmpty = isFlashSale && currentStock <= 0;
 

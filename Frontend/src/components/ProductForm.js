@@ -322,19 +322,27 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
         <Divider sx={{ my: 2 }} />
 
         {/* Form Fields */}
+        <TextField fullWidth margin="dense" label="Mã Sản Phẩm" name="maSP" 
+          value={initial?.maSP || "Hệ thống tự tạo"} 
+          disabled 
+          helperText={!initial?.maSP ? "Mã sẽ được tự động tạo sau khi lưu (VD: SP001)" : ""}
+        />
         <TextField fullWidth margin="dense" label="Tên Sản Phẩm *" name="tenSP" value={form.tenSP} onChange={handleChange} required />
         <TextField fullWidth margin="dense" label="Đơn Vị Tính" name="donViTinh" value={form.donViTinh}
           onChange={handleChange} placeholder="Bao, Kg, Cái, Cuộn, Thùng..." />
         <Box sx={{ display: 'flex', gap: 1.5 }}>
           <TextField fullWidth margin="dense" label="Giá Bán (VND) *" name="giaBan" value={form.giaBan} onChange={handleChange} type="number" required />
-          <TextField fullWidth margin="dense" label="Giá Nhập (VND)" name="giaNhap" value={form.giaNhap} onChange={handleChange} type="number" />
+          <TextField fullWidth margin="dense" label="Giá Nhập (VND)" name="giaNhap" value={form.giaNhap} onChange={handleChange} type="number" 
+            disabled 
+            helperText="Giá nhập sẽ được tự động cập nhật khi thực hiện Nhập hàng" 
+          />
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
           <TextField fullWidth margin="dense" label="Thương Hiệu" name="thuongHieu" value={form.thuongHieu} onChange={handleChange} />
           <TextField fullWidth margin="dense" label="Xuất Xứ" name="xuatXu" value={form.xuatXu} onChange={handleChange} />
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <TextField fullWidth margin="dense" label="Mã Loại SP" name="maLoaiSP" value={form.maLoaiSP} onChange={handleChange} type="number" />
+          <TextField fullWidth margin="dense" label="Mã Loại SP" name="maLoaiSP" value={form.maLoaiSP} onChange={handleChange} type="number" disabled={!!initial?.maSanPham} />
           <TextField fullWidth margin="dense" label="Mức Tồn Tối Thiểu" name="mucTonToiThieu" value={form.mucTonToiThieu} onChange={handleChange} type="number" />
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -361,9 +369,10 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
               <TextField {...params} variant="outlined" label="Chọn Nhà cung cấp" placeholder="Tags" />
             )}
             renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip label={option.tenNCC} {...getTagProps({ index })} color="primary" variant="outlined" size="small" />
-              ))
+              value.map((option, index) => {
+                const { key, ...tagProps } = getTagProps({ index });
+                return <Chip key={key} label={option.tenNCC} {...tagProps} color="primary" variant="outlined" size="small" />;
+              })
             }
           />
         </Box>

@@ -21,14 +21,17 @@ const productService = {
   },
 
   createProduct: (product) => {
+    productsCache = null;
     return api.post('/products', product);
   },
 
   updateProduct: (id, product) => {
+    productsCache = null;
     return api.put(`/products/${id}`, product);
   },
 
   deleteProduct: (id) => {
+    productsCache = null;
     return api.delete(`/products/${id}`);
   },
 

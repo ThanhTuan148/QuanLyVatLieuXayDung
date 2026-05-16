@@ -15,7 +15,7 @@ namespace BuildingMaterialAPI.Utilities
 
             string sNumber = Math.Floor(number).ToString();
             int len = sNumber.Length;
-            int pos = 0;
+
             StringBuilder result = new StringBuilder();
             
             // Chia chuỗi thành các nhóm 3 chữ số từ phải sang trái

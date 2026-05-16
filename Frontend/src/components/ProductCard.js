@@ -44,9 +44,9 @@ const ProductCard = ({
   const isOutOfStock = product && (product.soLuongTon <= 0 || product.soLuongTon === undefined);
 
   // Flash Sale progress
-  const soldCount = product?.daBan !== undefined ? product.daBan : Math.floor((product?.maSanPham || 1) % 50); // Use 0 if explicitly provided, else mock
+  const soldCount = product?.daBan || 0;
   const currentStock = product?.soLuongTon !== undefined ? product.soLuongTon : 0;
-  const totalCount = product?.soLuongBanDau || (currentStock + soldCount) || 100;
+  const totalCount = product?.soLuongBanDau || 100;
   const percentSold = totalCount > 0 ? Math.min(100, Math.round((soldCount / totalCount) * 100)) : 0;
   
   const isFlashSaleEmpty = showProgressBar && (currentStock <= 0 || soldCount >= totalCount);

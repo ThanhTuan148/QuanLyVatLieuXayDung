@@ -100,6 +100,39 @@ namespace BuildingMaterialAPI.Services
                 });
             }
 
+            // --- Đảm bảo tổng tiền khớp với hóa đơn gốc (Reconciliation) ---
+            decimal targetTotal = hd.TongTien ?? items.Sum(i => i.ThanhTienTruocThue + i.TienThueGTGT);
+            decimal currentTotal = items.Sum(i => i.ThanhTienTruocThue + i.TienThueGTGT);
+            decimal diff = currentTotal - targetTotal;
+
+            if (Math.Abs(diff) >= 1)
+            {
+                // Điều chỉnh dòng chiết khấu hoặc thêm dòng điều chỉnh để khớp số tổng
+                var discountItem = items.FirstOrDefault(i => i.TenHangHoa.Contains("Chiết khấu"));
+                if (discountItem != null)
+                {
+                    decimal currentVal = discountItem.ThanhTienTruocThue + discountItem.TienThueGTGT;
+                    decimal newVal = currentVal - diff;
+                    discountItem.ThanhTienTruocThue = Math.Round(newVal / (1 + VAT_RATE), 0);
+                    discountItem.TienThueGTGT = newVal - discountItem.ThanhTienTruocThue;
+                    discountItem.DonGiaChietKhau = newVal;
+                }
+                else
+                {
+                    decimal adjSauThue = -diff;
+                    decimal adjTruocThue = Math.Round(adjSauThue / (1 + VAT_RATE), 0);
+                    items.Add(new VatLineItem {
+                        TenHangHoa = "Chiết khấu / Điều chỉnh giảm",
+                        DonViTinh = "Gói",
+                        SoLuong = 1,
+                        DonGiaChietKhau = adjSauThue,
+                        ThanhTienTruocThue = adjTruocThue,
+                        ThueSuat = VAT_RATE,
+                        TienThueGTGT = adjSauThue - adjTruocThue
+                    });
+                }
+            }
+
             decimal tongTruocThue = items.Sum(i => i.ThanhTienTruocThue);
             decimal tongThue = items.Sum(i => i.TienThueGTGT);
             decimal tongSauThue = tongTruocThue + tongThue;
@@ -130,12 +163,11 @@ namespace BuildingMaterialAPI.Services
                             // Logo + Tên công ty
                             row.RelativeItem(3).Column(c =>
                             {
-                                c.Item().Text("CÔNG TY CỔ PHẦN VLXD")
-                                    .FontSize(11).Bold().FontColor(Colors.Blue.Darken3);
-                                c.Item().Text("Địa chỉ: 123 Đường Lý Thường Kiệt, Q.10, TP.HCM").FontSize(8);
-                                c.Item().Text("Mã số thuế: 0123456789").FontSize(8);
-                                c.Item().Text("Điện thoại: 028-3800-1234").FontSize(8);
-                                c.Item().Text("Email: vlxd@company.com").FontSize(8);
+                                c.Item().Text("CỬA HÀNG VẬT LIỆU XÂY DỰNG THÀNH ĐẠT")
+                                    .FontSize(11).Bold().FontColor("#e68c55");
+                                c.Item().Text("Địa chỉ: 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, Tp. Hồ Chí Minh").FontSize(8);
+                                c.Item().Text("Điện thoại: 0934186354").FontSize(8);
+                                c.Item().Text("Email: truongthanhtuan140804@gmail.com").FontSize(8);
                             });
 
                             // Title block
@@ -309,7 +341,7 @@ namespace BuildingMaterialAPI.Services
                                 c.Item().AlignCenter().Text("Đơn vị bán hàng").Bold();
                                 c.Item().AlignCenter().Text("(Seller)").Italic().FontSize(8);
                                 c.Item().PaddingTop(6).AlignCenter()
-                                    .Text("CÔNG TY CỔ PHẦN VLXD").FontSize(8).Bold().FontColor(Colors.Red.Medium);
+                                    .Text("CỬA HÀNG VẬT LIỆU XÂY DỰNG THÀNH ĐẠT").FontSize(8).Bold().FontColor("#e68c55");
                                 c.Item().AlignCenter().Text("(Chữ ký số / Digital Signature)").FontSize(7).Italic().FontColor(Colors.Blue.Darken3);
                                 c.Item().PaddingTop(10).AlignCenter().Text($"Ký ngày: {hd.NgayLap:dd-MM-yyyy}").FontSize(7);
                             });

@@ -105,6 +105,8 @@ namespace BuildingMaterialAPI.Controllers
                     giaSauKhuyenMai = Math.Round(giaSauKhuyenMai, 0),
                     phanTramGiam,
                     loaiGia,
+                    daBan = flashDetail?.SoLuongDaBan ?? 0,
+                    soLuongBanDau = flashDetail?.SoLuongKhuyenMai ?? 100,
                     hangApDung = bestPromo?.HangThanhVien,
                     giaNhap = p.GiaNhap, mucTonToiThieu = p.MucTonToiThieu,
                     ghiChu = p.GhiChu, maLoaiSP = p.MaLoaiSP,
@@ -138,6 +140,14 @@ namespace BuildingMaterialAPI.Controllers
 
             if (p == null) return NotFound();
 
+            // Lấy thông tin khuyến mãi/Flash Sale cho chi tiết SP
+            var now = DateTime.Now;
+            var activePromo = await _ctx.KhuyenMaiDoiTuongs
+                .Include(k => k.KhuyenMai)
+                .Where(k => k.MaSanPham == id && k.KhuyenMai.TrangThai && k.KhuyenMai.ThoiGianBatDau <= now && k.KhuyenMai.ThoiGianKetThuc >= now)
+                .OrderByDescending(k => k.KhuyenMai.LoaiKM == "GiaSoc" ? 1 : 0) // Ưu tiên Flash Sale
+                .FirstOrDefaultAsync();
+
             var res = new
             {
                 maSanPham = p.MaSanPham,
@@ -150,6 +160,11 @@ namespace BuildingMaterialAPI.Controllers
                         : JsonSerializer.Deserialize<List<string>>(p.AnhPhu) ?? new List<string>(),
                 donViTinh = p.DonViTinh,
                 giaBan = p.GiaBan,
+                giaSauKhuyenMai = activePromo?.GiaKhuyenMai ?? p.GiaBan,
+                phanTramGiam = (activePromo != null && p.GiaBan > 0) ? Math.Round((p.GiaBan - (activePromo.GiaKhuyenMai ?? p.GiaBan)) / p.GiaBan * 100) : 0,
+                loaiGia = activePromo?.KhuyenMai?.LoaiKM == "GiaSoc" ? "FlashSale" : (activePromo != null ? "KhuyenMai" : "GiaGoc"),
+                daBan = activePromo?.SoLuongDaBan ?? 0,
+                soLuongBanDau = activePromo?.SoLuongKhuyenMai ?? 100,
                 giaNhap = p.GiaNhap,
                 mucTonToiThieu = p.MucTonToiThieu,
                 ghiChu = p.GhiChu,
@@ -172,8 +187,14 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> Create([FromBody] SanPhamDto dto)
         {
             if (dto == null) return BadRequest("Dữ liệu không hợp lệ");
+
+            // Lấy ID tiếp theo để tạo mã SP tự động (VD: SP001)
+            var lastId = await _ctx.SanPhams.OrderByDescending(x => x.MaSanPham).Select(x => x.MaSanPham).FirstOrDefaultAsync();
+            string autoMaSP = "SP" + (lastId + 1).ToString("D3");
+
             var sp = new SanPham
             {
+                MaSP = string.IsNullOrEmpty(dto.MaSP) ? autoMaSP : dto.MaSP,
                 TenSP = dto.TenSP ?? "", MoTa = dto.MoTa,
                 HinhAnh = dto.HinhAnh, AnhPhu = dto.AnhPhu, DonViTinh = dto.DonViTinh,
                 GiaBan = dto.GiaBan, GiaNhap = dto.GiaNhap, ThuongHieu = dto.ThuongHieu, XuatXu = dto.XuatXu,
@@ -286,15 +307,22 @@ namespace BuildingMaterialAPI.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var p = await _ctx.SanPhams.FindAsync(id);
-            if (p == null) return NotFound();
-            
-            // Soft Delete: Chuyển trạng thái về false để ẩn khỏi UI nhưng giữ lịch sử
-            p.TrangThai = false;
-            p.NgayCapNhat = DateTime.UtcNow;
-            
-            await _ctx.SaveChangesAsync();
-            return NoContent();
+            try
+            {
+                var p = await _ctx.SanPhams.FindAsync(id);
+                if (p == null) return NotFound();
+                
+                // Soft Delete: Chuyển trạng thái về false để ẩn khỏi UI nhưng giữ lịch sử
+                p.TrangThai = false;
+                p.NgayCapNhat = DateTime.UtcNow;
+                
+                await _ctx.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi xóa sản phẩm: " + ex.Message });
+            }
         }
 
         [HttpGet("export")]

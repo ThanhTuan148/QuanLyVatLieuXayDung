@@ -494,8 +494,8 @@ const CustomerShoppingPage = () => {
               }}>
                 {activeFlashSale.targets?.slice(0, 8).map((prod, idx) => {
                   const currentStock = prod.soLuongTon !== undefined ? prod.soLuongTon : 0;
-                  const sold = prod.daBan !== undefined ? prod.daBan : Math.floor((prod.maSanPham || 1) % 50); // Mock sold count
-                  const total = prod.soLuongBanDau || (currentStock + sold) || 100; // Mock total for progress bar
+                  const sold = prod.daBan || 0;
+                  const total = prod.soLuongBanDau || 100;
                   const percentSold = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
                   const discountPercent = prod.giaBan > 0 ? Math.round((prod.giaBan - prod.giaKhuyenMai) / prod.giaBan * 100) : 0;
                   const isFlashSaleEmpty = currentStock <= 0 || sold >= total;

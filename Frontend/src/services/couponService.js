@@ -50,7 +50,9 @@ const couponService = {
                 finalAmount: orderAmount - discount,
                 tenKM: coupon.tenKM,
                 maKhuyenMai: coupon.maKhuyenMai,
-                type: coupon.loaiGiamGia
+                type: coupon.loaiGiamGia,
+                discountValue: coupon.giaTriGiam,
+                maxDiscount: coupon.giamToiDa
             };
 
         } catch (error) {

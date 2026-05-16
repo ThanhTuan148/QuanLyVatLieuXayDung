@@ -17,6 +17,7 @@ namespace BuildingMaterialAPI.Models
         [Column("DiaChiGiaoHang")] public string? DiaChiGiaoHang { get; set; }
         [Column("TenNguoiNhan")] public string? TenNguoiNhan { get; set; }
         [Column("SdtNguoiNhan")] public string? SdtNguoiNhan { get; set; }
+        [Column("SoLuongDaGiao")] public int SoLuongDaGiao { get; set; }
 
         [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; }
         [ForeignKey("MaSanPham")] public virtual SanPham SanPham { get; set; }
