@@ -139,6 +139,7 @@ function Layout({ children }) {
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
             onClose={handleMenuClose}
+            disableScrollLock={true}
           >
             <MenuItem onClick={handleLogout}>
               <LogoutIcon sx={{ mr: 1 }} />
