@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import api from '../services/api';
+import cartService from '../services/cartService';
 
 const FloatingChat = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +21,8 @@ const FloatingChat = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [connection, setConnection] = useState(null);
   const [user, setUser] = useState(null);
+  const [chatMode, setChatMode] = useState('AI'); // 'AI' or 'Staff'
+  const [allProducts, setAllProducts] = useState([]);
   const scrollRef = useRef(null);
   const connectionRef = useRef(null); // Prevent duplicate connections
 
@@ -63,6 +66,17 @@ const FloatingChat = () => {
 
     fetchHistory(customerId);
     setupSignalR(customerId);
+    
+    // Fetch active product catalog for AI material mapping
+    const fetchProducts = async () => {
+      try {
+        const res = await api.get('/products');
+        setAllProducts(res.data);
+      } catch (err) {
+        console.error('Error fetching products for chat:', err);
+      }
+    };
+    fetchProducts();
     
     const handleResize = () => {
       setPosition(prev => ({
@@ -122,10 +136,60 @@ const FloatingChat = () => {
     }
   }, [messages, isOpen]);
 
+  const parseMessage = (text) => {
+    if (!text) return { cleanText: '', actionData: null };
+    const actionRegex = /\[ESTIMATE_ACTION:\s*(\{[\s\S]*\})\s*\]/s;
+    const match = text.match(actionRegex);
+    if (!match) return { cleanText: text, actionData: null };
+    
+    try {
+      const actionData = JSON.parse(match[1]);
+      const cleanText = text.replace(actionRegex, '').trim();
+      return { cleanText, actionData };
+    } catch (e) {
+      console.error('Error parsing ESTIMATE_ACTION:', e);
+      return { cleanText: text, actionData: null };
+    }
+  };
+
+  const handleAddEstimateToCart = async (items) => {
+    let addedCount = 0;
+    try {
+      for (const item of items) {
+        // Robust fuzzy matching by code, exact name, or name similarity
+        const prod = allProducts.find(p => {
+          if (!p || !item.maSP) return false;
+          const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
+          const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
+          const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
+                               item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
+          return codeMatch || nameMatch || partialMatch;
+        });
+
+        if (prod) {
+          await cartService.addToCart({
+            productId: prod.maSanPham,
+            productName: prod.tenSP,
+            price: prod.giaSauKhuyenMai || prod.giaBan,
+            image: prod.hinhAnh,
+            unit: prod.donViTinh,
+            quantity: item.quantity
+          });
+          addedCount++;
+        }
+      }
+      alert(`🎉 Đã thêm thành công ${addedCount} loại vật liệu vào giỏ hàng của bạn!`);
+    } catch (err) {
+      console.error('Error adding estimate to cart:', err);
+      alert('Không thể thêm vật tư vào giỏ hàng.');
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || !connection || !user) return;
+    const senderRole = chatMode === 'AI' ? 'Customer_AI' : 'Customer_Staff';
     try {
-      await connection.invoke('SendMessage', String(user.maKhachHang), input, 'Customer', null);
+      await connection.invoke('SendMessage', String(user.maKhachHang), input, senderRole, null);
       setInput('');
     } catch (err) {
       console.error('Send message error:', err);
@@ -232,6 +296,44 @@ const FloatingChat = () => {
             </Box>
           </Box>
 
+          {/* Mode Selector */}
+          <Box sx={{ display: 'flex', bgcolor: '#fff', borderBottom: '1px solid #eee', p: 0.5 }}>
+            <Box 
+              onClick={() => setChatMode('AI')}
+              sx={{ 
+                flex: 1, 
+                py: 1, 
+                textAlign: 'center', 
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: chatMode === 'AI' ? '#e68c55' : '#888',
+                borderBottom: chatMode === 'AI' ? '2px solid #e68c55' : 'none',
+                transition: 'all 0.2s',
+                '&:hover': { bgcolor: '#fff6f0' }
+              }}
+            >
+              🤖 Trợ lý AI
+            </Box>
+            <Box 
+              onClick={() => setChatMode('Staff')}
+              sx={{ 
+                flex: 1, 
+                py: 1, 
+                textAlign: 'center', 
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                color: chatMode === 'Staff' ? '#e68c55' : '#888',
+                borderBottom: chatMode === 'Staff' ? '2px solid #e68c55' : 'none',
+                transition: 'all 0.2s',
+                '&:hover': { bgcolor: '#fff6f0' }
+              }}
+            >
+              💬 Nhân viên
+            </Box>
+          </Box>
+
           {/* Messages List */}
           <Box 
             ref={scrollRef}
@@ -245,25 +347,89 @@ const FloatingChat = () => {
               gap: 1
             }}
           >
-            {messages.map((m, i) => (
-              <Box 
-                key={i} 
-                sx={{ 
-                  alignSelf: m.senderRole === 'Customer' ? 'flex-end' : 'flex-start',
-                  maxWidth: '80%',
-                  bgcolor: m.senderRole === 'Customer' ? '#e68c55' : 'white',
-                  color: m.senderRole === 'Customer' ? 'white' : '#333',
-                  p: 1.5,
-                  borderRadius: m.senderRole === 'Customer' ? '15px 15px 0 15px' : '15px 15px 15px 0',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                }}
-              >
-                <Typography variant="body2">{m.message}</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', textAlign: 'right', mt: 0.5 }}>
-                  {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Typography>
-              </Box>
-            ))}
+            {messages
+              .filter(m => {
+                if (chatMode === 'AI') {
+                  return m.senderRole === 'Customer_AI' || m.senderRole === 'Customer' || m.senderRole === 'AI Assistant';
+                } else {
+                  return m.senderRole === 'Customer_Staff' || m.senderRole === 'Staff';
+                }
+              })
+              .map((m, i) => {
+                const isCustomer = m.senderRole === 'Customer' || m.senderRole === 'Customer_AI' || m.senderRole === 'Customer_Staff';
+                const isAI = m.senderRole === 'AI Assistant';
+                
+                const { cleanText, actionData } = parseMessage(m.message);
+
+                return (
+                  <Box 
+                    key={i} 
+                    sx={{ 
+                      alignSelf: isCustomer ? 'flex-end' : 'flex-start',
+                      maxWidth: '85%',
+                      bgcolor: isCustomer ? '#e68c55' : (isAI ? '#e3f2fd' : 'white'),
+                      color: isCustomer ? 'white' : '#333',
+                      p: 1.5,
+                      borderRadius: isCustomer ? '15px 15px 0 15px' : '15px 15px 15px 0',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                      border: isAI ? '1px solid #bbdefb' : 'none'
+                    }}
+                  >
+                    {isAI && (
+                      <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#1976d2', mb: 0.5, display: 'block' }}>
+                        🤖 Trợ lý ảo AI
+                      </Typography>
+                    )}
+                    <Typography variant="body2" style={{ whiteSpace: 'pre-line' }}>{cleanText}</Typography>
+
+                    {actionData && actionData.items && (
+                      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#ffffff', borderRadius: 2, border: '1px dashed #e68c55', color: '#333' }}>
+                        <Typography variant="subtitle2" fontWeight="bold" color="#e68c55" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          📊 Ước tính từ Thành Đạt:
+                        </Typography>
+                        {actionData.items.map((item, idx) => {
+                          const prod = allProducts.find(p => {
+                            if (!p || !item.maSP) return false;
+                            const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
+                            const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
+                            const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
+                                                 item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
+                            return codeMatch || nameMatch || partialMatch;
+                          });
+                          return (
+                            <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, fontSize: '12px' }}>
+                              <span>• {prod ? prod.tenSP : item.maSP}:</span>
+                              <span style={{ fontWeight: 'bold' }}>{item.quantity} {prod ? prod.donViTinh : (item.unit || item.donViTinh || 'Đơn vị')}</span>
+                            </Box>
+                          );
+                        })}
+                        <Fab
+                          variant="extended"
+                          size="small"
+                          onClick={() => handleAddEstimateToCart(actionData.items)}
+                          sx={{ 
+                            mt: 1.5, 
+                            width: '100%', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            bgcolor: '#e68c55',
+                            color: 'white',
+                            boxShadow: 'none',
+                            textTransform: 'none',
+                            '&:hover': { bgcolor: '#d47b44' }
+                          }}
+                        >
+                          🛒 Thêm tất cả vào giỏ hàng
+                        </Fab>
+                      </Box>
+                    )}
+
+                    <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', textAlign: 'right', mt: 0.5 }}>
+                      {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Typography>
+                  </Box>
+                );
+              })}
           </Box>
 
           {/* Input */}

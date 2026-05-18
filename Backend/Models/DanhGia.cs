@@ -41,12 +41,12 @@ namespace BuildingMaterialAPI.Models
         public DateTime NgayTao { get; set; } = DateTime.UtcNow;
 
         [ForeignKey("MaSanPham")]
-        public virtual SanPham SanPham { get; set; }
+        public virtual SanPham SanPham { get; set; } = null!;
 
         [ForeignKey("MaKhachHang")]
-        public virtual KhachHang KhachHang { get; set; }
+        public virtual KhachHang KhachHang { get; set; } = null!;
 
         [ForeignKey("MaHoaDon")]
-        public virtual HoaDon HoaDon { get; set; }
+        public virtual HoaDon HoaDon { get; set; } = null!;
     }
 }

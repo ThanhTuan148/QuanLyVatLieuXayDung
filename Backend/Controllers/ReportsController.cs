@@ -33,7 +33,7 @@ namespace BuildingMaterialAPI.Controllers
             // Lấy tất cả hóa đơn hoàn thành trong khoảng thời gian
             var orders = await _ctx.HoaDons
                 .Include(h => h.CTHDs)
-                .Where(h => h.TrangThai.ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
+                .Where(h => (h.TrangThai ?? "").ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
                 .ToListAsync();
 
             // Lấy giá nhập gần nhất của các sản phẩm để tính lợi nhuận (giả định đơn giản)
@@ -81,10 +81,10 @@ namespace BuildingMaterialAPI.Controllers
                 .Where(k => k.SoLuongTon > 0 && k.NgayCapNhat <= sixtyDaysAgo)
                 .Select(k => new {
                     k.MaSanPham,
-                    tenSP = k.SanPham.TenSP,
+                    tenSP = k.SanPham != null ? k.SanPham.TenSP : "Unknown",
                     k.SoLuongTon,
                     ngayCapNhat = k.NgayCapNhat,
-                    tenKho = k.KhoHang.TenKho,
+                    tenKho = k.KhoHang != null ? k.KhoHang.TenKho : "Unknown",
                     daysOld = (DateTime.UtcNow - k.NgayCapNhat).Days
                 })
                 .OrderByDescending(k => k.daysOld)
@@ -99,7 +99,7 @@ namespace BuildingMaterialAPI.Controllers
             var ranking = await _ctx.HoaDons
                 .Include(h => h.KhachHang)
                 .Where(h => h.TrangThai == "Hoàn thành")
-                .GroupBy(h => new { h.MaKhachHang, h.KhachHang.TenKH, h.KhachHang.MaKH })
+                .GroupBy(h => new { h.MaKhachHang, TenKH = h.KhachHang != null ? h.KhachHang.TenKH : "Khách lẻ", MaKH = h.KhachHang != null ? h.KhachHang.MaKH : "N/A" })
                 .Select(g => new {
                     maKH = g.Key.MaKH,
                     tenKH = g.Key.TenKH,
@@ -149,7 +149,7 @@ namespace BuildingMaterialAPI.Controllers
 
             var orders = await _ctx.HoaDons
                 .Include(h => h.KhachHang)
-                .Where(h => h.TrangThai.ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
+                .Where(h => (h.TrangThai ?? "").ToLower().Contains("hoàn thành") && h.NgayLap >= startDate && h.NgayLap < endDate)
                 .Select(h => new {
                     h.MaHoaDon,
                     h.MaHD,
@@ -168,11 +168,11 @@ namespace BuildingMaterialAPI.Controllers
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary()
         {
-            var totalRevenue = await _ctx.HoaDons.Where(h => h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.TongTien ?? 0);
-            var totalCollected = await _ctx.HoaDons.Where(h => h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.ThanhToan ?? 0);
+            var totalRevenue = await _ctx.HoaDons.Where(h => h.TrangThai != null && h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.TongTien ?? 0);
+            var totalCollected = await _ctx.HoaDons.Where(h => h.TrangThai != null && h.TrangThai.ToLower().Contains("hoàn thành")).SumAsync(h => h.ThanhToan ?? 0);
             var totalDebt = await _ctx.CongNos.Where(c => c.MaKhachHang != null).SumAsync(c => c.SoTienConLai);
             var totalProducts = await _ctx.SanPhams.CountAsync();
-            var totalOrders = await _ctx.HoaDons.CountAsync(h => h.TrangThai.ToLower().Contains("hoàn thành"));
+            var totalOrders = await _ctx.HoaDons.CountAsync(h => h.TrangThai != null && h.TrangThai.ToLower().Contains("hoàn thành"));
             
             // Giá trị kho = Tổng (Số lượng tồn * Giá nhập gần nhất)
             var inventoryItems = await _ctx.CTKhoHangs.Where(k => k.SoLuongTon > 0).ToListAsync();

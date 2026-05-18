@@ -11,7 +11,7 @@ namespace BuildingMaterialAPI.Models
         [Key][Column("MaCongNo")] public int MaCongNo { get; set; }
         [Column("MaCN")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaCN { get; set; }
+        public string MaCN { get; set; } = null!;
         [Column("SoTienNo")] public decimal SoTienNo { get; set; }
         [Column("SoTienDaTra")] public decimal SoTienDaTra { get; set; }
         [Column("SoTienConLai")] public decimal? SoTienConLai { get; set; }
@@ -30,11 +30,11 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayNhacNoEmail")] public DateTime? NgayNhacNoEmail { get; set; }
         [Column("LaiPhat")] public decimal LaiPhat { get; set; } = 0;
 
-        [ForeignKey("MaKhachHang")] public virtual KhachHang KhachHang { get; set; }
+        [ForeignKey("MaKhachHang")] public virtual KhachHang? KhachHang { get; set; }
 
-        [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; }
-        [ForeignKey("MaNhaCungCap")] public virtual NhaCungCap NhaCungCap { get; set; }
-        [ForeignKey("MaPhieuNhap")] public virtual PhieuNhap PhieuNhap { get; set; }
+        [ForeignKey("MaHoaDon")] public virtual HoaDon? HoaDon { get; set; }
+        [ForeignKey("MaNhaCungCap")] public virtual NhaCungCap? NhaCungCap { get; set; }
+        [ForeignKey("MaPhieuNhap")] public virtual PhieuNhap? PhieuNhap { get; set; }
 
     }
 }

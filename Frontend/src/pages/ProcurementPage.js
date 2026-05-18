@@ -90,6 +90,62 @@ function ProcurementPage() {
   // New Approval Actions: { maCTPN: 'approve' | 'revise' | 'reject' }
   const [itemActions, setItemActions] = useState({});
 
+  const [aiOcrOpen, setAiOcrOpen] = useState(false);
+  const [aiOcrLoading, setAiOcrLoading] = useState(false);
+  const [aiOcrData, setAiOcrData] = useState(null);
+  const [aiOcrImage, setAiOcrImage] = useState(null);
+
+  const handleRunAiOcr = async () => {
+    setAiOcrOpen(true);
+    setAiOcrLoading(true);
+    try {
+      const payload = {
+        base64Image: aiOcrImage || "DEFAULT_SAMPLE_INVOICE_IMAGE_BASE64",
+        fileName: "hoa_don_vat_lieu.jpg"
+      };
+      const res = await api.post('/ai/ocr-invoice', payload);
+      setAiOcrData(res.data);
+    } catch (err) {
+      alert('Lỗi khi gọi AI quét hóa đơn OCR: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setAiOcrLoading(false);
+    }
+  };
+
+  const handleApplyOcrToProposal = () => {
+    if (!aiOcrData) return;
+    const nccMatch = suppliers.find(s => s.tenNCC?.toLowerCase().includes(aiOcrData.tenNhaCungCap?.toLowerCase()) || s.tenNhaCungCap?.toLowerCase().includes(aiOcrData.tenNhaCungCap?.toLowerCase())) || suppliers[0];
+    const maNCC = nccMatch ? (nccMatch.maNCC || nccMatch.maNhaCungCap || 1) : 1;
+    const tenNCC = nccMatch ? (nccMatch.tenNCC || nccMatch.tenNhaCungCap || aiOcrData.tenNhaCungCap) : aiOcrData.tenNhaCungCap;
+
+    const newItems = aiOcrData.danhSachMatHang?.map(item => {
+      const prodMatch = products.find(p => p.tenSP?.toLowerCase().includes(item.tenMatHang?.toLowerCase()) || p.tenSanPham?.toLowerCase().includes(item.tenMatHang?.toLowerCase())) || products[0];
+      const maSP = prodMatch ? (prodMatch.maSP || prodMatch.maSanPham || 1) : 1;
+      const tenSP = prodMatch ? (prodMatch.tenSP || prodMatch.tenSanPham || item.tenMatHang) : item.tenMatHang;
+
+      return {
+        itemKey: `${maSP}_${maNCC}_${Math.random()}`,
+        maSanPham: maSP,
+        tenSanPham: tenSP,
+        soLuong: item.soLuong || 1,
+        donGia: item.donGia || 0,
+        maNhaCungCap: maNCC,
+        tenNhaCungCap: tenNCC,
+        maKhoHang: warehouses[0]?.maKhoHang || 1,
+        tenKho: warehouses[0]?.tenKho || 'Mặc định'
+      };
+    }) || [];
+
+    setNewProposal(prev => ({
+      note: `Hóa đơn bóc tách tự động OCR AI (Mã HĐ: ${aiOcrData.soHoaDon || 'N/A'}, Ngày: ${aiOcrData.ngayHoaDon || 'N/A'})`,
+      items: [...prev.items, ...newItems]
+    }));
+
+    setAiOcrOpen(false);
+    setCreateDialog(true);
+    alert('Đã bóc tách thành công và chuyển dữ liệu vào Phiếu Đề Xuất Nhập Hàng!');
+  };
+
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
   const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
@@ -896,6 +952,9 @@ function ProcurementPage() {
               Đồng Bộ Dữ Liệu
             </Button>
           )}
+          <Button variant="contained" onClick={() => { setAiOcrData(null); setAiOcrImage(null); setAiOcrOpen(true); }} sx={{ background: 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(245,175,25,0.3)' }}>
+            📸 AI Quét Hóa Đơn OCR
+          </Button>
           {isNhanVienKho && (
             <Button
               variant="contained"
@@ -1892,6 +1951,131 @@ function ProcurementPage() {
             sx={{ px: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
           >
             {actionLoading ? <CircularProgress size={24} color="inherit" /> : `GỬI ĐỀ XUẤT (${selectedAlertIds.size} MẶT HÀNG)`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={aiOcrOpen} onClose={() => setAiOcrOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%)', color: '#fff', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>📸 AI TỰ ĐỘNG BÓC TÁCH HÓA ĐƠN (OCR INVOICE PROCESSING)</Typography>
+          </Box>
+          <Chip label="Vision AI & LLM Extraction" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 'bold' }} />
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 3, bgcolor: '#f8f9fa' }}>
+          <Box sx={{ mb: 3, p: 2, bgcolor: '#fff', borderRadius: 2, border: '1px dashed #cb2d3e', textAlign: 'center' }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              💡 Hướng dẫn: Tải lên hình ảnh hóa đơn giấy hoặc ảnh chụp từ điện thoại để AI tự động bóc tách tên nhà cung cấp, mặt hàng, số lượng và đơn giá.
+            </Typography>
+            <input
+              type="file"
+              accept="image/*"
+              id="ocr-upload-input"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = () => setAiOcrImage(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <label htmlFor="ocr-upload-input">
+              <Button variant="outlined" component="span" sx={{ color: '#cb2d3e', borderColor: '#cb2d3e', '&:hover': { borderColor: '#ef473a', bgcolor: 'rgba(203,45,62,0.05)' } }}>
+                📁 Chọn File Ảnh Hóa Đơn
+              </Button>
+            </label>
+            {aiOcrImage && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>✅ Đã tải ảnh lên thành công. Bấm nút Quét bên dưới để phân tích.</Typography>
+                <img src={aiOcrImage} alt="Hóa đơn tải lên" style={{ maxHeight: 180, borderRadius: 8, border: '1px solid #ddd' }} />
+              </Box>
+            )}
+            <Box sx={{ mt: 2 }}>
+              <Button variant="contained" onClick={handleRunAiOcr} disabled={aiOcrLoading} sx={{ background: 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)', color: '#fff', fontWeight: 'bold', px: 4 }}>
+                {aiOcrLoading ? 'AI ĐANG BỐC TÁCH DỮ LIỆU...' : '🚀 BẮT ĐẦU QUÉT & PHÂN TÍCH OCR AI'}
+              </Button>
+            </Box>
+          </Box>
+
+          {aiOcrLoading ? (
+            <Box sx={{ py: 8, textAlign: 'center' }}>
+              <CircularProgress sx={{ color: '#ef473a', mb: 3 }} size={48} />
+              <Typography variant="h6" color="text.secondary" sx={{ animation: 'pulse 1.5s infinite' }}>
+                AI đang nhận diện ký tự quang học (OCR), đối chiếu danh mục nhà cung cấp và khớp mã vật tư...
+              </Typography>
+            </Box>
+          ) : aiOcrData ? (
+            <Box>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #cb2d3e', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Nhà Cung Cấp</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#cb2d3e', mt: 0.5 }}>{aiOcrData.tenNhaCungCap}</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #f5af19', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Số Hóa Đơn & Ngày</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333', mt: 0.5 }}>HĐ: {aiOcrData.soHoaDon} ({aiOcrData.ngayHoaDon})</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #2ed573', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Tiền Hóa Đơn</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2ed573', mt: 0.5 }}>{aiOcrData.tongTienHoaDon?.toLocaleString('vi-VN')} đ</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
+                📦 Danh Sách Mặt Hàng Bóc Tách Được
+              </Typography>
+
+              <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                <Table>
+                  <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>STT</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Tên Mặt Hàng (Trên Hóa Đơn)</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Số Lượng</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="right">Đơn Giá</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="right">Thành Tiền</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {aiOcrData.danhSachMatHang?.map((item, idx) => (
+                      <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#cb2d3e' }}>{idx + 1}</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>{item.tenMatHang}</TableCell>
+                        <TableCell align="center">
+                          <Chip label={item.soLuong} size="small" color="primary" sx={{ fontWeight: 'bold' }} />
+                        </TableCell>
+                        <TableCell align="right"><Typography variant="body2">{item.donGia?.toLocaleString('vi-VN')} đ</Typography></TableCell>
+                        <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>{item.thanhTien?.toLocaleString('vi-VN')} đ</Typography></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(46, 213, 115, 0.1)', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="success.main" sx={{ fontWeight: 'bold' }}>
+                  💡 Hệ thống tự động khớp mã vật tư và nhà cung cấp. Bạn có thể chuyển ngay dữ liệu này thành Phiếu Đề Xuất Nhập Hàng mới!
+                </Typography>
+                <Button variant="contained" color="success" onClick={handleApplyOcrToProposal} sx={{ fontWeight: 'bold', px: 3, boxShadow: '0 4px 15px rgba(46,213,115,0.3)' }}>
+                  ✨ Tạo Phiếu Đề Xuất Nhập Hàng
+                </Button>
+              </Box>
+            </Box>
+          ) : (
+            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>Chưa có dữ liệu bóc tách. Vui lòng chọn file ảnh và bấm nút Quét.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, bgcolor: '#fff' }}>
+          <Button variant="contained" onClick={() => setAiOcrOpen(false)} sx={{ background: 'linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%)' }}>
+            Đóng Giao Diện AI
           </Button>
         </DialogActions>
       </Dialog>

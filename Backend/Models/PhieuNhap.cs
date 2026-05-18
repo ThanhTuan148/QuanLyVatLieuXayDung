@@ -11,7 +11,7 @@ namespace BuildingMaterialAPI.Models
         [Key][Column("MaPhieuNhap")] public int MaPhieuNhap { get; set; }
         [Column("MaPN")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaPN { get; set; }
+        public string MaPN { get; set; } = null!;
         [Column("NgayNhap")] public DateTime NgayNhap { get; set; }
         [Column("NgayGiaoHang")] public DateTime? NgayGiaoHang { get; set; }
         [Column("TongTien")] public decimal? TongTien { get; set; }
@@ -23,9 +23,9 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayTao")] public DateTime NgayTao { get; set; }
         [Column("NgayCapNhat")] public DateTime NgayCapNhat { get; set; }
 
-        [ForeignKey("MaNhaCungCap")] public virtual NhaCungCap NhaCungCap { get; set; }
-        [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; }
-        public virtual ICollection<CTPN> CTPNs { get; set; }
-        public virtual ICollection<CongNo> CongNos { get; set; }
+        [ForeignKey("MaNhaCungCap")] public virtual NhaCungCap NhaCungCap { get; set; } = null!;
+        [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; } = null!;
+        public virtual ICollection<CTPN> CTPNs { get; set; } = new List<CTPN>();
+        public virtual ICollection<CongNo> CongNos { get; set; } = new List<CongNo>();
     }
 }

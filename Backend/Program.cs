@@ -42,7 +42,13 @@ builder.Services.AddCors(options =>
 // Add DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString, x => x.MigrationsHistoryTable("__EFMigrationsHistory")));
+    options.UseSqlServer(connectionString, sqlOptions => {
+        sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory");
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    }));
 
 // Add Repositories
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -149,7 +155,7 @@ using (var scope = app.Services.CreateScope())
         // context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[NHANVIEN]') AND name = 'ChuKy') ALTER TABLE [NHANVIEN] ADD [ChuKy] nvarchar(max) NULL;");
 
         // New Table: ContactMessages
-        context.Database.ExecuteSqlRaw(@"
+        /* context.Database.ExecuteSqlRaw(@"
             IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ContactMessages]') AND type in (N'U'))
             BEGIN
                 CREATE TABLE [dbo].[ContactMessages](
@@ -188,9 +194,9 @@ using (var scope = app.Services.CreateScope())
                 [Timestamp] [datetime2](7) NOT NULL DEFAULT GETDATE(),
                 [IsRead] [bit] NOT NULL DEFAULT 0
             );
-        ");
+        "); */
 
-        context.Database.ExecuteSqlRaw(@"
+        /* context.Database.ExecuteSqlRaw(@"
             IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LICHSUHOADON]') AND type in (N'U'))
             BEGIN
                 CREATE TABLE [dbo].[LICHSUHOADON](
@@ -369,11 +375,11 @@ using (var scope = app.Services.CreateScope())
             WHERE v.[TenVT] = N'Tài xế' AND q.[MaQ] IN ('Q05', 'Q04', 'Q09');
 
             DELETE FROM [NHANVIEN_MODULE_QUYEN];
-            ");
-
-    } catch (Exception ex) { 
-        Console.WriteLine($"[Emergency Fix Error] {ex.Message}");
-    }
+            "); */
+ 
+     } catch (Exception ex) { 
+         Console.WriteLine($"[Emergency Fix Skip] {ex.Message}");
+     }
 }
 
 
@@ -387,6 +393,7 @@ if (app.Environment.IsDevelopment())
 
 // Disable HTTPS redirection for development
 // app.UseHttpsRedirection();
+app.UseRouting();
 app.UseCors("AllowReact");
 app.UseStaticFiles(); // Serve files from wwwroot
 app.MapControllers();

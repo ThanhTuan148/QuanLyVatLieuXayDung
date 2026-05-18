@@ -33,9 +33,9 @@ namespace BuildingMaterialAPI.Models
         public DateTime NgayTao { get; set; }
 
         [ForeignKey("MaPhieuGH")]
-        public virtual PhieuGiaoHang PhieuGiaoHang { get; set; }
+        public virtual PhieuGiaoHang PhieuGiaoHang { get; set; } = null!;
 
         [ForeignKey("MaSanPham")]
-        public virtual SanPham SanPham { get; set; }
+        public virtual SanPham SanPham { get; set; } = null!;
     }
 }

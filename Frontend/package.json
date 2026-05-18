@@ -11,6 +11,8 @@
     "@mui/material": "^5.14.0",
     "@mui/x-data-grid": "^6.20.4",
     "@reduxjs/toolkit": "^1.9.6",
+    "@teachablemachine/image": "^0.8.5",
+    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.5.0",
     "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",

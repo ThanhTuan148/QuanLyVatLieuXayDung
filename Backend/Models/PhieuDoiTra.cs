@@ -10,7 +10,7 @@ namespace BuildingMaterialAPI.Models
         [Key][Column("MaPhieuDT")] public int MaPhieuDT { get; set; }
         [Column("MaDT")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaDT { get; set; }
+        public string MaDT { get; set; } = null!;
         [Column("NgayDT")] public DateTime NgayDT { get; set; }
         [Column("TongTienHoan")] public decimal? TongTienHoan { get; set; }
         [Column("LyDo")] public string? LyDo { get; set; }
@@ -25,9 +25,9 @@ namespace BuildingMaterialAPI.Models
         [Column("MaNhanVien")] public int MaNhanVien { get; set; }
         [Column("NgayTao")] public DateTime NgayTao { get; set; }
         [Column("NgayCapNhat")] public DateTime NgayCapNhat { get; set; }
-
-        [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; }
-        [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; }
-        public virtual ICollection<CTPhieuDoiTra> CTPhieuDoiTras { get; set; }
+ 
+        [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; } = null!;
+        [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; } = null!;
+        public virtual ICollection<CTPhieuDoiTra> CTPhieuDoiTras { get; set; } = new List<CTPhieuDoiTra>();
     }
 }

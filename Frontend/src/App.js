@@ -40,6 +40,7 @@ import PriceHistoryPage from './pages/PriceHistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ContactMessagesPage from './pages/ContactMessagesPage';
 import AdminChatPage from './pages/AdminChatPage';
+import MaterialEstimatorPage from './pages/MaterialEstimatorPage';
 import ShoppingLayout from './components/ShoppingLayout';
 import ScrollToTop from './components/ScrollToTop';
 import FloatingChat from './components/FloatingChat';
@@ -159,6 +160,7 @@ function App() {
 
             <Route path="/about" element={<ShoppingLayout><CustomerAboutPage /></ShoppingLayout>} />
             <Route path="/contact" element={<ShoppingLayout><CustomerContactPage /></ShoppingLayout>} />
+            <Route path="/estimator" element={<ShoppingLayout><MaterialEstimatorPage /></ShoppingLayout>} />
             <Route path="/news" element={<ShoppingLayout><CustomerNewsPage /></ShoppingLayout>} />
             <Route path="/profile" element={isAuthenticated ? <ShoppingLayout><CustomerProfilePage /></ShoppingLayout> : <Navigate to="/auth" />} />
             <Route path="/my-orders" element={isAuthenticated ? <ShoppingLayout><CustomerOrdersPage /></ShoppingLayout> : <Navigate to="/auth" />} />

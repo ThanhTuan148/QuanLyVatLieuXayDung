@@ -13,10 +13,10 @@ namespace BuildingMaterialAPI.Models
 
         [Column("MaQ")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaQ { get; set; }
+        public string MaQ { get; set; } = null!;
 
         [Column("TenQ")]
-        public string TenQ { get; set; }
+        public string TenQ { get; set; } = null!;
 
         [Column("MoTa")]
         public string? MoTa { get; set; }

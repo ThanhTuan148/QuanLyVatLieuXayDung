@@ -74,17 +74,23 @@ const StaffChatWindow = ({ customer, onClose, onMinimize, connection, staffUser 
         </Box>
       </Box>
       <Box ref={scrollRef} sx={{ flexGrow: 1, overflowY: 'auto', p: 1.5, bgcolor: '#f9f9f9', display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {messages.map((m, i) => (
-          <Box key={i} sx={{ 
-            alignSelf: m.senderRole === 'Staff' ? 'flex-end' : 'flex-start',
-            maxWidth: '85%',
-            bgcolor: m.senderRole === 'Staff' ? '#e68c55' : 'white',
-            color: m.senderRole === 'Staff' ? 'white' : '#333',
-            p: 1, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-          }}>
-            <Typography variant="body2">{m.message}</Typography>
-          </Box>
-        ))}
+        {messages
+          .filter(m => m.senderRole === 'Customer_Staff' || m.senderRole === 'Staff')
+          .map((m, i) => {
+            const isStaff = m.senderRole === 'Staff';
+
+            return (
+              <Box key={i} sx={{ 
+                alignSelf: isStaff ? 'flex-end' : 'flex-start',
+                maxWidth: '85%',
+                bgcolor: isStaff ? '#e68c55' : 'white',
+                color: isStaff ? 'white' : '#333',
+                p: 1, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}>
+                <Typography variant="body2">{m.message}</Typography>
+              </Box>
+            );
+          })}
       </Box>
       <Box sx={{ p: 1, bgcolor: 'white', borderTop: '1px solid #eee', display: 'flex', gap: 1 }}>
         <TextField 
@@ -148,7 +154,7 @@ const StaffChatManager = () => {
     // Remove existing listener if any (safety)
     newConnection.off('NewChatMessage');
     newConnection.on('NewChatMessage', async (msg) => {
-      if (msg.senderRole === 'Customer') {
+      if (msg.senderRole === 'Customer_Staff') {
         try {
           const res = await api.get('/Chat/customers');
           const customerInfo = res.data.find(c => String(c.maKhachHang) === String(msg.customerId));

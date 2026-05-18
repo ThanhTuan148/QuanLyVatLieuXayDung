@@ -62,172 +62,176 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPost]
         public async Task<ActionResult> CreateDelivery([FromBody] CreateDeliveryDto dto)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync<ActionResult>(async () =>
             {
-                var pgh = new PhieuGiaoHang
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    NguoiGiao = dto.NguoiGiao,
-                    NgayGiao = dto.NgayGiao ?? DateTime.UtcNow,
-                    NgayGiaoDuKien = dto.NgayGiaoDuKien,
-                    DiaChi = dto.DiaChi,
-                    TrangThai = dto.TrangThai ?? "Chờ giao",
-                    GhiChu = dto.GhiChu,
-                    MaHoaDon = dto.MaHoaDon,
-                    MaNhanVien = dto.MaNhanVien,
-                    NgayTao = DateTime.UtcNow,
-                    NgayCapNhat = DateTime.UtcNow
-                };
-
-                _context.PhieuGiaoHangs.Add(pgh);
-                await _context.SaveChangesAsync();
-
-                // Gửi thông báo cho tài xế (người được giao)
-                var driver = await _context.NhanViens.Include(nv => nv.TaiKhoan).FirstOrDefaultAsync(nv => nv.MaNhanVien == pgh.MaNhanVien);
-                if (driver?.TaiKhoan != null)
-                {
-                    await _notificationService.SendNotificationAsync(
-                        "Chuyến hàng mới",
-                        $"Bạn đã được phân công giao chuyến hàng {pgh.MaGH} đến địa chỉ {pgh.DiaChi}.",
-                        "GiaoHang",
-                        driver.TaiKhoan.MaTaiKhoan.ToString(),
-                        link: "/deliveries"
-                    );
-                }
-
-                // 1. Kiểm tra và cập nhật/tạo Phiếu Xuất Kho
-                var pxk = await _context.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == pgh.MaHoaDon && p.TrangThai != "Đã xuất");
-                
-                // Lấy thông tin người lập thực tế (Người đang đăng nhập/thao tác)
-                int creatorId = dto.MaNguoiLap > 0 ? dto.MaNguoiLap : (dto.MaNhanVien); // Fallback nếu không có người lập
-                var creator = await _context.NhanViens.FindAsync(creatorId);
-
-                if (pxk == null)
-                {
-                    pxk = new PhieuXuatKho
+                    var pgh = new PhieuGiaoHang
                     {
-                        MaPhieuGH = pgh.MaPhieuGH,
-                        MaHoaDon = pgh.MaHoaDon,
-                        MaNhanVien = creatorId, // Người lập phiếu
-                        NgayXuat = DateTime.UtcNow,
+                        NguoiGiao = dto.NguoiGiao,
+                        NgayGiao = dto.NgayGiao ?? DateTime.UtcNow,
+                        NgayGiaoDuKien = dto.NgayGiaoDuKien,
+                        DiaChi = dto.DiaChi,
+                        TrangThai = dto.TrangThai ?? "Chờ giao",
+                        GhiChu = dto.GhiChu,
+                        MaHoaDon = dto.MaHoaDon,
+                        MaNhanVien = dto.MaNhanVien,
                         NgayTao = DateTime.UtcNow,
-                        NguoiXuat = creator?.TenNV ?? "Hệ thống",
-                        GhiChu = $"Xuất kho cho phiếu giao {pgh.MaGH}",
-                        ChuKyNguoiLap = creator?.ChuKy,
-                        TrangThai = "Chờ duyệt"
+                        NgayCapNhat = DateTime.UtcNow
                     };
-                    _context.PhieuXuatKhos.Add(pxk);
-                    await _context.SaveChangesAsync(); // Save to get MaPhieuXK
 
-                    _context.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
-                    {
-                        MaPhieuXK = pxk.MaPhieuXK,
-                        TrangThaiMoi = "Chờ duyệt",
-                        NoiDungThayDoi = $"Khởi tạo phiếu xuất kho cho đơn hàng {pgh.MaHoaDon}. Người lập: {creator?.TenNV ?? "Hệ thống"}",
-                        MaNguoiThucHien = creatorId,
-                        NgayTao = DateTime.UtcNow
-                    });
-                }
-                else
-                {
-                    string oldStatus = pxk.TrangThai;
-                    // Cập nhật phiếu xuất kho hiện có
-                    pxk.MaPhieuGH = pgh.MaPhieuGH;
-                    pxk.MaNhanVien = creatorId;
-                    pxk.NguoiXuat = creator?.TenNV ?? pxk.NguoiXuat;
-                    pxk.ChuKyNguoiLap = creator?.ChuKy ?? pxk.ChuKyNguoiLap;
-                    pxk.GhiChu = $"Xuất kho cho phiếu giao {pgh.MaGH} (Cập nhật từ đơn hàng)";
-                    
-                    _context.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
-                    {
-                        MaPhieuXK = pxk.MaPhieuXK,
-                        TrangThaiCu = oldStatus,
-                        TrangThaiMoi = pxk.TrangThai,
-                        NoiDungThayDoi = $"Cập nhật liên kết Phiếu giao hàng {pgh.MaGH}. Người cập nhật: {creator?.TenNV ?? "Hệ thống"}",
-                        MaNguoiThucHien = creatorId,
-                        NgayTao = DateTime.UtcNow
-                    });
-                }
-                await _context.SaveChangesAsync();
-
-                // Xóa các chi tiết Phiếu Xuất Kho cũ nếu đã tồn tại để tránh nhân đôi
-                var oldPxkItems = await _context.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
-                if (oldPxkItems.Any())
-                {
-                    _context.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
+                    _context.PhieuGiaoHangs.Add(pgh);
                     await _context.SaveChangesAsync();
-                }
 
-                if (dto.Items != null && dto.Items.Any())
-                {
-                    foreach (var item in dto.Items)
+                    // Gửi thông báo cho tài xế (người được giao)
+                    var driver = await _context.NhanViens.Include(nv => nv.TaiKhoan).FirstOrDefaultAsync(nv => nv.MaNhanVien == pgh.MaNhanVien);
+                    if (driver?.TaiKhoan != null)
                     {
-                        // 2. Tạo chi tiết Phiếu giao
-                        _context.CTPhieuGiaoHangs.Add(new CTPhieuGiaoHang
+                        await _notificationService.SendNotificationAsync(
+                            "Chuyến hàng mới",
+                            $"Bạn đã được phân công giao chuyến hàng {pgh.MaGH} đến địa chỉ {pgh.DiaChi}.",
+                            "GiaoHang",
+                            driver.TaiKhoan.MaTaiKhoan.ToString(),
+                            link: "/deliveries"
+                        );
+                    }
+
+                    // 1. Kiểm tra và cập nhật/tạo Phiếu Xuất Kho
+                    var pxk = await _context.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == pgh.MaHoaDon && p.TrangThai != "Đã xuất");
+                    
+                    // Lấy thông tin người lập thực tế (Người đang đăng nhập/thao tác)
+                    int creatorId = dto.MaNguoiLap > 0 ? dto.MaNguoiLap : (dto.MaNhanVien); // Fallback nếu không có người lập
+                    var creator = await _context.NhanViens.FindAsync(creatorId);
+
+                    if (pxk == null)
+                    {
+                        pxk = new PhieuXuatKho
                         {
                             MaPhieuGH = pgh.MaPhieuGH,
-                            MaSanPham = item.MaSanPham,
-                            MaCTHD = item.MaCTHD,
-                            SoLuongGiao = item.SoLuongGiao,
-                            GhiChu = item.GhiChu,
-                            TrangThai = item.TrangThai ?? "Chờ giao",
-                            NgayTao = DateTime.UtcNow
-                        });
+                            MaHoaDon = pgh.MaHoaDon,
+                            MaNhanVien = creatorId, // Người lập phiếu
+                            NgayXuat = DateTime.UtcNow,
+                            NgayTao = DateTime.UtcNow,
+                            NguoiXuat = creator?.TenNV ?? "Hệ thống",
+                            GhiChu = $"Xuất kho cho phiếu giao {pgh.MaGH}",
+                            ChuKyNguoiLap = creator?.ChuKy,
+                            TrangThai = "Chờ duyệt"
+                        };
+                        _context.PhieuXuatKhos.Add(pxk);
+                        await _context.SaveChangesAsync(); // Save to get MaPhieuXK
 
-                        // 3. Trừ kho và tạo chi tiết Xuất kho
-                        var khoHang = await _context.CTKhoHangs
-                            .Include(k => k.SanPham)
-                            .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuong >= item.SoLuongGiao)
-                            .OrderByDescending(k => k.SoLuong)
-                            .FirstOrDefaultAsync();
-
-                        if (khoHang == null)
-                        {
-                            throw new Exception($"Sản phẩm mã {item.MaSanPham} không đủ tồn kho để xuất!");
-                        }
-
-                        khoHang.SoLuong -= item.SoLuongGiao;
-                        khoHang.NgayCapNhat = DateTime.UtcNow;
-
-                        _context.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                        _context.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
                         {
                             MaPhieuXK = pxk.MaPhieuXK,
-                            MaSanPham = item.MaSanPham,
-                            SoLuong = item.SoLuongGiao,
-                            MaKho = khoHang.MaKhoHang,
-                            DonGiaVon = khoHang.SanPham?.GiaNhap ?? 0
+                            TrangThaiMoi = "Chờ duyệt",
+                            NoiDungThayDoi = $"Khởi tạo phiếu xuất kho cho đơn hàng {pgh.MaHoaDon}. Người lập: {creator?.TenNV ?? "Hệ thống"}",
+                            MaNguoiThucHien = creatorId,
+                            NgayTao = DateTime.UtcNow
+                        });
+                    }
+                    else
+                    {
+                        string oldStatus = pxk.TrangThai;
+                        // Cập nhật phiếu xuất kho hiện có
+                        pxk.MaPhieuGH = pgh.MaPhieuGH;
+                        pxk.MaNhanVien = creatorId;
+                        pxk.NguoiXuat = creator?.TenNV ?? pxk.NguoiXuat;
+                        pxk.ChuKyNguoiLap = creator?.ChuKy ?? pxk.ChuKyNguoiLap;
+                        pxk.GhiChu = $"Xuất kho cho phiếu giao {pgh.MaGH} (Cập nhật từ đơn hàng)";
+                        
+                        _context.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+                        {
+                            MaPhieuXK = pxk.MaPhieuXK,
+                            TrangThaiCu = oldStatus,
+                            TrangThaiMoi = pxk.TrangThai,
+                            NoiDungThayDoi = $"Cập nhật liên kết Phiếu giao hàng {pgh.MaGH}. Người cập nhật: {creator?.TenNV ?? "Hệ thống"}",
+                            MaNguoiThucHien = creatorId,
+                            NgayTao = DateTime.UtcNow
                         });
                     }
                     await _context.SaveChangesAsync();
-                }
 
-                // Update HoaDon status based on delivery status
-                var hd = await _context.HoaDons.FindAsync(dto.MaHoaDon);
-                if (hd != null && (hd.TrangThai == "Chờ xử lý" || hd.TrangThai == "Đã xác nhận" || hd.TrangThai == "Đang giao"))
+                    // Xóa các chi tiết Phiếu Xuất Kho cũ nếu đã tồn tại để tránh nhân đôi
+                    var oldPxkItems = await _context.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
+                    if (oldPxkItems.Any())
+                    {
+                        _context.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    if (dto.Items != null && dto.Items.Any())
+                    {
+                        foreach (var item in dto.Items)
+                        {
+                            // 2. Tạo chi tiết Phiếu giao
+                            _context.CTPhieuGiaoHangs.Add(new CTPhieuGiaoHang
+                            {
+                                MaPhieuGH = pgh.MaPhieuGH,
+                                MaSanPham = item.MaSanPham,
+                                MaCTHD = item.MaCTHD,
+                                SoLuongGiao = item.SoLuongGiao,
+                                GhiChu = item.GhiChu,
+                                TrangThai = item.TrangThai ?? "Chờ giao",
+                                NgayTao = DateTime.UtcNow
+                            });
+
+                            // 3. Trừ kho và tạo chi tiết Xuất kho
+                            var khoHang = await _context.CTKhoHangs
+                                .Include(k => k.SanPham)
+                                .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuong >= item.SoLuongGiao)
+                                .OrderByDescending(k => k.SoLuong)
+                                .FirstOrDefaultAsync();
+
+                            if (khoHang == null)
+                            {
+                                throw new Exception($"Sản phẩm mã {item.MaSanPham} không đủ tồn kho để xuất!");
+                            }
+
+                            khoHang.SoLuong -= item.SoLuongGiao;
+                            khoHang.NgayCapNhat = DateTime.UtcNow;
+
+                            _context.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                            {
+                                MaPhieuXK = pxk.MaPhieuXK,
+                                MaSanPham = item.MaSanPham,
+                                SoLuong = item.SoLuongGiao,
+                                MaKho = khoHang.MaKhoHang,
+                                DonGiaVon = khoHang.SanPham?.GiaNhap ?? 0
+                            });
+                        }
+                        await _context.SaveChangesAsync();
+                    }
+
+                    // Update HoaDon status based on delivery status
+                    var hd = await _context.HoaDons.FindAsync(dto.MaHoaDon);
+                    if (hd != null && (hd.TrangThai == "Chờ xử lý" || hd.TrangThai == "Đã xác nhận" || hd.TrangThai == "Đang giao"))
+                    {
+                        // Nếu phiếu giao là "Chờ giao" thì hóa đơn cũng để "Chờ giao"
+                        // Nếu phiếu giao là "Đang giao" thì hóa đơn mới để "Đang giao"
+                        if (pgh.TrangThai == "Chờ giao")
+                        {
+                            hd.TrangThai = "Chờ giao";
+                        }
+                        else if (pgh.TrangThai == "Đang giao")
+                        {
+                            hd.TrangThai = "Đang giao";
+                        }
+                        
+                        hd.NgayCapNhat = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+
+                    await transaction.CommitAsync();
+                    return CreatedAtAction(nameof(GetDeliveries), new { id = pgh.MaPhieuGH }, new { maPhieuGH = pgh.MaPhieuGH });
+                }
+                catch (Exception ex)
                 {
-                    // Nếu phiếu giao là "Chờ giao" thì hóa đơn cũng để "Chờ giao"
-                    // Nếu phiếu giao là "Đang giao" thì hóa đơn mới để "Đang giao"
-                    if (pgh.TrangThai == "Chờ giao")
-                    {
-                        hd.TrangThai = "Chờ giao";
-                    }
-                    else if (pgh.TrangThai == "Đang giao")
-                    {
-                        hd.TrangThai = "Đang giao";
-                    }
-                    
-                    hd.NgayCapNhat = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { message = ex.Message });
                 }
-
-                await transaction.CommitAsync();
-                return CreatedAtAction(nameof(GetDeliveries), new { id = pgh.MaPhieuGH }, new { maPhieuGH = pgh.MaPhieuGH });
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = ex.Message });
-            }
+            });
         }
 
         [HttpPut("{id}")]
@@ -775,6 +779,7 @@ namespace BuildingMaterialAPI.Controllers
             // 1. Fetch pending orders (Chờ xử lý, Đã xác nhận)
             var pendingOrders = await _context.HoaDons
                 .Include(h => h.KhachHang)
+                .Include(h => h.CTHDs)
                 .Where(h => h.TrangThai == "Chờ xử lý" || h.TrangThai == "Đã xác nhận")
                 .ToListAsync();
 
@@ -796,7 +801,15 @@ namespace BuildingMaterialAPI.Controllers
             if (aiBatches == null || aiBatches.Count == 0)
             {
                 // Fallback to simple logic if AI fails
-                return Ok(new List<object> { new { batchId = 1, routeName = "Chưa phân loại", ordersCount = pendingOrders.Count, orders = ordersForAI } });
+                var fallbackOrders = pendingOrders.Select(o => new {
+                    maHoaDon = o.MaHoaDon,
+                    maHD = o.MaHD,
+                    tenKhachHang = o.KhachHang?.TenKH ?? "Khách lẻ",
+                    diaChi = o.DiaChiGiaoHang,
+                    ngayLap = o.NgayLap,
+                    tongSanPham = o.CTHDs?.Sum(ct => ct.SoLuong) ?? 0
+                }).ToList();
+                return Ok(new List<object> { new { batchId = 1, routeName = "Chưa phân loại", ordersCount = pendingOrders.Count, orders = fallbackOrders } });
             }
 
             // 4. Map AI result back to full order data
@@ -810,7 +823,8 @@ namespace BuildingMaterialAPI.Controllers
                     maHD = o.MaHD,
                     tenKhachHang = o.KhachHang?.TenKH ?? "Khách lẻ",
                     diaChi = o.DiaChiGiaoHang,
-                    ngayLap = o.NgayLap
+                    ngayLap = o.NgayLap,
+                    tongSanPham = o.CTHDs?.Sum(ct => ct.SoLuong) ?? 0
                 }).ToList()
             }).ToList();
 
@@ -829,7 +843,7 @@ namespace BuildingMaterialAPI.Controllers
         public int MaHoaDon { get; set; }
         public int MaNhanVien { get; set; } // Đây là ID Tài xế
         public int MaNguoiLap { get; set; } // Đây là ID Người tạo phiếu (Quản lý/NVBH)
-        public List<CTPhieuGiaoHangDto> Items { get; set; }
+        public List<CTPhieuGiaoHangDto> Items { get; set; } = new List<CTPhieuGiaoHangDto>();
     }
 
     public class CTPhieuGiaoHangDto

@@ -13,10 +13,10 @@ namespace BuildingMaterialAPI.Models
 
         [Column("MaVT")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaVT { get; set; }
+        public string MaVT { get; set; } = null!;
 
         [Column("TenVT")]
-        public string TenVT { get; set; }
+        public string TenVT { get; set; } = null!;
 
         [Column("MoTa")]
         public string? MoTa { get; set; }
@@ -27,7 +27,7 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayCapNhat")]
         public DateTime NgayCapNhat { get; set; }
 
-        public virtual ICollection<TaiKhoan> TaiKhoans { get; set; }
-        public virtual ICollection<PhanQuyen> PhanQuyens { get; set; }
+        public virtual ICollection<TaiKhoan> TaiKhoans { get; set; } = new List<TaiKhoan>();
+        public virtual ICollection<PhanQuyen> PhanQuyens { get; set; } = new List<PhanQuyen>();
     }
 }

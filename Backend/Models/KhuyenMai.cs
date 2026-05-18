@@ -13,11 +13,11 @@ namespace BuildingMaterialAPI.Models
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         public string? MaKM { get; set; }
 
-        [Column("LoaiKM")] public string LoaiKM { get; set; } // 'Voucher', 'SanPham', 'GiaSoc', 'ThanhVien'
-        [Column("TenKM")] public string TenKM { get; set; }
+        [Column("LoaiKM")] public string LoaiKM { get; set; } = null!; // 'Voucher', 'SanPham', 'GiaSoc', 'ThanhVien'
+        [Column("TenKM")] public string TenKM { get; set; } = null!;
         [Column("MoTa")] public string? MoTa { get; set; }
         [Column("MaApDung")] public string? MaApDung { get; set; }
-        [Column("LoaiGiamGia")] public string LoaiGiamGia { get; set; } // 'PhanTram', 'SoTien', 'Freeship'
+        [Column("LoaiGiamGia")] public string LoaiGiamGia { get; set; } = null!; // 'PhanTram', 'SoTien', 'Freeship'
         [Column("GiaTriGiam")] public decimal GiaTriGiam { get; set; }
         [Column("GiamToiDa")] public decimal? GiamToiDa { get; set; }
         [Column("DonHangToiThieu")] public decimal DonHangToiThieu { get; set; }
@@ -31,7 +31,7 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayTao")] public DateTime NgayTao { get; set; } = DateTime.Now;
         [Column("NgayCapNhat")] public DateTime NgayCapNhat { get; set; } = DateTime.Now;
 
-        public virtual ICollection<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; }
+        public virtual ICollection<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; } = new List<KhuyenMaiDoiTuong>();
     }
 
     [Table("KHUYENMAI_DOITUONG")]
@@ -45,7 +45,7 @@ namespace BuildingMaterialAPI.Models
         [Column("SoLuongKhuyenMai")] public int? SoLuongKhuyenMai { get; set; }
         [Column("SoLuongDaBan")] public int SoLuongDaBan { get; set; }
 
-        [ForeignKey("MaKhuyenMai")] public virtual KhuyenMai KhuyenMai { get; set; }
+        [ForeignKey("MaKhuyenMai")] public virtual KhuyenMai KhuyenMai { get; set; } = null!;
         [ForeignKey("MaSanPham")] public virtual SanPham? SanPham { get; set; }
         [ForeignKey("MaLoaiSP")] public virtual LoaiSanPham? LoaiSanPham { get; set; }
     }

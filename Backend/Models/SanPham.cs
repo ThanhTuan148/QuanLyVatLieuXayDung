@@ -12,9 +12,9 @@ namespace BuildingMaterialAPI.Models
         public int MaSanPham { get; set; }
         [Column("MaSP")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaSP { get; set; }
+        public string MaSP { get; set; } = null!;
         [Column("TenSP")]
-        public string TenSP { get; set; }
+        public string TenSP { get; set; } = null!;
         [Column("MoTa")]
         public string? MoTa { get; set; }
         [Column("HinhAnh")]
@@ -53,14 +53,14 @@ namespace BuildingMaterialAPI.Models
         public DateTime NgayCapNhat { get; set; }
 
         [ForeignKey("MaLoaiSP")]
-        public virtual LoaiSanPham LoaiSanPham { get; set; }
-        public virtual ICollection<CTKhoHang> CTKhoHangs { get; set; }
-        public virtual ICollection<CTHD> CTHDs { get; set; }
-        public virtual ICollection<CTPN> CTPNs { get; set; }
-        public virtual ICollection<CTPhieuDoiTra> CTPhieuDoiTras { get; set; }
-        public virtual ICollection<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; }
-        public virtual ICollection<NhaCungCapSanPham> NhaCungCapSanPhams { get; set; }
-        public virtual ICollection<DanhGia> DanhGias { get; set; }
+        public virtual LoaiSanPham LoaiSanPham { get; set; } = null!;
+        public virtual ICollection<CTKhoHang> CTKhoHangs { get; set; } = new List<CTKhoHang>();
+        public virtual ICollection<CTHD> CTHDs { get; set; } = new List<CTHD>();
+        public virtual ICollection<CTPN> CTPNs { get; set; } = new List<CTPN>();
+        public virtual ICollection<CTPhieuDoiTra> CTPhieuDoiTras { get; set; } = new List<CTPhieuDoiTra>();
+        public virtual ICollection<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; } = new List<KhuyenMaiDoiTuong>();
+        public virtual ICollection<NhaCungCapSanPham> NhaCungCapSanPhams { get; set; } = new List<NhaCungCapSanPham>();
+        public virtual ICollection<DanhGia> DanhGias { get; set; } = new List<DanhGia>();
 
     }
 }

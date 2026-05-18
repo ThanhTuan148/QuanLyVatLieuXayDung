@@ -172,25 +172,27 @@ const AdminChatPage = () => {
                     gap: 2
                   }}
                 >
-                  {messages.map((m, i) => (
-                    <Box 
-                      key={i} 
-                      sx={{ 
-                        alignSelf: m.senderRole === 'Staff' ? 'flex-end' : 'flex-start',
-                        maxWidth: '70%',
-                        bgcolor: m.senderRole === 'Staff' ? '#e68c55' : 'white',
-                        color: m.senderRole === 'Staff' ? 'white' : '#333',
-                        p: 2,
-                        borderRadius: m.senderRole === 'Staff' ? '20px 20px 0 20px' : '20px 20px 20px 0',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                      }}
-                    >
-                      <Typography variant="body1">{m.message}</Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', textAlign: 'right', mt: 0.5 }}>
-                        {new Date(m.timestamp).toLocaleString('vi-VN')}
-                      </Typography>
-                    </Box>
-                  ))}
+                  {messages
+                    .filter(m => m.senderRole === 'Customer_Staff' || m.senderRole === 'Staff')
+                    .map((m, i) => (
+                      <Box 
+                        key={i} 
+                        sx={{ 
+                          alignSelf: m.senderRole === 'Staff' ? 'flex-end' : 'flex-start',
+                          maxWidth: '70%',
+                          bgcolor: m.senderRole === 'Staff' ? '#e68c55' : 'white',
+                          color: m.senderRole === 'Staff' ? 'white' : '#333',
+                          p: 2,
+                          borderRadius: m.senderRole === 'Staff' ? '20px 20px 0 20px' : '20px 20px 20px 0',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                        }}
+                      >
+                        <Typography variant="body1">{m.message}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', textAlign: 'right', mt: 0.5 }}>
+                          {new Date(m.timestamp).toLocaleString('vi-VN')}
+                        </Typography>
+                      </Box>
+                    ))}
                 </Box>
                 <Divider />
                 <Box sx={{ p: 2, bgcolor: 'white', display: 'flex', gap: 2 }}>

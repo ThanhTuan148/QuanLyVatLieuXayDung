@@ -13,10 +13,10 @@ namespace BuildingMaterialAPI.Models
 
         [Column("MaNV")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaNV { get; set; }
+        public string MaNV { get; set; } = null!;
 
         [Column("TenNV")]
-        public string TenNV { get; set; }
+        public string TenNV { get; set; } = null!;
 
         [Column("Sdt")]
         public string? Sdt { get; set; }
@@ -46,13 +46,13 @@ namespace BuildingMaterialAPI.Models
         public string? ChuKy { get; set; }
 
         [ForeignKey("MaTaiKhoan")]
-        public virtual TaiKhoan TaiKhoan { get; set; }
+        public virtual TaiKhoan TaiKhoan { get; set; } = null!;
 
-        public virtual ICollection<HoaDon> HoaDons { get; set; }
-        public virtual ICollection<PhieuNhap> PhieuNhaps { get; set; }
-        public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; }
-        public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; }
-        public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; }
+        public virtual ICollection<HoaDon> HoaDons { get; set; } = new List<HoaDon>();
+        public virtual ICollection<PhieuNhap> PhieuNhaps { get; set; } = new List<PhieuNhap>();
+        public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; } = new List<PhieuDoiTra>();
+        public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; } = new List<PhieuGiaoHang>();
+        public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; } = new List<ChiTietTraNo>();
 
     }
 }

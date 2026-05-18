@@ -171,13 +171,13 @@ namespace BuildingMaterialAPI.Controllers
         public class ImportHistoryDto
         {
             [JsonPropertyName("idPhieu")] public int IdPhieu { get; set; }
-            [JsonPropertyName("maPhieu")] public string MaPhieu { get; set; }
+            [JsonPropertyName("maPhieu")] public string MaPhieu { get; set; } = null!;
             [JsonPropertyName("ngayNhap")] public DateTime? NgayNhap { get; set; }
-            [JsonPropertyName("tenNhaCungCap")] public string TenNhaCungCap { get; set; }
+            [JsonPropertyName("tenNhaCungCap")] public string TenNhaCungCap { get; set; } = null!;
             [JsonPropertyName("soLuongNhan")] public int SoLuongNhan { get; set; }
             [JsonPropertyName("donGia")] public decimal DonGia { get; set; }
             [JsonPropertyName("thanhTien")] public decimal ThanhTien { get; set; }
-            [JsonPropertyName("loai")] public string Loai { get; set; }
+            [JsonPropertyName("loai")] public string Loai { get; set; } = null!;
         }
 
         [HttpGet("{productId}/import-history")]
@@ -1057,7 +1057,7 @@ namespace BuildingMaterialAPI.Controllers
     public class ConfirmReceiptDto
     {
         public int ManagerId { get; set; }
-        public List<ReceiptItemDto>? Items { get; set; }
+        public List<ReceiptItemDto> Items { get; set; } = new List<ReceiptItemDto>();
     }
 
     public class ReceiptItemDto

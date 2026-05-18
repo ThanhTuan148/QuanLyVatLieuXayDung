@@ -3,7 +3,7 @@ import {
   Box, Typography, Grid, Paper, Card, CardContent, Tabs, Tab, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   CircularProgress, Select, MenuItem, FormControl, InputLabel, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  ToggleButtonGroup, ToggleButton, TextField
+  ToggleButtonGroup, ToggleButton, TextField, Divider
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -56,6 +56,27 @@ const ReportsPage = () => {
   const [openSignDialog, setOpenSignDialog] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [signatureBase64, setSignatureBase64] = useState(null);
+
+  const [sentimentData, setSentimentData] = useState(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+
+  const fetchSentimentAI = async () => {
+    setSentimentLoading(true);
+    try {
+      const res = await api.get('/ai/sentiment-analysis');
+      setSentimentData(res.data);
+    } catch (err) {
+      alert('Lỗi khi gọi AI Phân tích phản hồi: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSentimentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 4 && !sentimentData) {
+      fetchSentimentAI();
+    }
+  }, [activeTab]);
 
   const fetchGlobalSummary = async () => {
     try {
@@ -806,6 +827,105 @@ const ReportsPage = () => {
     );
   };
 
+  const renderSentimentTab = () => (
+    <Box>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1e3c72' }}>
+          🤖 AI NLP PHÂN TÍCH CẢM XÚC KHÁCH HÀNG (CUSTOMER SENTIMENT ANALYSIS)
+        </Typography>
+        <Button variant="contained" onClick={fetchSentimentAI} disabled={sentimentLoading} sx={{ background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)', color: '#fff', fontWeight: 'bold' }}>
+          {sentimentLoading ? 'AI ĐANG PHÂN TÍCH...' : '🔄 Làm Mới Phân Tích AI'}
+        </Button>
+      </Box>
+
+      {sentimentLoading ? (
+        <Box sx={{ py: 8, textAlign: 'center' }}>
+          <CircularProgress sx={{ color: '#1e3c72', mb: 3 }} size={48} />
+          <Typography variant="h6" color="text.secondary" sx={{ animation: 'pulse 1.5s infinite' }}>
+            AI đang đọc toàn bộ đánh giá/phản hồi gần đây, bóc tách thái độ khách hàng và tính toán chỉ số hài lòng CSI...
+          </Typography>
+        </Box>
+      ) : sentimentData ? (
+        <Box>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #1e3c72', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Số Phản Hồi</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e3c72', mt: 0.5 }}>{sentimentData.tongSoPhanHoi}</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #2ed573', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Phản Hồi Tích Cực</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2ed573', mt: 0.5 }}>{sentimentData.soPhanHoiTichCuc}</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #ff4757', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Phản Hồi Tiêu Cực</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ff4757', mt: 0.5 }}>{sentimentData.soPhanHoiTieuCuc}</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #ffa502', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Chỉ Số CSI (Hài Lòng)</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ffa502', mt: 0.5 }}>{sentimentData.chiSoHaiLongCsi}%</Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          <Paper sx={{ p: 3, mb: 3, borderRadius: 2, borderLeft: '5px solid #1e3c72', bgcolor: '#f8f9fa', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#1e3c72', mb: 1 }}>
+              💡 Nhận Xét Chung Từ AI
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#333', lineHeight: 1.6, mb: 2 }}>
+              {sentimentData.nhanXetChung}
+            </Typography>
+            <Divider sx={{ my: 1.5 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#e84118' }}>
+              ⚠️ Sản Phẩm Bị Phàn Nàn Nhiều Nhất: {sentimentData.sanPhamBiPhanNanNhieuNhat}
+            </Typography>
+          </Paper>
+
+          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
+            🚨 Danh Sách Khách Hàng Cần Xử Lý Ngay (Chăm Sóc & Khôi Phục)
+          </Typography>
+
+          <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+            <Table>
+              <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Khách Hàng</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Số Điện Thoại</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Nội Dung Phản Hồi</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Phân Loại</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Điểm Đánh Giá</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Đề Xuất Xử Lý (AI CSKH)</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sentimentData.danhSachKhachHangCanXuLy?.map((item, idx) => (
+                  <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, bgcolor: 'rgba(255, 71, 87, 0.05)' }}>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#cb2d3e' }}>{item.tenKhachHang}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>{item.sdt}</TableCell>
+                    <TableCell><Typography variant="body2" sx={{ color: '#333' }}>{item.noiDungPhanHoi}</Typography></TableCell>
+                    <TableCell align="center">
+                      <Chip label={item.phanLoai} size="small" sx={{ fontWeight: 'bold', bgcolor: '#ff4757', color: '#fff' }} />
+                    </TableCell>
+                    <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 'bold', color: '#e84118' }}>{item.diemDanhGia}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1e3c72' }}>{item.deXuatXuLy}</Typography></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      ) : (
+        <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>Không có dữ liệu phân tích cảm xúc.</Typography>
+      )}
+    </Box>
+  );
+
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
@@ -854,6 +974,7 @@ const ReportsPage = () => {
           <Tab icon={<InventoryIcon />} iconPosition="start" label="Hàng tồn đọng" />
           <Tab icon={<GroupIcon />} iconPosition="start" label="Xếp hạng Khách hàng" />
           <Tab icon={<DebtIcon />} iconPosition="start" label="Phân tích Công nợ" />
+          <Tab icon={<GroupIcon />} iconPosition="start" label="🤖 AI Phân Tích Phản Hồi" />
         </Tabs>
 
         <Box sx={{ p: 3, minHeight: 500 }}>
@@ -868,6 +989,7 @@ const ReportsPage = () => {
               {activeTab === 1 && renderAgingTab()}
               {activeTab === 2 && renderRankingTab()}
               {activeTab === 3 && renderDebtTab()}
+              {activeTab === 4 && renderSentimentTab()}
             </>
           )}
         </Box>

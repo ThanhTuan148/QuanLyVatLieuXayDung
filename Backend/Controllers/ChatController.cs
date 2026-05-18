@@ -13,10 +13,40 @@ namespace BuildingMaterialAPI.Controllers
     public class ChatController : ControllerBase
     {
         private readonly ApplicationDbContext _ctx;
+        private readonly Utilities.IAIService _ai;
 
-        public ChatController(ApplicationDbContext ctx)
+        public ChatController(ApplicationDbContext ctx, Utilities.IAIService ai)
         {
             _ctx = ctx;
+            _ai = ai;
+        }
+
+        public class EstimateRequest
+        {
+            public string Purpose { get; set; }
+            public decimal Area { get; set; }
+        }
+
+        // POST: api/Chat/estimate
+        [HttpPost("estimate")]
+        public async Task<IActionResult> EstimateMaterials([FromBody] EstimateRequest req)
+        {
+            if (string.IsNullOrEmpty(req.Purpose))
+            {
+                return BadRequest(new { Message = "Vui lòng nhập mục đích hoặc hạng mục cần xây dựng." });
+            }
+
+            string userPrompt = $"Tôi muốn ước tính vật tư cho hạng mục sau:\n- Mục đích xây dựng: {req.Purpose}\n- Quy mô (diện tích/thể tích): {req.Area} đơn vị.\n\nHãy phân tích định mức chi tiết, hiển thị công thức tính khoa học và trả về khối hành động [ESTIMATE_ACTION: ...] chứa các mã sản phẩm thực tế SP001-SP009 như hướng dẫn của hệ thống.";
+            
+            try
+            {
+                var aiResponse = await _ai.GetChatResponse(userPrompt);
+                return Ok(new { Response = aiResponse });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi hệ thống khi gọi AI ước tính.", Detail = ex.Message });
+            }
         }
 
         // GET: api/Chat/history/{customerId}
@@ -35,6 +65,7 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetActiveChatCustomers()
         {
             var customerIds = await _ctx.ChatMessages
+                .Where(m => m.SenderRole == "Customer_Staff" || m.SenderRole == "Staff")
                 .Select(m => m.CustomerId)
                 .Distinct()
                 .ToListAsync();

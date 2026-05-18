@@ -69,6 +69,23 @@ export default function InventoryPage() {
 
   const [activeTab, setActiveTab] = useState(0);
 
+  const [aiForecastOpen, setAiForecastOpen] = useState(false);
+  const [aiForecastLoading, setAiForecastLoading] = useState(false);
+  const [aiForecastData, setAiForecastData] = useState(null);
+
+  const handleRunAiForecast = async () => {
+    setAiForecastOpen(true);
+    setAiForecastLoading(true);
+    try {
+      const res = await api.get('/ai/demand-forecast');
+      setAiForecastData(res.data);
+    } catch (err) {
+      alert('Lỗi khi gọi AI Dự báo nhu cầu: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setAiForecastLoading(false);
+    }
+  };
+
   const allTabs = [
     { label: "Tồn Kho Chi Tiết", icon: <InventoryIcon />, moduleKey: 'inventory', type: 'inventory' },
     { label: "Sản Phẩm Quà Tặng", icon: <CardGiftcardIcon />, moduleKey: 'inventory', type: 'gift' },
@@ -454,6 +471,9 @@ export default function InventoryPage() {
         </Box>
         {!isTaiXe && (
           <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button variant="contained" onClick={handleRunAiForecast} sx={{ background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,114,255,0.3)' }}>
+              🤖 AI Dự Báo Nhu Cầu Nhập Hàng
+            </Button>
             <Button variant="outlined" onClick={() => setWarehouseDialogOpen(true)}>Quản Lý Danh Mục Kho</Button>
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
               sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -866,6 +886,90 @@ export default function InventoryPage() {
         outboundId={selectedOutboundId}
         outboundCode={selectedOutboundCode}
       />
+
+      <Dialog open={aiForecastOpen} onClose={() => setAiForecastOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)', color: '#fff', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>🤖 AI DỰ BÁO NHU CẦU KHO HÀNG (DEMAND FORECASTING)</Typography>
+          </Box>
+          <Chip label="Powered by ML.NET & LLM" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 'bold' }} />
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 3, bgcolor: '#f8f9fa' }}>
+          {aiForecastLoading ? (
+            <Box sx={{ py: 8, textAlign: 'center' }}>
+              <LinearProgress sx={{ mb: 3, height: 8, borderRadius: 4 }} />
+              <Typography variant="h6" color="text.secondary" sx={{ animation: 'pulse 1.5s infinite' }}>
+                AI đang tổng hợp dữ liệu lịch sử bán hàng, xu hướng theo mùa và chạy mô hình dự báo...
+              </Typography>
+            </Box>
+          ) : aiForecastData ? (
+            <Box>
+              <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2, borderLeft: '5px solid #0072ff', bgcolor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#1e3c72', mb: 1 }}>
+                  📅 Kỳ dự báo: {aiForecastData.thangDuBao}
+                </Typography>
+                <Typography variant="body1" sx={{ color: '#333', lineHeight: 1.6 }}>
+                  {aiForecastData.nhanXetChung}
+                </Typography>
+              </Paper>
+
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
+                📦 Chi Tiết Đề Xuất Kế Hoạch Nhập Hàng
+              </Typography>
+
+              <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                <Table>
+                  <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Mã SP</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Tên Sản Phẩm</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Tồn Kho Hiện Tại</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Tốc Độ Bán (tháng)</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Xu Hướng Theo Mùa</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Đề Xuất Nhập</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Mức Độ Ưu Tiên</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Lý Do Đề Xuất</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {aiForecastData.danhSachDuBao?.map((item, idx) => {
+                      const isUrgent = item.mucDoUuTien?.includes('Khẩn cấp');
+                      const isNormal = item.mucDoUuTien?.includes('Bình thường');
+                      return (
+                        <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, bgcolor: isUrgent ? 'rgba(255, 71, 87, 0.05)' : 'inherit' }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#2e86de' }}>{item.maSP}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>{item.tenSP}</TableCell>
+                          <TableCell align="center">
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.tonKhoHienTai < 100 ? '#e84118' : '#273c75' }}>
+                              {item.tonKhoHienTai}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 'bold', color: '#44bd32' }}>{item.tocDoBanTrungBinh}</Typography></TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontStyle: 'italic', color: '#57606f' }}>{item.xuHuongTheoMua}</Typography></TableCell>
+                          <TableCell align="center">
+                            <Chip label={`+${item.soLuongDeXuatNhap}`} sx={{ fontWeight: 'bold', bgcolor: item.soLuongDeXuatNhap > 0 ? '#0072ff' : '#ced6e0', color: item.soLuongDeXuatNhap > 0 ? '#fff' : '#57606f' }} />
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={item.mucDoUuTien} size="small" sx={{ fontWeight: 'bold', bgcolor: isUrgent ? '#ff4757' : isNormal ? '#ffa502' : '#2ed573', color: '#fff' }} />
+                          </TableCell>
+                          <TableCell><Typography variant="body2" sx={{ color: '#2f3542' }}>{item.lyDoDeXuat}</Typography></TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          ) : (
+            <Typography color="error">Không có dữ liệu dự báo</Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, bgcolor: '#fff' }}>
+          <Button variant="contained" onClick={() => setAiForecastOpen(false)} sx={{ background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)' }}>
+            Đóng Giao Diện AI
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -26,12 +26,14 @@ Debug/
 .DS_Store
 Thumbs.db
 
-# Environment variables
+# Environment variables & Local Configs
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+appsettings.Development.json
+appsettings.local.json
 
 # Database files
 *.db

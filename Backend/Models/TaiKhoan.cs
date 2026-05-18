@@ -13,16 +13,16 @@ namespace BuildingMaterialAPI.Models
 
         [Column("MaTK")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaTK { get; set; }
+        public string MaTK { get; set; } = null!;
 
         [Column("TenTK")]
-        public string TenTK { get; set; }
+        public string TenTK { get; set; } = null!;
 
         [Column("MatKhau")]
-        public string MatKhau { get; set; }
+        public string MatKhau { get; set; } = null!;
 
         [Column("Email")]
-        public string Email { get; set; }
+        public string Email { get; set; } = null!;
 
         [Column("MaVaiTro")]
         public int MaVaiTro { get; set; }
@@ -46,10 +46,10 @@ namespace BuildingMaterialAPI.Models
         public DateTime? OTPExpiry { get; set; }
 
         [ForeignKey("MaVaiTro")]
-        public virtual VaiTro VaiTro { get; set; }
+        public virtual VaiTro VaiTro { get; set; } = null!;
 
-        public virtual NhanVien NhanVien { get; set; }
-        public virtual KhachHang KhachHang { get; set; }
-        public virtual ICollection<NhatKy> NhatKys { get; set; }
+        public virtual NhanVien? NhanVien { get; set; }
+        public virtual KhachHang? KhachHang { get; set; }
+        public virtual ICollection<NhatKy> NhatKys { get; set; } = new List<NhatKy>();
     }
 }

@@ -54,7 +54,7 @@ namespace BuildingMaterialAPI.Controllers
                         ? "Đa NCC" 
                         : (p.NhaCungCap != null ? p.NhaCungCap.TenNCC : "Chưa xác định"),
                     maNhanVien = p.MaNhanVien,
-                    tenNhanVien = p.NhanVien.TenNV
+                    tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "N/A"
                 }).ToListAsync();
             return Ok(ds);
         }
@@ -1216,7 +1216,7 @@ namespace BuildingMaterialAPI.Controllers
         public int MaNhaCungCap { get; set; }
         public int MaNhanVien { get; set; }
         public decimal? ThanhToan { get; set; }
-        public List<CTPNDto> ChiTiet { get; set; }
+        public List<CTPNDto> ChiTiet { get; set; } = new List<CTPNDto>();
     }
 
     public class CTPNDto
@@ -1235,7 +1235,7 @@ namespace BuildingMaterialAPI.Controllers
 
     public class RejectDto 
     { 
-        public string LyDo { get; set; } 
+        public string LyDo { get; set; } = null!;
         public int UserId { get; set; }
     }
     public class ReceiveItemDto 

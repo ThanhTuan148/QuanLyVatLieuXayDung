@@ -13,7 +13,7 @@ namespace BuildingMaterialAPI.Models
         [Column("DonGia")] public decimal DonGia { get; set; }
         [Column("ThanhTien")] public decimal? ThanhTien { get; set; }
 
-        [ForeignKey("MaPhieuTra")] public virtual PhieuTraHangNCC PhieuTraHangNCC { get; set; }
-        [ForeignKey("MaSanPham")] public virtual SanPham SanPham { get; set; }
+        [ForeignKey("MaPhieuTra")] public virtual PhieuTraHangNCC PhieuTraHangNCC { get; set; } = null!;
+        [ForeignKey("MaSanPham")] public virtual SanPham SanPham { get; set; } = null!;
     }
 }

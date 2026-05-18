@@ -17,12 +17,12 @@ namespace BuildingMaterialAPI.Models
         [Required]
         [Column("TenUuDai")]
         [StringLength(255)]
-        public string TenUuDai { get; set; }
+        public string TenUuDai { get; set; } = null!;
 
         [Required]
         [Column("Code")]
         [StringLength(50)]
-        public string Code { get; set; }
+        public string Code { get; set; } = null!;
 
         [Column("MoTa")]
         public string? MoTa { get; set; }
@@ -30,7 +30,7 @@ namespace BuildingMaterialAPI.Models
         [Required]
         [Column("LoaiUuDai")]
         [StringLength(20)]
-        public string LoaiUuDai { get; set; } // 'PhanTram', 'SoTien', 'Freeship'
+        public string LoaiUuDai { get; set; } = null!; // 'PhanTram', 'SoTien', 'Freeship'
 
         [Column("GiaTriGiam")]
         public decimal GiaTriGiam { get; set; }

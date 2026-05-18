@@ -9,6 +9,8 @@ import productService from '../services/productService';
 import customerService from '../services/customerService';
 import cartService from '../services/cartService';
 import NotificationCenter from './NotificationCenter';
+import VisualSearchModal from './VisualSearchModal';
+import { PhotoCameraOutlined } from '@mui/icons-material';
 
 const ShoppingLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ const ShoppingLayout = ({ children }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [allProducts, setAllProducts] = useState([]);
+  const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [popupResults, setPopupResults] = useState([]);
   const [showPopup, setShowPopup] = useState(false);
@@ -136,7 +139,8 @@ const ShoppingLayout = ({ children }) => {
               <Typography variant="body2" onClick={() => navigate('/customer-promotions')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Mã ưu đãi</Typography>
               <Typography variant="body2" onClick={() => { navigate('/shopping'); window.scrollTo(0, 0); }} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Hệ thống cửa hàng</Typography>
               <Typography variant="body2" onClick={() => navigate('/about')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Về chúng tôi</Typography>
-              <Typography variant="body2" onClick={() => navigate('/contact')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Liên hệ</Typography>
+              <Typography variant="body2" onClick={() => navigate('/contact')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Liên hệ với chúng tôi</Typography>
+              <Typography variant="body2" onClick={() => navigate('/estimator')} sx={{ cursor: 'pointer', color: 'text.secondary', fontWeight: 500, '&:hover': { color: 'primary.main' } }}>Ước tính vật liệu thông minh</Typography>
             </Box>
             <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, bgcolor: '#e68c55', color: '#fff', px: 2.5, py: 0.5, borderRadius: 999, boxShadow: '0 2px 8px rgba(230,140,85,0.3)' }}>
               <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -200,6 +204,14 @@ const ShoppingLayout = ({ children }) => {
                       }
                     }}
                   />
+                  <IconButton
+                    size="small"
+                    onClick={() => setVisualSearchOpen(true)}
+                    title="Tìm kiếm bằng hình ảnh (AI Visual Search)"
+                    sx={{ p: 0.5, '&:hover': { color: 'primary.main' } }}
+                  >
+                    <PhotoCameraOutlined sx={{ fontSize: 20, color: 'text.secondary' }} />
+                  </IconButton>
                 </Box>
 
                 {/* Popup Results */}
@@ -447,6 +459,12 @@ const ShoppingLayout = ({ children }) => {
         <Box sx={{ flexGrow: 1 }}>
           {children}
         </Box>
+
+        <VisualSearchModal
+          open={visualSearchOpen}
+          onClose={() => setVisualSearchOpen(false)}
+          allProducts={allProducts}
+        />
 
         {/* Footer */}
         <Box sx={{ bgcolor: '#222', color: '#fff', py: 6, mt: 6 }}>

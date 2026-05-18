@@ -15,7 +15,7 @@ namespace BuildingMaterialAPI.Models
         [Column("MaNguoiThucHien")] public int? MaNguoiThucHien { get; set; }
         [Column("NgayTao")] public DateTime NgayTao { get; set; } = DateTime.UtcNow;
 
-        [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; }
-        [ForeignKey("MaNguoiThucHien")] public virtual NhanVien NhanVien { get; set; }
+        [ForeignKey("MaHoaDon")] public virtual HoaDon HoaDon { get; set; } = null!;
+        [ForeignKey("MaNguoiThucHien")] public virtual NhanVien? NhanVien { get; set; }
     }
 }

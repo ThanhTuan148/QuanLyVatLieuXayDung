@@ -373,7 +373,7 @@ namespace BuildingMaterialAPI.Controllers
                 }
 
                 // Check debt limit based on membership rank
-                if (dto.MaKhachHang.HasValue && (dto.PTTT.Contains("nợ") || dto.PTTT.Contains("sau") || dto.PTTT.Contains("khi nhận hàng")))
+                if (dto.MaKhachHang.HasValue && (dto.PTTT?.Contains("nợ") == true || dto.PTTT?.Contains("sau") == true || dto.PTTT?.Contains("khi nhận hàng") == true))
                 {
                     var kh = await _ctx.KhachHangs.FindAsync(dto.MaKhachHang.Value);
                     if (kh != null)
@@ -408,8 +408,8 @@ namespace BuildingMaterialAPI.Controllers
                     NgayLap = dto.NgayLap ?? DateTime.UtcNow,
                     NgayGiao = dto.NgayGiao, TongTien = dto.TongTien,
                     GiamGia = dto.GiamGia, 
-                    ThanhToan = dto.PTTT.Contains("ATM") ? (dto.ThanhToan ?? 0) : 0,
-                    SoTienPhaiThu = dto.PTTT.Contains("ATM") ? 0 : (dto.ThanhToan ?? 0),
+                    ThanhToan = dto.PTTT?.Contains("ATM") == true ? (dto.ThanhToan ?? 0) : 0,
+                    SoTienPhaiThu = dto.PTTT?.Contains("ATM") == true ? 0 : (dto.ThanhToan ?? 0),
                     PTTT = dto.PTTT, TrangThai = dto.TrangThai ?? "Chờ xử lý",
                     GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang, MaKhuyenMai = dto.MaKhuyenMai,
                     NgayTao = DateTime.UtcNow,
@@ -1011,7 +1011,7 @@ namespace BuildingMaterialAPI.Controllers
         public int? MaKhachHang { get; set; }
         public int? MaKhuyenMai { get; set; }
 
-        public List<CTHDDto>? Items { get; set; }
+        public List<CTHDDto> Items { get; set; } = new List<CTHDDto>();
 
         // New delivery and VAT fields
         public string? TenNguoiNhan { get; set; }

@@ -19,7 +19,7 @@ namespace BuildingMaterialAPI.Models
         [Key][Column("MaHoaDon")] public int MaHoaDon { get; set; }
         [Column("MaHD")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaHD { get; set; }
+        public string MaHD { get; set; } = null!;
         [Column("NgayLap")] public DateTime NgayLap { get; set; }
         [Column("NgayGiao")] public DateTime? NgayGiao { get; set; }
         [Column("TongTien")] public decimal? TongTien { get; set; }
@@ -55,15 +55,15 @@ namespace BuildingMaterialAPI.Models
         [Column("VatBudgetCode")] public string? VatBudgetCode { get; set; }
         [Column("AnhBangChung")] public string? AnhBangChung { get; set; }
         [Column("SoTienPhaiThu")] public decimal SoTienPhaiThu { get; set; }
-
-        [ForeignKey("MaNhanVien")] public virtual NhanVien NhanVien { get; set; }
-        [ForeignKey("MaKhachHang")] public virtual KhachHang KhachHang { get; set; }
+ 
+        [ForeignKey("MaNhanVien")] public virtual NhanVien? NhanVien { get; set; }
+        [ForeignKey("MaKhachHang")] public virtual KhachHang? KhachHang { get; set; }
         [ForeignKey("MaKhuyenMai")] public virtual KhuyenMai? KhuyenMai { get; set; }
-
-        public virtual ICollection<CTHD> CTHDs { get; set; }
-        public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; }
-        public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; }
-        public virtual ICollection<CongNo> CongNos { get; set; }
-        public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; }
+ 
+        public virtual ICollection<CTHD> CTHDs { get; set; } = new List<CTHD>();
+        public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; } = new List<PhieuDoiTra>();
+        public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; } = new List<PhieuGiaoHang>();
+        public virtual ICollection<CongNo> CongNos { get; set; } = new List<CongNo>();
+        public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; } = new List<ChiTietTraNo>();
     }
 }

@@ -20,8 +20,8 @@ namespace BuildingMaterialAPI.Models
         [Column("MaKhoHang")] public int? MaKhoHang { get; set; }
         [Column("MaNhaCungCap")] public int? MaNhaCungCap { get; set; }
 
-        [ForeignKey("MaPhieuNhap")] public virtual PhieuNhap PhieuNhap { get; set; }
-        [ForeignKey("MaSanPham")] public virtual SanPham SanPham { get; set; }
+        [ForeignKey("MaPhieuNhap")] public virtual PhieuNhap PhieuNhap { get; set; } = null!;
+        [ForeignKey("MaSanPham")] public virtual SanPham SanPham { get; set; } = null!;
         [ForeignKey("MaKhoHang")] public virtual KhoHang? KhoHang { get; set; }
         [ForeignKey("MaNhaCungCap")] public virtual NhaCungCap? NhaCungCap { get; set; }
     }

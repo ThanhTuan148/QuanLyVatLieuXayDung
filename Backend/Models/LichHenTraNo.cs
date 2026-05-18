@@ -15,6 +15,6 @@ namespace BuildingMaterialAPI.Models
         [Column("TrangThai")] public string? TrangThai { get; set; }
         [Column("NgayTao")] public DateTime NgayTao { get; set; }
 
-        [ForeignKey("MaCongNo")] public virtual CongNo CongNo { get; set; }
+        [ForeignKey("MaCongNo")] public virtual CongNo CongNo { get; set; } = null!;
     }
 }

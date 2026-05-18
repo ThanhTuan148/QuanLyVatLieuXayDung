@@ -13,10 +13,10 @@ namespace BuildingMaterialAPI.Models
 
         [Column("MaKH")]
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public string MaKH { get; set; }
+        public string MaKH { get; set; } = null!;
 
         [Column("TenKH")]
-        public string TenKH { get; set; }
+        public string TenKH { get; set; } = null!;
 
         [Column("Sdt")]
         public string? Sdt { get; set; }
@@ -67,11 +67,11 @@ namespace BuildingMaterialAPI.Models
         public decimal TongChiTieu { get; set; } = 0;
 
         [ForeignKey("MaTaiKhoan")]
-        public virtual TaiKhoan TaiKhoan { get; set; }
+        public virtual TaiKhoan TaiKhoan { get; set; } = null!;
 
-        public virtual ICollection<HoaDon> HoaDons { get; set; }
+        public virtual ICollection<HoaDon> HoaDons { get; set; } = new List<HoaDon>();
 
-        public virtual ICollection<CongNo> CongNos { get; set; }
-        public virtual ICollection<DanhGia> DanhGias { get; set; }
+        public virtual ICollection<CongNo> CongNos { get; set; } = new List<CongNo>();
+        public virtual ICollection<DanhGia> DanhGias { get; set; } = new List<DanhGia>();
     }
 }

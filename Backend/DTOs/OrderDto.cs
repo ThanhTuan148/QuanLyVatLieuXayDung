@@ -3,7 +3,7 @@ namespace BuildingMaterialAPI.DTOs
     public class OrderDto
     {
         public int MaHoaDon { get; set; }
-        public string MaHD { get; set; }
+        public required string MaHD { get; set; }
         public DateTime NgayLap { get; set; }
         public decimal? TongTien { get; set; }
         public decimal GiamGia { get; set; }
@@ -18,12 +18,12 @@ namespace BuildingMaterialAPI.DTOs
 
     public class OrderCreateDto
     {
-        public string MaHD { get; set; }
+        public required string MaHD { get; set; }
         public int MaKhachHang { get; set; }
         public int MaNhanVien { get; set; }
         public string? PTTT { get; set; }
         public string? GhiChu { get; set; }
-        public List<OrderDetailDto> ChiTiet { get; set; }
+        public List<OrderDetailDto> ChiTiet { get; set; } = new List<OrderDetailDto>();
     }
 
     public class OrderDetailDto

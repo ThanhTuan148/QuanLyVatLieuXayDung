@@ -6,8 +6,9 @@ import {
 import api from '../services/api';
 import orderService from '../services/orderService';
 
-function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
+function DeliveryForm({ open, onClose, onSaved, initialOrderId, initialBatch }) {
   const [orders, setOrders] = useState([]);
+  const [completedBatchOrderIds, setCompletedBatchOrderIds] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [formData, setFormData] = useState({
     nguoiGiao: '',
@@ -45,11 +46,15 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
       setSelectedOrder(null);
       setSelectedDriver(null);
       
-      if (initialOrderId) {
+      setCompletedBatchOrderIds([]);
+      if (initialBatch && initialBatch.orders && initialBatch.orders.length > 0) {
+        fetchOrderDetails(initialBatch.orders[0].maHoaDon);
+        setFormData(prev => ({ ...prev, maHoaDon: initialBatch.orders[0].maHoaDon, diaChi: initialBatch.orders[0].diaChi || prev.diaChi }));
+      } else if (initialOrderId) {
         fetchOrderDetails(initialOrderId);
       }
     }
-  }, [open, initialOrderId]);
+  }, [open, initialOrderId, initialBatch]);
 
   const fetchDrivers = async () => {
     try {
@@ -65,13 +70,18 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
     setLoadingOrders(true);
     try {
       const res = await orderService.getAllOrders();
-      const eligible = res.data.filter(o => 
+      let eligible = res.data.filter(o => 
         o.trangThai === 'Đã xác nhận' || 
         o.trangThai === 'Chờ xử lý' || 
         o.trangThai === 'Đang giao (Thiếu hàng)' ||
         o.trangThai === 'Đã giao một phần' ||
-        o.maHoaDon === initialOrderId
+        o.maHoaDon === initialOrderId ||
+        (initialBatch && initialBatch.orders && initialBatch.orders.some(bo => bo.maHoaDon === o.maHoaDon))
       );
+      if (initialBatch && initialBatch.orders) {
+        const batchOrderIds = initialBatch.orders.map(bo => bo.maHoaDon);
+        eligible = eligible.filter(o => batchOrderIds.includes(o.maHoaDon));
+      }
       setOrders(eligible);
     } catch (err) {
       console.error(err);
@@ -192,7 +202,25 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
 
     try {
       await api.post('/deliveries', payload);
-      onSaved();
+      
+      if (initialBatch && initialBatch.orders) {
+        const newCompleted = [...completedBatchOrderIds, formData.maHoaDon];
+        setCompletedBatchOrderIds(newCompleted);
+        
+        // Tìm đơn tiếp theo chưa làm
+        const nextOrder = initialBatch.orders.find(bo => !newCompleted.includes(bo.maHoaDon));
+        if (nextOrder) {
+          alert(`🎉 Đã tạo thành công phiếu giao cho hóa đơn ${formData.maHoaDon}! Hệ thống tự động chuyển sang hóa đơn tiếp theo trong tuyến ${initialBatch.routeName}.`);
+          setFormData(prev => ({ ...prev, maHoaDon: nextOrder.maHoaDon, diaChi: nextOrder.diaChi || prev.diaChi, ghiChu: '' }));
+          fetchOrderDetails(nextOrder.maHoaDon);
+        } else {
+          alert(`🎉 TUYỆT VỜI! Bạn đã hoàn tất việc tạo phiếu giao cho toàn bộ ${initialBatch.ordersCount} đơn hàng trong tuyến ${initialBatch.routeName}!`);
+          onSaved();
+        }
+      } else {
+        alert('🎉 Tạo phiếu giao hàng thành công!');
+        onSaved();
+      }
     } catch (err) {
       console.error(err);
       alert('Lỗi tạo phiếu giao: ' + (err.response?.data?.message || err.message));
@@ -207,8 +235,41 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Tạo Phiếu Giao Hàng (Tách chuyến)</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>
+        {initialBatch ? `Tạo Phiếu Giao Hàng (AI Route Batching - Tuyến ${initialBatch.routeName})` : 'Tạo Phiếu Giao Hàng (Tách chuyến)'}
+      </DialogTitle>
       <DialogContent dividers>
+        {initialBatch && (
+          <Box sx={{ p: 2, mb: 3, bgcolor: '#e8f5e9', borderRadius: 2, border: '1px solid #c8e6c9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                ✨ CHẾ ĐỘ TẠO CHUYẾN THEO GỢI Ý AI (AI ROUTE BATCHING)
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#1b5e20', mt: 0.5 }}>
+                Tuyến: <strong>{initialBatch.routeName}</strong> • Tổng số: <strong>{initialBatch.ordersCount} đơn hàng</strong>
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {initialBatch.orders.map((bo) => {
+                const isDone = completedBatchOrderIds.includes(bo.maHoaDon);
+                const isCurrent = formData.maHoaDon === bo.maHoaDon;
+                return (
+                  <Chip 
+                    key={bo.maHoaDon} 
+                    label={bo.maHD} 
+                    color={isDone ? 'success' : isCurrent ? 'primary' : 'default'}
+                    variant={isCurrent ? 'filled' : 'outlined'}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, maHoaDon: bo.maHoaDon, diaChi: bo.diaChi || prev.diaChi }));
+                      fetchOrderDetails(bo.maHoaDon);
+                    }}
+                    sx={{ fontWeight: isCurrent ? 'bold' : 'normal', cursor: 'pointer' }} 
+                  />
+                );
+              })}
+            </Box>
+          </Box>
+        )}
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
             <TextField

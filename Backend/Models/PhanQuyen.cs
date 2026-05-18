@@ -17,9 +17,9 @@ namespace BuildingMaterialAPI.Models
         public int MaQuyen { get; set; }
 
         [ForeignKey("MaVaiTro")]
-        public virtual VaiTro VaiTro { get; set; }
+        public virtual VaiTro VaiTro { get; set; } = null!;
 
         [ForeignKey("MaQuyen")]
-        public virtual Quyen Quyen { get; set; }
+        public virtual Quyen Quyen { get; set; } = null!;
     }
 }

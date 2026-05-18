@@ -114,16 +114,16 @@ namespace BuildingMaterialAPI.Controllers
                     maPhieuTra = p.MaPhieuTra,
                     maPT = p.MaPT,
                     maPhieuNhap = p.MaPhieuNhap,
-                    maPN = p.PhieuNhap.MaPN,
-                    tenNhaCungCap = p.PhieuNhap.NhaCungCap.TenNCC,
+                    maPN = p.PhieuNhap != null ? p.PhieuNhap.MaPN : "Unknown",
+                    tenNhaCungCap = (p.PhieuNhap != null && p.PhieuNhap.NhaCungCap != null) ? p.PhieuNhap.NhaCungCap.TenNCC : "Unknown",
                     ngayTra = p.NgayTra,
                     tongTienHoan = p.TongTienHoan,
                     trangThai = p.TrangThai,
                     lyDo = p.LyDo,
-                    tenNhanVien = p.NhanVien.TenNV,
+                    tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "Unknown",
                     chiTiet = p.ChiTiet.Select(c => new {
                         maSanPham = c.MaSanPham,
-                        tenSanPham = c.SanPham.TenSP,
+                        tenSanPham = c.SanPham != null ? c.SanPham.TenSP : "Unknown",
                         soLuongTra = c.SoLuongTra,
                         donGia = c.DonGia
                     }).ToList()
@@ -423,8 +423,8 @@ namespace BuildingMaterialAPI.Controllers
                     maPhieuDT = p.MaPhieuDT,
                     maDT = p.MaDT,
                     maHoaDon = p.MaHoaDon,
-                    maHD = p.HoaDon.MaHD,
-                    tenKhachHang = p.HoaDon.KhachHang.TenKH,
+                    maHD = p.HoaDon != null ? p.HoaDon.MaHD : "Unknown",
+                    tenKhachHang = (p.HoaDon != null && p.HoaDon.KhachHang != null) ? p.HoaDon.KhachHang.TenKH : "Unknown",
                     ngayDT = p.NgayDT,
                     tongTienHoan = p.TongTienHoan,
                     lyDo = p.LyDo,
@@ -432,13 +432,13 @@ namespace BuildingMaterialAPI.Controllers
                     hinhAnhMinhChung = p.HinhAnhMinhChung,
                     trangThaiNhapKho = p.TrangThaiNhapKho,
                     loai = p.Loai,
-                    tenNhanVien = p.NhanVien.TenNV,
+                    tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "Unknown",
                     loiDo = p.LoiDo,
                     phiVanChuyenMoi = p.PhiVanChuyenMoi,
                     items = p.CTPhieuDoiTras.Select(c => new {
                         maCTDT = c.MaCTDT,
                         maSanPham = c.MaSanPham,
-                        tenSanPham = c.SanPham.TenSP,
+                        tenSanPham = c.SanPham != null ? c.SanPham.TenSP : "Unknown",
                         soLuong = c.SoLuong,
                         donGia = c.DonGia,
                         loai = c.Loai,
@@ -678,7 +678,7 @@ namespace BuildingMaterialAPI.Controllers
         {
             var p = await _ctx.PhieuDoiTras.Include(x => x.CTPhieuDoiTras).FirstOrDefaultAsync(x => x.MaPhieuDT == id);
             if(p == null) return NotFound();
-            if(p.TrangThai != "Đã Duyệt" && p.TrangThai != "Đã Duyệt (Tất cả)" && !p.TrangThai.Contains("một phần")) 
+            if((p.TrangThai ?? "") != "Đã Duyệt" && (p.TrangThai ?? "") != "Đã Duyệt (Tất cả)" && !(p.TrangThai ?? "").Contains("một phần")) 
                 return BadRequest("Phiếu chưa được duyệt, không thể nhập kho.");
             
             if(p.TrangThaiNhapKho == "Đã nhập kho") return BadRequest("Phiếu này đã được nhập kho trước đó.");
