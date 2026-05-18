@@ -14,6 +14,7 @@ const FlashSalePage = () => {
   const [flashSale, setFlashSale] = useState(cachedFlashSaleData);
   const [loading, setLoading] = useState(!cachedFlashSaleData);
   const [timeLeft, setTimeLeft] = useState({ hours: '00', minutes: '00', seconds: '00' });
+  const [activeSlot, setActiveSlot] = useState('12:00');
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [favorites, setFavorites] = useState(() => storageHelper.getFavorites());
@@ -78,16 +79,24 @@ const FlashSalePage = () => {
   useEffect(() => {
     if (!flashSale) return;
 
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const endTime = new Date(flashSale.thoiGianKetThuc).getTime();
-      const distance = endTime - now;
+    const updateTimer = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      let nextSlotHour = 9;
+      let currentSlot = '00:00';
+      if (currentHour >= 20) { currentSlot = '20:00'; nextSlotHour = 24; }
+      else if (currentHour >= 15) { currentSlot = '15:00'; nextSlotHour = 20; }
+      else if (currentHour >= 12) { currentSlot = '12:00'; nextSlotHour = 15; }
+      else if (currentHour >= 9) { currentSlot = '09:00'; nextSlotHour = 12; }
+      else { currentSlot = '00:00'; nextSlotHour = 9; }
+
+      setActiveSlot(currentSlot);
+
+      const endTime = flashSale.thoiGianKetThuc ? new Date(flashSale.thoiGianKetThuc).getTime() : new Date(now.getFullYear(), now.getMonth(), now.getDate(), nextSlotHour, 0, 0).getTime();
+      const distance = endTime - now.getTime();
 
       if (distance < 0) {
-        clearInterval(interval);
         setTimeLeft({ hours: '00', minutes: '00', seconds: '00' });
-        // Optionally refresh or hide sale
-        setFlashSale(null);
         return;
       }
 
@@ -100,7 +109,10 @@ const FlashSalePage = () => {
         minutes: m.toString().padStart(2, '0'),
         seconds: s.toString().padStart(2, '0')
       });
-    }, 1000);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
   }, [flashSale]);
@@ -162,19 +174,30 @@ const FlashSalePage = () => {
 
           {/* Time Tabs (Mock like Fahasa) */}
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 4, flexWrap: 'wrap' }}>
-             {['00:00', '09:00', '12:00', '15:00', '20:00'].map((time, i) => (
-                <Box key={i} sx={{ 
-                  bgcolor: time === '12:00' ? '#e63946' : 'rgba(255,255,255,0.1)', 
-                  border: time === '12:00' ? '2px solid #fca5a5' : '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px', 
-                  py: 1, 
-                  px: 3,
-                  minWidth: '100px'
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{time}</Typography>
-                  <Typography variant="caption">{time === '12:00' ? 'Đang diễn ra' : 'Sắp diễn ra'}</Typography>
-                </Box>
-             ))}
+             {['00:00', '09:00', '12:00', '15:00', '20:00'].map((time, i) => {
+                const slotHour = parseInt(time.split(':')[0], 10);
+                const activeHour = parseInt(activeSlot.split(':')[0], 10);
+                let statusText = 'Sắp diễn ra';
+                if (time === activeSlot) {
+                  statusText = 'Đang diễn ra';
+                } else if (slotHour < activeHour) {
+                  statusText = 'Đã kết thúc';
+                }
+
+                return (
+                  <Box key={i} sx={{ 
+                    bgcolor: time === activeSlot ? '#e63946' : 'rgba(255,255,255,0.1)', 
+                    border: time === activeSlot ? '2px solid #fca5a5' : '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '8px', 
+                    py: 1, 
+                    px: 3,
+                    minWidth: '100px'
+                  }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{time}</Typography>
+                    <Typography variant="caption">{statusText}</Typography>
+                  </Box>
+                );
+             })}
           </Box>
         </Container>
       </Box>

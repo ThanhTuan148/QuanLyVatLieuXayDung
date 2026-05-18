@@ -361,18 +361,22 @@ const CustomerShoppingPage = () => {
 
   useEffect(() => {
     if (!activeFlashSale) return;
-    if (!flashSaleEndTimeRef.current) {
-      flashSaleEndTimeRef.current = new Date().getTime() + 2 * 60 * 60 * 1000;
-    }
 
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const distance = flashSaleEndTimeRef.current - now;
+    const updateTimer = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      let nextSlotHour = 9;
+      if (currentHour >= 20) nextSlotHour = 24;
+      else if (currentHour >= 15) nextSlotHour = 20;
+      else if (currentHour >= 12) nextSlotHour = 15;
+      else if (currentHour >= 9) nextSlotHour = 12;
+      else nextSlotHour = 9;
+
+      const endTime = activeFlashSale.thoiGianKetThuc ? new Date(activeFlashSale.thoiGianKetThuc).getTime() : new Date(now.getFullYear(), now.getMonth(), now.getDate(), nextSlotHour, 0, 0).getTime();
+      const distance = endTime - now.getTime();
 
       if (distance < 0) {
-        clearInterval(interval);
         setTimeLeft({ hours: '00', minutes: '00', seconds: '00' });
-        setActiveFlashSale(null);
         return;
       }
 
@@ -385,7 +389,10 @@ const CustomerShoppingPage = () => {
         minutes: m.toString().padStart(2, '0'),
         seconds: s.toString().padStart(2, '0')
       });
-    }, 1000);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
   }, [activeFlashSale]);
