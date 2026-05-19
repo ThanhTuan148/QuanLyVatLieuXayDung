@@ -470,13 +470,17 @@ const CustomerShoppingPage = () => {
     <Box sx={{ width: '100%', overflowX: 'hidden', bgcolor: '#f8f7f4' }}>
 
       {/* Hero Section Carousel Replicating the Screenshot with Animation */}
-      <HeroCarousel ctaLink="#products" ctaLabel="SẢN PHẨM →" mode="shopping" products={products} />
+      <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 }, pt: 3 }}>
+        <Box sx={{ borderRadius: '24px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
+          <HeroCarousel ctaLink="#products" ctaLabel="SẢN PHẨM →" mode="shopping" products={products} />
+        </Box>
+      </Container>
 
 
       {/* Fahasa-style Flash Sale Section */}
       {!loading && activeFlashSale && (
         <Box sx={{ pt: 6, pb: 4 }}>
-          <Container maxWidth={false} sx={{ px: { xs: 2, md: 4, lg: 6 } }}>
+          <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
             <Box
               onMouseEnter={() => setFlashSalePaused(true)}
               onMouseLeave={() => setFlashSalePaused(false)}

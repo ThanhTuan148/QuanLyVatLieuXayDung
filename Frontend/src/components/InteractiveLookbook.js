@@ -146,11 +146,10 @@ const InteractiveLookbook = ({ products = [], onQuickView }) => {
             color: '#1a1a1a',
             fontWeight: 800,
             mb: 1.5,
-            fontSize: { xs: '2rem', md: '2.5rem' },
-            fontFamily: "'Playfair Display', serif"
+            fontSize: { xs: '2rem', md: '2.5rem' }
           }}
         >
-          Không Gian Trải Nghiệm Vật Tư Thực Tế
+          Không gian trải nghiệm vật tư thực tế
         </Typography>
         <Typography
           variant="body1"

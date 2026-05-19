@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Box, Fab, Paper, Typography, IconButton, TextField, 
+import {
+  Box, Fab, Paper, Typography, IconButton, TextField,
   Avatar, List, ListItem, ListItemText, Divider, Badge, Button,
   CircularProgress, Chip
 } from '@mui/material';
-import { 
-  Chat as ChatIcon, 
-  Close as CloseIcon, 
+import {
+  Chat as ChatIcon,
+  Close as CloseIcon,
   Send as SendIcon,
   Minimize as MinimizeIcon,
   DragHandle as DragIcon,
@@ -51,7 +51,7 @@ const FloatingChat = () => {
 
     const userData = JSON.parse(localStorage.getItem('user'));
     let customerId = '';
-    
+
     // Only show for customers or guests, NOT for staff/admin
     if (isStaffUser(userData)) {
       return;
@@ -72,7 +72,7 @@ const FloatingChat = () => {
 
     fetchHistory(customerId);
     setupSignalR(customerId);
-    
+
     // Fetch active product catalog for AI material mapping
     const fetchProducts = async () => {
       try {
@@ -83,7 +83,7 @@ const FloatingChat = () => {
       }
     };
     fetchProducts();
-    
+
     const handleResize = () => {
       setPosition(prev => ({
         x: Math.min(prev.x, window.innerWidth - 80),
@@ -147,7 +147,7 @@ const FloatingChat = () => {
     const actionRegex = /\[ESTIMATE_ACTION:\s*(\{[\s\S]*\})\s*\]/s;
     const match = text.match(actionRegex);
     if (!match) return { cleanText: text, actionData: null };
-    
+
     try {
       const actionData = JSON.parse(match[1]);
       const cleanText = text.replace(actionRegex, '').trim();
@@ -167,8 +167,8 @@ const FloatingChat = () => {
           if (!p || !item.maSP) return false;
           const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
           const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
-          const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
-                               item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
+          const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) ||
+            item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
           return codeMatch || nameMatch || partialMatch;
         });
 
@@ -250,22 +250,22 @@ const FloatingChat = () => {
   return (
     <Box sx={{ position: 'fixed', left: position.x, top: position.y, zIndex: 9999 }}>
       {!isOpen ? (
-        <Badge 
-          badgeContent={unreadCount} 
-          color="error" 
-          sx={{ 
-            '& .MuiBadge-badge': { 
-              fontSize: '0.75rem', 
-              height: 20, 
-              minWidth: 20, 
-              borderRadius: '10px', 
+        <Badge
+          badgeContent={unreadCount}
+          color="error"
+          sx={{
+            '& .MuiBadge-badge': {
+              fontSize: '0.75rem',
+              height: 20,
+              minWidth: 20,
+              borderRadius: '10px',
               boxShadow: '0 0 10px rgba(255,0,0,0.5)',
-              fontWeight: 'bold' 
-            } 
+              fontWeight: 'bold'
+            }
           }}
         >
-          <Fab 
-            color="primary" 
+          <Fab
+            color="primary"
             onMouseDown={handleMouseDown}
             onClick={() => {
               if (!isDragging) {
@@ -273,7 +273,7 @@ const FloatingChat = () => {
                 setUnreadCount(0);
               }
             }}
-            sx={{ 
+            sx={{
               background: 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)',
               boxShadow: '0 8px 24px rgba(230,140,85,0.35)',
               color: 'white',
@@ -282,7 +282,7 @@ const FloatingChat = () => {
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               animation: 'pulseGlow 2s infinite ease-in-out',
               cursor: isDragging ? 'grabbing' : 'pointer',
-              '&:hover': { 
+              '&:hover': {
                 background: 'linear-gradient(135deg, #d47b44 0%, #e68c55 100%)',
                 transform: 'scale(1.08) rotate(5deg)',
                 boxShadow: '0 12px 30px rgba(230,140,85,0.5)'
@@ -293,12 +293,12 @@ const FloatingChat = () => {
           </Fab>
         </Badge>
       ) : (
-        <Paper 
-          elevation={12} 
-          sx={{ 
-            width: 360, 
-            height: 520, 
-            display: 'flex', 
+        <Paper
+          elevation={12}
+          sx={{
+            width: 360,
+            height: 520,
+            display: 'flex',
             flexDirection: 'column',
             borderRadius: '24px',
             overflow: 'hidden',
@@ -312,14 +312,14 @@ const FloatingChat = () => {
           }}
         >
           {/* Header */}
-          <Box 
+          <Box
             onMouseDown={handleMouseDown}
-            sx={{ 
-              p: 2, 
-              background: 'linear-gradient(135deg, #e68c55 0%, #d47b44 100%)', 
-              color: 'white', 
-              display: 'flex', 
-              alignItems: 'center', 
+            sx={{
+              p: 2,
+              background: 'linear-gradient(135deg, #e68c55 0%, #d47b44 100%)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
               cursor: 'move',
               boxShadow: '0 4px 12px rgba(230,140,85,0.15)',
@@ -351,12 +351,12 @@ const FloatingChat = () => {
           {/* Mode Selector - iOS Segment Control Style */}
           <Box sx={{ p: 1.5, bgcolor: '#ffffff', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
             <Box sx={{ display: 'flex', bgcolor: '#f0f0f0', borderRadius: '24px', p: 0.5, border: '1px solid #ebebeb' }}>
-              <Box 
+              <Box
                 onClick={() => setChatMode('AI')}
-                sx={{ 
-                  flex: 1, 
-                  py: 1, 
-                  textAlign: 'center', 
+                sx={{
+                  flex: 1,
+                  py: 1,
+                  textAlign: 'center',
                   cursor: 'pointer',
                   fontWeight: '800',
                   fontSize: '13px',
@@ -374,12 +374,12 @@ const FloatingChat = () => {
               >
                 <SmartToyIcon sx={{ fontSize: 16 }} /> Trợ lý AI
               </Box>
-              <Box 
+              <Box
                 onClick={() => setChatMode('Staff')}
-                sx={{ 
-                  flex: 1, 
-                  py: 1, 
-                  textAlign: 'center', 
+                sx={{
+                  flex: 1,
+                  py: 1,
+                  textAlign: 'center',
                   cursor: 'pointer',
                   fontWeight: '800',
                   fontSize: '13px',
@@ -401,12 +401,12 @@ const FloatingChat = () => {
           </Box>
 
           {/* Messages List */}
-          <Box 
+          <Box
             ref={scrollRef}
-            sx={{ 
-              flexGrow: 1, 
-              overflowY: 'auto', 
-              p: 2, 
+            sx={{
+              flexGrow: 1,
+              overflowY: 'auto',
+              p: 2,
               bgcolor: '#fbfaf8',
               display: 'flex',
               flexDirection: 'column',
@@ -446,13 +446,13 @@ const FloatingChat = () => {
               .map((m, i) => {
                 const isCustomer = m.senderRole === 'Customer' || m.senderRole === 'Customer_AI' || m.senderRole === 'Customer_Staff';
                 const isAI = m.senderRole === 'AI Assistant';
-                
+
                 const { cleanText, actionData } = parseMessage(m.message);
 
                 return (
-                  <Box 
-                    key={i} 
-                    sx={{ 
+                  <Box
+                    key={i}
+                    sx={{
                       alignSelf: isCustomer ? 'flex-end' : 'flex-start',
                       maxWidth: '85%',
                       display: 'flex',
@@ -461,52 +461,52 @@ const FloatingChat = () => {
                     }}
                   >
                     <Box
-                      sx={{ 
+                      sx={{
                         bgcolor: isCustomer ? '#e68c55' : (isAI ? '#ffffff' : '#fff5ee'),
                         background: isCustomer ? 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)' : undefined,
                         color: isCustomer ? 'white' : '#2d2d2d',
                         p: 1.8,
                         borderRadius: isCustomer ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                        boxShadow: isCustomer 
-                          ? '0 4px 12px rgba(230,140,85,0.18)' 
+                        boxShadow: isCustomer
+                          ? '0 4px 12px rgba(230,140,85,0.18)'
                           : '0 4px 12px rgba(0,0,0,0.03)',
                         border: isCustomer ? 'none' : '1px solid rgba(230, 140, 85, 0.08)'
                       }}
                     >
                       {isAI && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
-                          <Chip 
-                            icon={<SmartToyIcon style={{ color: '#1976d2', fontSize: '0.85rem' }} />} 
-                            label="Trợ lý ảo AI" 
-                            size="small" 
-                            sx={{ 
-                              height: 18, 
-                              fontSize: '0.65rem', 
-                              fontWeight: '800', 
+                          <Chip
+                            icon={<SmartToyIcon style={{ color: '#1976d2', fontSize: '0.85rem' }} />}
+                            label="Trợ lý ảo AI"
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              fontWeight: '800',
                               bgcolor: 'rgba(25, 118, 210, 0.08)',
                               color: '#1976d2',
                               border: 'none',
                               '& .MuiChip-icon': { marginLeft: '4px', marginRight: '-2px' }
-                            }} 
+                            }}
                           />
                         </Box>
                       )}
-                      
+
                       {!isCustomer && !isAI && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
-                          <Chip 
-                            icon={<SupportAgentIcon style={{ color: '#e68c55', fontSize: '0.85rem' }} />} 
-                            label="Nhân viên" 
-                            size="small" 
-                            sx={{ 
-                              height: 18, 
-                              fontSize: '0.65rem', 
-                              fontWeight: '800', 
+                          <Chip
+                            icon={<SupportAgentIcon style={{ color: '#e68c55', fontSize: '0.85rem' }} />}
+                            label="Nhân viên"
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              fontWeight: '800',
                               bgcolor: 'rgba(230, 140, 85, 0.08)',
                               color: '#e68c55',
                               border: 'none',
                               '& .MuiChip-icon': { marginLeft: '4px', marginRight: '-2px' }
-                            }} 
+                            }}
                           />
                         </Box>
                       )}
@@ -525,8 +525,8 @@ const FloatingChat = () => {
                               if (!p || !item.maSP) return false;
                               const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
                               const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
-                              const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
-                                                   item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
+                              const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) ||
+                                item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
                               return codeMatch || nameMatch || partialMatch;
                             });
                             return (
@@ -541,10 +541,10 @@ const FloatingChat = () => {
                             size="small"
                             startIcon={<ShoppingCartIcon />}
                             onClick={() => handleAddEstimateToCart(actionData.items)}
-                            sx={{ 
-                              mt: 1.5, 
-                              width: '100%', 
-                              fontSize: '0.72rem', 
+                            sx={{
+                              mt: 1.5,
+                              width: '100%',
+                              fontSize: '0.72rem',
                               fontWeight: '800',
                               background: 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)',
                               color: 'white',
@@ -570,10 +570,10 @@ const FloatingChat = () => {
 
           {/* Input Box */}
           <Box sx={{ p: 1.8, bgcolor: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.04)', display: 'flex', gap: 1, alignItems: 'center' }}>
-            <TextField 
-              fullWidth 
-              size="small" 
-              placeholder="Nhập tin nhắn tư vấn..." 
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Nhập tin nhắn tư vấn..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
@@ -589,17 +589,17 @@ const FloatingChat = () => {
                 }
               }}
             />
-            <IconButton 
-              color="primary" 
-              onClick={handleSend} 
+            <IconButton
+              color="primary"
+              onClick={handleSend}
               disabled={!input.trim() || isSending}
-              sx={{ 
-                bgcolor: input.trim() ? '#e68c55' : '#f0f0f0', 
-                color: input.trim() ? 'white' : '#bbb', 
+              sx={{
+                bgcolor: input.trim() ? '#e68c55' : '#f0f0f0',
+                color: input.trim() ? 'white' : '#bbb',
                 p: 1.1,
                 boxShadow: input.trim() ? '0 4px 10px rgba(230,140,85,0.25)' : 'none',
                 transition: 'all 0.2s',
-                '&:hover': { 
+                '&:hover': {
                   bgcolor: input.trim() ? '#d47b44' : '#f0f0f0',
                   transform: input.trim() ? 'scale(1.05)' : 'none'
                 },

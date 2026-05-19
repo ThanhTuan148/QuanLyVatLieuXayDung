@@ -142,7 +142,7 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
 
   const handleSubmit = () => {
     if (!form.tenSP) { alert('Vui lòng nhập tên sản phẩm'); return; }
-    if (!form.giaBan) { alert('Vui lòng nhập giá bán'); return; }
+    if (!form.isGift && !form.giaBan) { alert('Vui lòng nhập giá bán'); return; }
     const payload = {
       MaSP: form.maSP, TenSP: form.tenSP, MoTa: form.moTa, DonViTinh: form.donViTinh,
       GiaBan: parseFloat(form.giaBan) || 0, GiaNhap: parseFloat(form.giaNhap) || 0,
@@ -331,7 +331,16 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
         <TextField fullWidth margin="dense" label="Đơn Vị Tính" name="donViTinh" value={form.donViTinh}
           onChange={handleChange} placeholder="Bao, Kg, Cái, Cuộn, Thùng..." />
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <TextField fullWidth margin="dense" label="Giá Bán (VND) *" name="giaBan" value={form.giaBan} onChange={handleChange} type="number" required />
+          <TextField 
+            fullWidth 
+            margin="dense" 
+            label={form.isGift ? "Giá Bán (VND)" : "Giá Bán (VND) *"} 
+            name="giaBan" 
+            value={form.giaBan} 
+            onChange={handleChange} 
+            type="number" 
+            required={!form.isGift} 
+          />
           <TextField fullWidth margin="dense" label="Giá Nhập (VND)" name="giaNhap" value={form.giaNhap} onChange={handleChange} type="number" 
             disabled 
             helperText="Giá nhập sẽ được tự động cập nhật khi thực hiện Nhập hàng" 
