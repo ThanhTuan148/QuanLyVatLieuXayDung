@@ -132,30 +132,26 @@ namespace BuildingMaterialAPI.Controllers
                 NgayCapNhat = DateTime.Now
             };
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            if (dto.DoiTuongs != null && dto.DoiTuongs.Any())
+            {
+                foreach (var dt in dto.DoiTuongs)
+                {
+                    km.KhuyenMaiDoiTuongs.Add(new KhuyenMaiDoiTuong
+                    {
+                        MaSanPham = dt.MaSanPham,
+                        MaLoaiSP = dt.MaLoaiSP,
+                        GiaKhuyenMai = dt.GiaKhuyenMai,
+                        SoLuongKhuyenMai = dt.SoLuong,
+                        SoLuongDaBan = 0
+                    });
+                }
+            }
+
             try
             {
                 _context.KhuyenMais.Add(km);
                 await _context.SaveChangesAsync();
 
-                if (dto.DoiTuongs != null && dto.DoiTuongs.Any())
-                {
-                    foreach (var dt in dto.DoiTuongs)
-                    {
-                        _context.KhuyenMaiDoiTuongs.Add(new KhuyenMaiDoiTuong
-                        {
-                            MaKhuyenMai = km.MaKhuyenMai,
-                            MaSanPham = dt.MaSanPham,
-                            MaLoaiSP = dt.MaLoaiSP,
-                            GiaKhuyenMai = dt.GiaKhuyenMai,
-                            SoLuongKhuyenMai = dt.SoLuong,
-                            SoLuongDaBan = 0
-                        });
-                    }
-                    await _context.SaveChangesAsync();
-                }
-
-                await transaction.CommitAsync();
                 return Ok(new 
                 { 
                     maKhuyenMai = km.MaKhuyenMai, 
@@ -167,7 +163,6 @@ namespace BuildingMaterialAPI.Controllers
             }
             catch (DbUpdateException ex)
             {
-                await transaction.RollbackAsync();
                 if (ex.InnerException != null && ex.InnerException.Message.Contains("UIX_MaApDung_Not_Null"))
                 {
                     return BadRequest(new { message = "Mã code này đã được sử dụng. Vui lòng nhập mã khác!" });
@@ -176,7 +171,7 @@ namespace BuildingMaterialAPI.Controllers
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                Console.WriteLine($"[PromotionController] Create Error: {ex}");
                 return StatusCode(500, new { message = "Lỗi hệ thống khi lưu khuyến mãi.", details = ex.Message });
             }
         }
@@ -206,7 +201,6 @@ namespace BuildingMaterialAPI.Controllers
             km.HinhAnh = dto.HinhAnh;
             km.NgayCapNhat = DateTime.Now;
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 // Update targets
@@ -215,9 +209,8 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     foreach (var dt in dto.DoiTuongs)
                     {
-                        _context.KhuyenMaiDoiTuongs.Add(new KhuyenMaiDoiTuong
+                        km.KhuyenMaiDoiTuongs.Add(new KhuyenMaiDoiTuong
                         {
-                            MaKhuyenMai = km.MaKhuyenMai,
                             MaSanPham = dt.MaSanPham,
                             MaLoaiSP = dt.MaLoaiSP,
                             GiaKhuyenMai = dt.GiaKhuyenMai,
@@ -228,7 +221,6 @@ namespace BuildingMaterialAPI.Controllers
                 }
 
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
                 return Ok(new 
                 { 
                     maKhuyenMai = km.MaKhuyenMai, 
@@ -240,7 +232,6 @@ namespace BuildingMaterialAPI.Controllers
             }
             catch (DbUpdateException ex)
             {
-                await transaction.RollbackAsync();
                 if (ex.InnerException != null && ex.InnerException.Message.Contains("UIX_MaApDung_Not_Null"))
                 {
                     return BadRequest(new { message = "Mã code này đã được sử dụng. Vui lòng nhập mã khác!" });
@@ -249,7 +240,6 @@ namespace BuildingMaterialAPI.Controllers
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi hệ thống khi cập nhật khuyến mãi.", details = ex.Message });
             }
         }

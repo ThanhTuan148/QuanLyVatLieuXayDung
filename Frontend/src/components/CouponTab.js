@@ -71,7 +71,11 @@ export default function CouponTab() {
       else await couponService.create(payload);
 
       setFormOpen(false); load();
-    } catch (e) { alert(e.response?.data?.message || 'Lưu thất bại'); }
+    } catch (e) { 
+      const errMsg = e.response?.data?.message || 'Lưu thất bại';
+      const errDetails = e.response?.data?.details ? `\nChi tiết: ${e.response.data.details}` : '';
+      alert(`${errMsg}${errDetails}`); 
+    }
   };
 
   const handleDelete = async (id) => {

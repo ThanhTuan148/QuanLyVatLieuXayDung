@@ -52,16 +52,6 @@ const AdminRoute = ({ children, isAuthenticated, userRole, isAdminUser }) => {
   if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
   return <Layout>{children}</Layout>;
 };
-
-const DashboardRoute = ({ children, isAuthenticated, userRole, isAdminUser, getAdminHomeRoute }) => {
-  if (!isAuthenticated) return <Navigate to="/auth" />;
-  if (!isAdminUser(userRole)) return <Navigate to="/shopping" />;
-  const roleStr = String(userRole?.role || userRole?.Role || userRole?.roleName || '').toLowerCase();
-  const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
-  if (!isHighManager) return <Navigate to={getAdminHomeRoute(userRole)} />;
-  return <Layout>{children}</Layout>;
-};
-
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState(null);
@@ -168,7 +158,7 @@ function App() {
             <Route path="/my-debts" element={isAuthenticated ? <ShoppingLayout><CustomerDebtsPage /></ShoppingLayout> : <Navigate to="/auth" />} />
 
             {/* Admin / Staff routes - protected by token and role */}
-            <Route path="/dashboard" element={<DashboardRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser} getAdminHomeRoute={getAdminHomeRoute}><DashboardPage /></DashboardRoute>} />
+            <Route path="/dashboard" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><DashboardPage /></AdminRoute>} />
             <Route path="/products" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><ProductsPage /></AdminRoute>} />
             <Route path="/orders" element={<AdminRoute isAuthenticated={isAuthenticated} userRole={userRole} isAdminUser={isAdminUser}><OrdersPage /></AdminRoute>} />
 

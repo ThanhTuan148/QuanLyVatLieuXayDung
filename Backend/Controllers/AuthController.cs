@@ -70,7 +70,7 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     allowedModules.AddRange(new[] { "PRODUCTS", "ORDERS", "CUSTOMERS", "PROMOTIONS", "CHAT" });
                 }
-                else if (roleName.ToLower().Contains("thủ kho") || roleName.ToLower() == "warehouse")
+                else if (roleName.ToLower().Contains("kho") || roleName.ToLower() == "warehouse")
                 {
                     allowedModules.AddRange(new[] { "PRODUCTS", "STOCK_ORDERS", "INVENTORY", "RETURNS" });
                 }
@@ -116,14 +116,22 @@ namespace BuildingMaterialAPI.Controllers
 
                     foreach (var p in customPerms)
                     {
-                        modulePermissions[p.Module] = new ModuleQuyenDto
+                        var upperModule = p.Module.ToUpper();
+                        
+                        modulePermissions[upperModule] = new ModuleQuyenDto
                         {
                             Module = p.Module, TenModule = p.TenModule, CoTheXem = p.CoTheXem, CoTheTao = p.CoTheTao, CoTheSua = p.CoTheSua, CoTheXoa = p.CoTheXoa
                         };
 
-                        if (p.CoTheXem && !allowedModules.Contains(p.Module))
+                        if (p.CoTheXem)
                         {
-                            allowedModules.Add(p.Module);
+                            if (!allowedModules.Contains(p.Module)) allowedModules.Add(p.Module);
+                            if (!allowedModules.Contains(upperModule)) allowedModules.Add(upperModule);
+                        }
+                        else
+                        {
+                            allowedModules.Remove(p.Module);
+                            allowedModules.Remove(upperModule);
                         }
                     }
                 }

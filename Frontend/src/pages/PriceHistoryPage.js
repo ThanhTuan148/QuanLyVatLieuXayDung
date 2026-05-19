@@ -73,7 +73,6 @@ export default function PriceHistoryPage() {
   const [summary, setSummary] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [chartData, setChartData] = useState(null);
-  const [viewMode, setViewMode] = useState('overview');
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -130,7 +129,6 @@ export default function PriceHistoryPage() {
 
   const handleSelectProduct = (id) => {
     setSelectedProduct(id);
-    setViewMode('detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -191,6 +189,10 @@ export default function PriceHistoryPage() {
 
   const selectedProductName = products.find(p => p.maSanPham === selectedProduct)?.tenSP || '';
 
+  const filteredProductsOverview = selectedProduct
+    ? productsOverview.filter(p => p.maSanPham === selectedProduct)
+    : productsOverview;
+
   return (
     <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -208,7 +210,7 @@ export default function PriceHistoryPage() {
 
       <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 2, border: '1px solid #e2e8f0' }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={5}>
+          <Grid item xs={12} sm={8}>
             <Autocomplete
               fullWidth
               size="small"
@@ -218,7 +220,6 @@ export default function PriceHistoryPage() {
               onChange={(event, newValue) => {
                 const id = newValue ? newValue.maSanPham : '';
                 setSelectedProduct(id);
-                setViewMode(id ? 'detail' : 'overview');
               }}
               renderInput={(params) => (
                 <TextField 
@@ -235,12 +236,6 @@ export default function PriceHistoryPage() {
             <TextField select fullWidth size="small" label="Thời gian" value={days} onChange={e => setDays(Number(e.target.value))}>
               {[{ v: 30, l: '30 ngày' }, { v: 90, l: '90 ngày' }, { v: 365, l: '1 năm' }].map(o => <MenuItem key={o.v} value={o.v}>{o.l}</MenuItem>)}
             </TextField>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <ToggleButtonGroup value={viewMode} exclusive onChange={(e, v) => v && setViewMode(v)} size="small" fullWidth>
-              <ToggleButton value="overview">Tổng quan</ToggleButton>
-              <ToggleButton value="detail">Biểu đồ</ToggleButton>
-            </ToggleButtonGroup>
           </Grid>
         </Grid>
       </Paper>
@@ -266,20 +261,6 @@ export default function PriceHistoryPage() {
               ))}
             </Grid>
           )}
-
-          <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', mb: 3, overflow: 'hidden' }}>
-            <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
-              <InventoryIcon sx={{ color: '#6366f1' }} />
-              <Typography variant="subtitle1" fontWeight={700}>Bảng Giá Tổng Hợp</Typography>
-            </Box>
-            <DataTable 
-              rows={productsOverview} 
-              columns={overviewColumns} 
-              getRowId={(r) => r.maSanPham} 
-              onRowClick={(p) => handleSelectProduct(p.id)} 
-              dateField="lanThayDoiGanNhat"
-            />
-          </Paper>
 
           {selectedProduct && chartData && (
             <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: '1px solid #e2e8f0' }}>
@@ -328,6 +309,20 @@ export default function PriceHistoryPage() {
               </ResponsiveContainer>
             </Paper>
           )}
+
+          <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', mb: 3, overflow: 'hidden' }}>
+            <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InventoryIcon sx={{ color: '#6366f1' }} />
+              <Typography variant="subtitle1" fontWeight={700}>Bảng Giá Tổng Hợp</Typography>
+            </Box>
+            <DataTable 
+              rows={filteredProductsOverview} 
+              columns={overviewColumns} 
+              getRowId={(r) => r.maSanPham} 
+              onRowClick={(p) => handleSelectProduct(p.id)} 
+              dateField="lanThayDoiGanNhat"
+            />
+          </Paper>
 
           <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
             <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>

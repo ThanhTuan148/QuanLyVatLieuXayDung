@@ -104,11 +104,8 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetSupplierReturns()
         {
             var ds = await _ctx.PhieuTraHangNCCs
-                .Include(p => p.NhanVien)
-                .Include(p => p.PhieuNhap)
-                .ThenInclude(pn => pn.NhaCungCap)
+                .AsNoTracking()
                 .OrderByDescending(p => p.NgayTao)
-                .AsSplitQuery()
                 .Select(p => new
                 {
                     maPhieuTra = p.MaPhieuTra,
@@ -128,6 +125,7 @@ namespace BuildingMaterialAPI.Controllers
                         donGia = c.DonGia
                     }).ToList()
                 }).ToListAsync();
+            
             return Ok(ds);
         }
 
@@ -415,10 +413,8 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetCustomerReturns()
         {
             var ds = await _ctx.PhieuDoiTras
-                .Include(p => p.HoaDon).ThenInclude(h => h.KhachHang)
-                .Include(p => p.NhanVien)
+                .AsNoTracking()
                 .OrderByDescending(p => p.NgayTao)
-                .AsSplitQuery()
                 .Select(p => new {
                     maPhieuDT = p.MaPhieuDT,
                     maDT = p.MaDT,
@@ -429,7 +425,7 @@ namespace BuildingMaterialAPI.Controllers
                     tongTienHoan = p.TongTienHoan,
                     lyDo = p.LyDo,
                     trangThai = p.TrangThai,
-                    hinhAnhMinhChung = p.HinhAnhMinhChung,
+                    hinhAnhMinhChung = "", // EXCLUDE LARGE BASE64 DATA FROM LIST VIEW
                     trangThaiNhapKho = p.TrangThaiNhapKho,
                     loai = p.Loai,
                     tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "Unknown",
@@ -445,6 +441,7 @@ namespace BuildingMaterialAPI.Controllers
                         trangThai = c.TrangThai
                     }).ToList()
                 }).ToListAsync();
+            
             return Ok(ds);
         }
 

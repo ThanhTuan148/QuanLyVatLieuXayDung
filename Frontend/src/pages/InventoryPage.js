@@ -102,11 +102,9 @@ export default function InventoryPage() {
 
   const visibleTabs = useMemo(() => {
     return allTabs.filter(tab => {
-      const hasPerm = !tab.moduleKey || permissions?.[tab.moduleKey]?.coTheXem;
-      if (isTaiXe) return tab.type === 'history';
-      return hasPerm;
+      return !tab.moduleKey || permissions?.[tab.moduleKey]?.coTheXem;
     });
-  }, [permissions, isTaiXe]);
+  }, [permissions]);
 
   useEffect(() => {
     if (activeTab >= visibleTabs.length) setActiveTab(0);
@@ -469,7 +467,7 @@ export default function InventoryPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>📊 Quản Lý Kho Hàng</Typography>
           <Typography variant="body2" color="textSecondary">Chi tiết tồn kho hiện tại</Typography>
         </Box>
-        {!isTaiXe && (
+        {permissions?.inventory?.coTheTao && (
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button variant="contained" onClick={handleRunAiForecast} sx={{ background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,114,255,0.3)' }}>
               🤖 AI Dự Báo Nhu Cầu Nhập Hàng
@@ -489,7 +487,7 @@ export default function InventoryPage() {
         ))}
       </Tabs>
 
-      {(!isTaiXe && currentTabType !== 'history') ? (
+      {(permissions?.inventory?.coTheTao && currentTabType !== 'history') ? (
         <>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {stats.map((s, i) => (
@@ -513,7 +511,7 @@ export default function InventoryPage() {
         </>
       ) : (
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          {!isTaiXe && (
+          {permissions?.inventory?.coTheTao && (
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #eee' }}>
               <Button 
                 variant="outlined" 

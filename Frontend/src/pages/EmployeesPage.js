@@ -195,14 +195,35 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
         const genPerms = resGen.data || [];
         setGeneralQuyens(genPerms);
         const modPerms = resMod.data || [];
-        if (modPerms.length === 0 && genPerms.length > 0) {
-          setModuleQuyens(autoMapGeneralToModule(genPerms));
-        } else {
+        if (modPerms.length > 0) {
           const map = {};
           modPerms.forEach(mq => {
             map[mq.module] = { coTheXem: mq.coTheXem, coTheTao: mq.coTheTao, coTheSua: mq.coTheSua, coTheXoa: mq.coTheXoa };
           });
           setModuleQuyens(map);
+        } else if (genPerms.length > 0) {
+          setModuleQuyens(autoMapGeneralToModule(genPerms));
+        } else {
+          const role = String(employee?.tenVaiTro || '').toLowerCase();
+          const defaultMap = {};
+          
+          if (role.includes('admin') || role.includes('quản trị') || role.includes('giám đốc') || role.includes('quản lý')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees'];
+            allModules.forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
+            });
+          } else if (role.includes('tài xế') || role.includes('driver')) {
+            defaultMap['deliveries'] = { coTheXem: true, coTheTao: false, coTheSua: false, coTheXoa: false };
+          } else if (role.includes('bán hàng') || role.includes('sales')) {
+            ['products','orders','customers','promotions'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
+            });
+          } else if (role.includes('thủ kho') || role.includes('warehouse')) {
+            ['inventory','products'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
+            });
+          }
+          setModuleQuyens(defaultMap);
         }
       }).catch(() => { setModuleQuyens({}); setGeneralQuyens([]); });
     }
@@ -229,6 +250,7 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
         return { module: k, tenModule: k, coTheXem: q.coTheXem, coTheTao: q.coTheTao, coTheSua: q.coTheSua, coTheXoa: q.coTheXoa };
       });
       await api.put(`/employees/${employee.maNhanVien}/module-permissions`, payload);
+      window.dispatchEvent(new Event('permissionsUpdated'));
       onSaved(); onClose();
     } catch (e) { setErr(e.response?.data?.message || 'Lưu thất bại'); }
     finally { setSaving(false); }

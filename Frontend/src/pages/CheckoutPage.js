@@ -23,7 +23,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  Snackbar
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -44,6 +45,12 @@ const formatVND = (amount) => {
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const showToast = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+  const handleCloseSnackbar = () => setSnackbar(prev => ({ ...prev, open: false }));
 
   const {
     selectedItems: stateItems = [],
@@ -567,7 +574,7 @@ const CheckoutPage = () => {
         // Note: state coupons are from navigation, we can't 'null' them easily without complex logic,
         // but since initialTotal is used in calculation, the discount will naturally drop if we handle it there.
         // For simplicity, we just notify and clear the 'appliedCoupon' override.
-        alert(`Mã giảm giá ${couponToValidate.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${couponToValidate.minOrderAmount.toLocaleString('vi-VN')}₫).`);
+        showToast(`Mã giảm giá ${couponToValidate.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${couponToValidate.minOrderAmount.toLocaleString('vi-VN')}₫).`, 'warning');
       }
     }
   }, [initialTotal, appliedCoupon, stateManualCoupon, statePromoCoupon]);
@@ -681,7 +688,7 @@ const CheckoutPage = () => {
 
   const handleCheckout = async () => {
     if (!isLoggedIn) {
-      alert('Vui lòng đăng nhập để tiến hành thanh toán.');
+      showToast('Vui lòng đăng nhập để tiến hành thanh toán.', 'warning');
       navigate('/auth', { state: { returnUrl: '/checkout', ...location.state } });
       return;
     }
@@ -690,7 +697,7 @@ const CheckoutPage = () => {
     const outOfStockItems = selectedItems.filter(item => item.quantity > item.soLuongTon);
     if (outOfStockItems.length > 0) {
       const names = outOfStockItems.map(i => i.productName).join(', ');
-      alert(`⚠️ Một số sản phẩm trong đơn hàng hiện không đủ tồn kho: ${names}. Vui lòng kiểm tra lại.`);
+      showToast(`⚠️ Một số sản phẩm trong đơn hàng hiện không đủ tồn kho: ${names}. Vui lòng kiểm tra lại.`, 'error');
       return;
     }
 
@@ -745,7 +752,7 @@ const CheckoutPage = () => {
       const allItemIds = selectedItems.map(item => item.cartId || item.id);
       const unassigned = allItemIds.filter(id => !assignedItemIds.includes(id));
       if (unassigned.length > 0) {
-        alert('Vui lòng phân phối tất cả sản phẩm vào các địa chỉ.');
+        showToast('Vui lòng phân phối tất cả sản phẩm vào các địa chỉ.', 'warning');
         return;
       }
     }
@@ -777,11 +784,11 @@ const CheckoutPage = () => {
 
     if (paymentType === 'deposit') {
       if (depositAmount < grandTotal * 0.2) {
-        alert('Số tiền đặt cọc tối thiểu là 20% giá trị đơn hàng.');
+        showToast('Số tiền đặt cọc tối thiểu là 20% giá trị đơn hàng.', 'warning');
         return;
       }
       if (depositAmount > grandTotal) {
-        alert('Số tiền đặt cọc không được vượt quá tổng giá trị đơn hàng.');
+        showToast('Số tiền đặt cọc không được vượt quá tổng giá trị đơn hàng.', 'warning');
         return;
       }
     }
@@ -791,9 +798,9 @@ const CheckoutPage = () => {
 
       const groupErrorIdx = Object.keys(newErrors).find(k => k.startsWith('g'))?.match(/\d+/)?.[0];
       if (groupErrorIdx !== undefined) {
-        alert(`Vui lòng kiểm tra lại thông tin tại Địa chỉ ${parseInt(groupErrorIdx) + 1}.`);
+        showToast(`Vui lòng kiểm tra lại thông tin tại Địa chỉ ${parseInt(groupErrorIdx) + 1}.`, 'error');
       } else {
-        alert('Vui lòng kiểm tra lại thông tin giao hàng.');
+        showToast('Vui lòng kiểm tra lại thông tin giao hàng.', 'error');
       }
       return;
     }
@@ -926,12 +933,14 @@ const CheckoutPage = () => {
       const res = await orderService.createOrder(orderData);
       if (res.data) {
         await cartService.clearUserCart();
-        alert('✅ Đặt hàng thành công!');
-        navigate('/my-orders', { replace: true });
+        showToast('✅ Đặt hàng thành công!', 'success');
+        setTimeout(() => {
+          navigate('/my-orders', { replace: true });
+        }, 1500);
       }
     } catch (err) {
       console.error(err);
-      alert('❌ Lỗi đặt hàng: ' + (err.response?.data?.message || err.message));
+      showToast('❌ Lỗi đặt hàng: ' + (err.response?.data?.message || err.message), 'error');
     }
   };
 
@@ -1186,7 +1195,7 @@ const CheckoutPage = () => {
                          onCouponApply={(data) => {
                            if (appliedCoupon?.code === data.code) return;
                            if (data.type === 'Freeship' && isAutoFreeShip) {
-                             window.alert("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác");
+                             showToast("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác", "info");
                              return;
                            }
                            setAppliedCoupon({
@@ -1787,7 +1796,7 @@ const CheckoutPage = () => {
               return;
             }
             if (uudai.loaiGiamGia === 'Freeship' && isAutoFreeShip) {
-              alert("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác");
+              showToast("Đơn hàng đã được freeship, vui lòng chọn mã khuyến mãi khác", "info");
               return;
             }
             setAppliedCoupon({ 
@@ -1842,6 +1851,9 @@ const CheckoutPage = () => {
           </Button>
         </Box>
       </Box>
+      <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={snackbar.open} autoHideDuration={3000} onClose={handleCloseSnackbar}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>{snackbar.message}</Alert>
+      </Snackbar>
     </Box>
   );
 };

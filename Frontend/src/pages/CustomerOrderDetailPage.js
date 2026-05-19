@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Container, Typography, Box, Paper, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Chip,
-  IconButton, Button, Skeleton, Alert, Breadcrumbs, Link, Divider, Stack
+  IconButton, Button, Skeleton, Alert, Breadcrumbs, Link, Divider, Stack,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -33,6 +34,13 @@ const CustomerOrderDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+
+  // Custom Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', isDestructive: false, onConfirm: null });
+  const triggerConfirm = (title, message, onConfirm, isDestructive = false) => {
+    setConfirmDialog({ open: true, title, message, isDestructive, onConfirm });
+  };
+  const handleCloseConfirm = () => setConfirmDialog(prev => ({ ...prev, open: false }));
 
   // Review state
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -103,15 +111,20 @@ const CustomerOrderDetailPage = () => {
   };
 
   const handleDeleteReview = async (reviewId) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa đánh giá này không?')) {
-      try {
-        await reviewService.deleteReview(reviewId);
-        alert('Đã xóa đánh giá thành công.');
-        fetchReviewStatus(order);
-      } catch (err) {
-        alert('Không thể xóa đánh giá. Vui lòng thử lại sau.');
-      }
-    }
+    triggerConfirm(
+      '🗑️ Xóa đánh giá',
+      'Bạn có chắc chắn muốn xóa đánh giá này không?',
+      async () => {
+        try {
+          await reviewService.deleteReview(reviewId);
+          alert('Đã xóa đánh giá thành công.');
+          fetchReviewStatus(order);
+        } catch (err) {
+          alert('Không thể xóa đánh giá. Vui lòng thử lại sau.');
+        }
+      },
+      true
+    );
   };
 
   const getStatusColor = (status) => {
@@ -182,27 +195,37 @@ const CustomerOrderDetailPage = () => {
   };
 
   const handleSendVatEmail = async () => {
-    if (!window.confirm(`Gửi hóa đơn GTGT đến email: ${order.vatEmail}?`)) return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/vat-invoice/${id}/send-email`, { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) alert('✅ ' + data.message);
-      else alert('❌ ' + data.message);
-    } catch (err) {
-      alert('Lỗi khi gửi email: ' + err.message);
-    }
+    triggerConfirm(
+      '📧 Gửi hóa đơn qua Email',
+      `Gửi hóa đơn GTGT đến email: ${order.vatEmail}?`,
+      async () => {
+        try {
+          const res = await fetch(`http://localhost:5000/api/vat-invoice/${id}/send-email`, { method: 'POST' });
+          const data = await res.json();
+          if (res.ok) alert('✅ ' + data.message);
+          else alert('❌ ' + data.message);
+        } catch (err) {
+          alert('Lỗi khi gửi email: ' + err.message);
+        }
+      }
+    );
   };
 
   const handleCancelOrder = async () => {
-    if (window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) {
-      try {
-        await orderService.cancelOrder(id);
-        alert('Đã hủy đơn hàng thành công.');
-        window.location.reload();
-      } catch (err) {
-        alert(err.response?.data?.message || 'Có lỗi xảy ra khi hủy đơn hàng.');
-      }
-    }
+    triggerConfirm(
+      '🚨 Xác nhận hủy đơn hàng',
+      'Bạn có chắc chắn muốn hủy đơn hàng này không? Hành động này không thể hoàn tác.',
+      async () => {
+        try {
+          await orderService.cancelOrder(id);
+          alert('Đã hủy đơn hàng thành công.');
+          window.location.reload();
+        } catch (err) {
+          alert(err.response?.data?.message || 'Có lỗi xảy ra khi hủy đơn hàng.');
+        }
+      },
+      true
+    );
   };
 
   const handleReorder = () => {
@@ -836,6 +859,40 @@ const CustomerOrderDetailPage = () => {
           fetchReviewStatus(order);
         }}
       />
+      <Dialog 
+        open={confirmDialog.open} 
+        onClose={handleCloseConfirm}
+        PaperProps={{ sx: { borderRadius: '16px', p: 1, maxWidth: '400px' } }}
+      >
+        <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800, color: confirmDialog.isDestructive ? '#d32f2f' : '#1976d2' }}>
+          {confirmDialog.title}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1, fontSize: '0.95rem' }}>
+            {confirmDialog.message}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            variant="outlined" 
+            onClick={handleCloseConfirm}
+            sx={{ borderRadius: '8px', fontWeight: 600, color: '#777', borderColor: '#ccc' }}
+          >
+            Hủy Bỏ
+          </Button>
+          <Button 
+            variant="contained" 
+            color={confirmDialog.isDestructive ? 'error' : 'primary'}
+            onClick={() => {
+              if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+              handleCloseConfirm();
+            }}
+            sx={{ borderRadius: '8px', fontWeight: 600, px: 3 }}
+          >
+            Xác Nhận
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

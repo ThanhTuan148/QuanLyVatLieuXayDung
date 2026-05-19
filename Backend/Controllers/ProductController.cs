@@ -57,9 +57,12 @@ namespace BuildingMaterialAPI.Controllers
                     .Where(km => km.KhuyenMaiDoiTuongs.Any(dt => dt.MaSanPham == p.MaSanPham || (dt.MaLoaiSP != null && dt.MaLoaiSP == p.MaLoaiSP)))
                     .ToList();
 
-                // Priority 1: FlashSale
-                var flashPromo = productPromos.FirstOrDefault(km => km.LoaiKM == "GiaSoc");
-                var flashDetail = flashPromo?.KhuyenMaiDoiTuongs.FirstOrDefault(dt => dt.MaSanPham == p.MaSanPham);
+                // Priority 1: FlashSale - Chọn chương trình có mức giá Flash Sale RẺ NHẤT cho khách hàng
+                var flashDetail = productPromos
+                    .Where(km => km.LoaiKM == "GiaSoc")
+                    .SelectMany(km => km.KhuyenMaiDoiTuongs.Where(dt => dt.MaSanPham == p.MaSanPham && dt.GiaKhuyenMai.HasValue))
+                    .OrderBy(dt => dt.GiaKhuyenMai)
+                    .FirstOrDefault();
                 
                 // Priority 2: Best regular promo
                 var bestPromo = productPromos
@@ -146,6 +149,7 @@ namespace BuildingMaterialAPI.Controllers
                 .Include(k => k.KhuyenMai)
                 .Where(k => k.MaSanPham == id && k.KhuyenMai.TrangThai && k.KhuyenMai.ThoiGianBatDau <= now && k.KhuyenMai.ThoiGianKetThuc >= now)
                 .OrderByDescending(k => k.KhuyenMai.LoaiKM == "GiaSoc" ? 1 : 0) // Ưu tiên Flash Sale
+                .ThenBy(k => k.GiaKhuyenMai) // Nếu trùng nhiều Flash Sale, chọn chương trình có giá RẺ NHẤT cho khách hàng
                 .FirstOrDefaultAsync();
 
             var res = new

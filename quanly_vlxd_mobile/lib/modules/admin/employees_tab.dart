@@ -819,6 +819,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
                 ElevatedButton.icon(
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
                     setState(() => _isLoading = true);
                     
@@ -846,14 +847,14 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     try {
                       final res = await _apiService.setEmployeeModulePermissions(id, payload);
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(content: Text(res.data['message'] ?? 'Lưu phân quyền thành công!'), backgroundColor: Colors.green),
                         );
                       }
                       _fetchEmployeesData();
                     } catch (e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(content: Text('Lỗi lưu phân quyền: $e'), backgroundColor: Colors.red),
                         );
                         _fetchEmployeesData();

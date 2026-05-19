@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   AppBar, Toolbar, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Typography,
-  Avatar, Divider, Button, Menu, MenuItem, IconButton, CircularProgress
+  Avatar, Divider, Button, Menu, MenuItem, IconButton, CircularProgress, Snackbar, Alert
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -34,6 +34,22 @@ function Layout({ children }) {
   const { permissions, loading } = usePermissions();
   const [user, setUser] = useState(authService.getUser() || {});
 
+  // Global Toast Alert State
+  const [globalSnackbar, setGlobalSnackbar] = useState({ open: false, message: '', severity: 'info' });
+
+  React.useEffect(() => {
+    const handleGlobalAlert = (e) => {
+      const { message, severity } = e.detail || {};
+      setGlobalSnackbar({ open: true, message, severity: severity || 'info' });
+    };
+    window.addEventListener('global-alert', handleGlobalAlert);
+    return () => window.removeEventListener('global-alert', handleGlobalAlert);
+  }, []);
+
+  const handleCloseGlobalSnackbar = () => {
+    setGlobalSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   // Lắng nghe sự kiện cập nhật thông tin người dùng
   React.useEffect(() => {
     const handleUserUpdate = () => {
@@ -55,9 +71,9 @@ function Layout({ children }) {
     { text: '🔄 Đổi / Trả', icon: <CompareArrowsIcon />, path: '/returns', moduleKey: 'inventory' },
     { text: '📊 Kho Hàng', icon: <StorageIcon />, path: '/inventory', moduleKey: 'inventory' },
     { text: '📈 Lịch Sử Giá', icon: <StorageIcon />, path: '/price-history', moduleKey: 'inventory' },
-    { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'orders' },
-    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'dashboard' },
-    { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'dashboard' },
+    { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'deliveries' },
+    { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'customers' },
+    { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'reports' },
     { text: '📧 Tin nhắn', icon: <Email />, path: '/contact-messages', moduleKey: 'dashboard' },
     { text: '💬 Chat trực tuyến', icon: <Email />, path: '/admin-chat', moduleKey: 'dashboard' },
 
@@ -74,35 +90,18 @@ function Layout({ children }) {
   };
 
   const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
-  const isTaiXe = roleStr.includes('tài xế');
-  const isSysAdmin = roleStr.includes('admin') || roleStr.includes('quản trị');
   const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
-  const isQuanLy = isHighManager || isSysAdmin;
 
   const filteredMenuItems = menuItems.filter(item => {
-    // === Admin hệ thống: chỉ được 3 mục cố định, KHÔNG được xem gì khác ===
-    if (isSysAdmin) {
-      return ['/customers', '/employees', '/settings'].includes(item.path);
-    }
-
-    // Chỉ Quản Lý/Giám Đốc mới xem được Tổng quan và Báo cáo
-    if (['/dashboard', '/reports'].includes(item.path) && !isHighManager) return false;
-
-    if (isTaiXe) {
-      return ['/deliveries', '/inventory', '/settings'].includes(item.path);
-    }
-
-    // Dashboard và Reports luôn hiển thị nếu đã vượt qua check isHighManager ở trên
-    if (['/dashboard', '/reports'].includes(item.path)) return true;
-
-    // Cài đặt: Kiểm tra quyền 'settings' hoặc là Quản lý/Giám đốc
-    if (item.path === '/settings') return permissions?.['settings']?.coTheXem || isHighManager;
-
+    // Với mọi vai trò: kiểm tra quyền động từ modulePermissions (hoặc fallback mặc định trong PermissionContext)
     if (!permissions) return false;
 
-    let mKey = item.moduleKey;
-    if (item.path === '/debts') mKey = 'customers';
+    // Cài đặt: Hiển thị nếu có quyền, HOẶC luôn hiển thị cho Quản lý/Giám đốc
+    if (item.path === '/settings') {
+      return permissions?.['settings']?.coTheXem || isHighManager;
+    }
 
+    const mKey = item.moduleKey;
     return permissions[mKey] ? permissions[mKey].coTheXem : false;
   });
 
@@ -259,6 +258,9 @@ function Layout({ children }) {
       >
         {children}
       </Box>
+      <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={globalSnackbar.open} autoHideDuration={3000} onClose={handleCloseGlobalSnackbar}>
+        <Alert onClose={handleCloseGlobalSnackbar} severity={globalSnackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>{globalSnackbar.message}</Alert>
+      </Snackbar>
     </Box>
   );
 }

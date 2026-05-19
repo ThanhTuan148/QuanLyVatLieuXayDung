@@ -8,8 +8,19 @@ class PermissionHelper {
       if (userStr == null || userStr.isEmpty) return _getDefaultPerms(module);
       final userObj = jsonDecode(userStr);
       final perms = userObj['modulePermissions'] ?? userObj['ModulePermissions'];
-      if (perms != null && perms[module] != null) {
-        return perms[module] as Map<String, dynamic>;
+      
+      if (perms != null) {
+        final Map<String, dynamic> permsMap = Map<String, dynamic>.from(perms);
+        
+        // Find matching key case-insensitively
+        final matchingKey = permsMap.keys.firstWhere(
+          (k) => k.toLowerCase() == module.toLowerCase(),
+          orElse: () => '',
+        );
+
+        if (matchingKey.isNotEmpty) {
+          return permsMap[matchingKey] as Map<String, dynamic>;
+        }
       }
       return _getDefaultPerms(module);
     } catch (_) {
@@ -25,17 +36,23 @@ class PermissionHelper {
         final userObj = jsonDecode(userStr);
         role = (userObj['roleName'] ?? userObj['RoleName'] ?? userObj['role'] ?? 'NhanVien').toString().toLowerCase();
       }
-      bool isManagerOrAdmin = role.contains('quản lý') || role.contains('manager') || role.contains('admin') || role.contains('quản trị');
+      final modUpper = module.toUpperCase();
+      bool isManagerOrAdmin = role.contains('quản lý') || role.contains('manager') || role.contains('admin') || role.contains('quản trị') || role.contains('giám đốc');
       if (isManagerOrAdmin) {
         return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': true};
       }
-      if (role.contains('bán hàng') || role == 'sales') {
-        if (['ORDERS', 'CUSTOMERS', 'PRODUCTS'].contains(module)) {
-          return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': true};
+      
+      if (role.contains('tài xế') || role.contains('driver')) {
+        if (modUpper == 'DELIVERIES') {
+          return {'coTheXem': true, 'coTheTao': false, 'coTheSua': false, 'coTheXoa': false};
+        }
+      } else if (role.contains('bán hàng') || role == 'sales') {
+        if (['ORDERS', 'CUSTOMERS', 'PRODUCTS', 'PROMOTIONS'].contains(modUpper)) {
+          return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': false};
         }
       } else if (role.contains('thủ kho') || role == 'warehouse') {
-        if (['STOCK_ORDERS', 'RETURNS', 'INVENTORY', 'PRODUCTS'].contains(module)) {
-          return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': true};
+        if (['STOCK_ORDERS', 'RETURNS', 'INVENTORY', 'PRODUCTS'].contains(modUpper)) {
+          return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': false};
         }
       }
       return {'coTheXem': false, 'coTheTao': false, 'coTheSua': false, 'coTheXoa': false};

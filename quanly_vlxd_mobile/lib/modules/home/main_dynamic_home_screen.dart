@@ -79,33 +79,39 @@ class _MainDynamicHomeScreenState extends State<MainDynamicHomeScreen> {
       List<String> allowedModules = [];
       final rawAllowed = userObj['allowedModules'] ?? userObj['AllowedModules'];
       if (rawAllowed is List) {
-        allowedModules = rawAllowed.map((e) => e.toString()).toList();
+        // Parse and uppercase to match mobile app's masterMenuItems IDs
+        allowedModules = rawAllowed.map((e) => e.toString().toUpperCase()).toList();
+        
+        // Map sub-modules to main tabs so the drawer displays the main tab
+        if (allowedModules.contains('CATEGORIES') && !allowedModules.contains('PRODUCTS')) {
+          allowedModules.add('PRODUCTS');
+        }
+        if (allowedModules.contains('FLASHSALES') && !allowedModules.contains('PROMOTIONS')) {
+          allowedModules.add('PROMOTIONS');
+        }
       }
 
       final roleLower = _roleName.toLowerCase();
-      final isAdminRole = roleLower.contains('admin') || roleLower.contains('quản trị');
+      final isAdminRole = roleLower.contains('admin') || roleLower.contains('quản trị') || roleLower.contains('giám đốc') || roleLower.contains('quản lý');
 
-      if (isAdminRole) {
-        // Admin chỉ được truy cập quản lý khách hàng, quản lý Nhân viên, cài đặt
-        allowedModules = ["CUSTOMERS", "EMPLOYEES", "SETTINGS"];
-      } else {
-        // Các vai trò khác, kể cả quản lý (manager) KHÔNG ĐƯỢC phép truy cập sao lưu và phục hồi
+      // Các vai trò khác, kể cả quản lý (manager) KHÔNG ĐƯỢC phép truy cập sao lưu và phục hồi trừ khi là admin thực sự
+      if (!roleLower.contains('admin') && !roleLower.contains('quản trị')) {
         allowedModules.remove('BACKUP_RESTORE');
+      }
 
-        // Nếu Backend không trả về hoặc mảng rỗng (ví dụ đăng nhập offline hoặc phiên bản cũ)
-        // Ta tự động fallback gán các module mặc định theo vai trò gốc
-        if (allowedModules.isEmpty) {
-          if (roleLower.contains('quản lý') || roleLower.contains('manager')) {
-            allowedModules = ["DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT"];
-          } else if (roleLower.contains('bán hàng') || roleLower == 'sales') {
-            allowedModules = ["PRODUCTS", "ORDERS", "CUSTOMERS", "PROMOTIONS", "CHAT"];
-          } else if (roleLower.contains('thủ kho') || roleLower == 'warehouse') {
-            allowedModules = ["PRODUCTS", "STOCK_ORDERS", "INVENTORY", "RETURNS"];
-          } else if (roleLower.contains('tài xế') || roleLower == 'driver' || roleLower == 'taixe') {
-            allowedModules = ["DELIVERIES"];
-          } else {
-            allowedModules = ["PRODUCTS", "ORDERS", "CHAT"];
-          }
+      // Nếu Backend không trả về hoặc mảng rỗng (ví dụ đăng nhập offline hoặc phiên bản cũ)
+      // Ta tự động fallback gán các module mặc định theo vai trò gốc
+      if (allowedModules.isEmpty) {
+        if (isAdminRole) {
+          allowedModules = ["DASHBOARD", "PRODUCTS", "CATEGORIES", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "FLASHSALES", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT"];
+        } else if (roleLower.contains('bán hàng') || roleLower == 'sales') {
+          allowedModules = ["PRODUCTS", "ORDERS", "CUSTOMERS", "PROMOTIONS", "CHAT"];
+        } else if (roleLower.contains('thủ kho') || roleLower == 'warehouse') {
+          allowedModules = ["PRODUCTS", "STOCK_ORDERS", "INVENTORY", "RETURNS"];
+        } else if (roleLower.contains('tài xế') || roleLower == 'driver' || roleLower == 'taixe') {
+          allowedModules = ["DELIVERIES"];
+        } else {
+          allowedModules = ["PRODUCTS", "ORDERS", "CHAT"];
         }
       }
 

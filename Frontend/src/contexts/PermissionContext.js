@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import api from '../services/api';
 import authService from '../services/authService';
 
@@ -42,13 +42,12 @@ export const PermissionProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchPermissions = async () => {
-      if (!authService.isAuthenticated()) {
-        setPermissions({});
-        setLoading(false);
-        return;
-      }
+  const fetchPermissions = useCallback(async () => {
+    if (!authService.isAuthenticated()) {
+      setPermissions({});
+      setLoading(false);
+      return;
+    }
 
       const currentUser = authService.getUser();
       setUser(currentUser);
@@ -80,11 +79,8 @@ export const PermissionProvider = ({ children }) => {
         const genPerms = resGen.data || [];
         const modPerms = resMod.data || [];
 
-        if (modPerms.length === 0 && genPerms.length > 0) {
-          // Dịch từ quyền tổng
-          setPermissions(autoMapGeneralToModule(genPerms));
-        } else {
-          // Có quyền map cụ thể trong NhanVienModuleQuyen
+        if (modPerms.length > 0) {
+          // Có quyền map cụ thể trong NhanVienModuleQuyen → dùng trực tiếp
           const map = {};
           modPerms.forEach(mq => {
             map[mq.module] = {
@@ -95,6 +91,31 @@ export const PermissionProvider = ({ children }) => {
             };
           });
           setPermissions(map);
+        } else if (genPerms.length > 0) {
+          // Không có module perms nhưng có general perms → auto-map
+          setPermissions(autoMapGeneralToModule(genPerms));
+        } else {
+          // Không có quyền nào được lưu → dùng quyền mặc định theo vai trò
+          const role = String(currentUser?.roleName || currentUser?.role || '').toLowerCase();
+          const defaultMap = {};
+          
+          if (role.includes('admin') || role.includes('quản trị') || role.includes('giám đốc') || role.includes('quản lý')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees'];
+            allModules.forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
+            });
+          } else if (role.includes('tài xế') || role.includes('driver')) {
+            defaultMap['deliveries'] = { coTheXem: true, coTheTao: false, coTheSua: false, coTheXoa: false };
+          } else if (role.includes('bán hàng') || role.includes('sales')) {
+            ['products','orders','customers','promotions'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
+            });
+          } else if (role.includes('thủ kho') || role.includes('warehouse')) {
+            ['inventory','products'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
+            });
+          }
+          setPermissions(defaultMap);
         }
       } catch (err) {
         console.error("Lỗi tải quyền", err);
@@ -102,10 +123,13 @@ export const PermissionProvider = ({ children }) => {
       }
 
       setLoading(false);
-    };
-
-    fetchPermissions();
   }, []);
+
+  useEffect(() => {
+    fetchPermissions();
+    window.addEventListener('permissionsUpdated', fetchPermissions);
+    return () => window.removeEventListener('permissionsUpdated', fetchPermissions);
+  }, [fetchPermissions]);
 
   return (
     <PermissionContext.Provider value={{ permissions, user, loading }}>

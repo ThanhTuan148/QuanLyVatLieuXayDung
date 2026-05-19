@@ -373,6 +373,27 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
     }
   }
 
+  bool get _canCreateCurrentTab {
+    if (_tabController.index == 0 || _tabController.index == 3) {
+      return PermissionHelper.canCreate('PROMOTIONS');
+    } else {
+      return PermissionHelper.canCreate('FLASHSALES');
+    }
+  }
+
+  Widget _buildPermissionDenied() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text('Bạn không có quyền xem dữ liệu này', style: TextStyle(color: Colors.grey, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Phân loại danh sách theo 4 Tab
@@ -407,7 +428,7 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
           ],
         ),
       ),
-      floatingActionButton: PermissionHelper.canCreate('PROMOTIONS')
+      floatingActionButton: _canCreateCurrentTab
           ? FloatingActionButton.extended(
               onPressed: () {
                 if (_tabController.index == 0) _showAddEditDialog('SanPham');
@@ -464,16 +485,16 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                     controller: _tabController,
                     children: [
                       // TAB 1: KHUYẾN MÃI SẢN PHẨM
-                      _buildSanPhamTab(filteredSanPham),
+                      PermissionHelper.canView('PROMOTIONS') ? _buildSanPhamTab(filteredSanPham) : _buildPermissionDenied(),
 
                       // TAB 2: FLASH SALES
-                      _buildFlashSaleTab(filteredFlashSale),
+                      PermissionHelper.canView('FLASHSALES') ? _buildFlashSaleTab(filteredFlashSale) : _buildPermissionDenied(),
 
                       // TAB 3: ƯU ĐÃI HỆ THỐNG
-                      _buildUuDaiTab(filteredUuDai),
+                      PermissionHelper.canView('FLASHSALES') ? _buildUuDaiTab(filteredUuDai) : _buildPermissionDenied(),
 
                       // TAB 4: COUPON
-                      _buildCouponTab(filteredCoupon),
+                      PermissionHelper.canView('PROMOTIONS') ? _buildCouponTab(filteredCoupon) : _buildPermissionDenied(),
                     ],
                   ),
                 ),
@@ -601,9 +622,9 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                          if (PermissionHelper.canEdit('FLASHSALES'))
                             TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('GiaSoc', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                          if (PermissionHelper.canDelete('FLASHSALES'))
                             TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),
@@ -670,9 +691,9 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                          if (PermissionHelper.canEdit('FLASHSALES'))
                             TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('UuDai', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                          if (PermissionHelper.canDelete('FLASHSALES'))
                             TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),

@@ -413,6 +413,27 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
     }
   }
 
+  bool get _canCreateCurrentTab {
+    if (_tabController.index == 0 || _tabController.index == 1) {
+      return PermissionHelper.canCreate('PRODUCTS');
+    } else {
+      return PermissionHelper.canCreate('CATEGORIES');
+    }
+  }
+
+  Widget _buildPermissionDenied() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text('Bạn không có quyền xem dữ liệu này', style: TextStyle(color: Colors.grey, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Phân loại danh sách
@@ -478,7 +499,7 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
           ],
         ),
       ),
-      floatingActionButton: PermissionHelper.canCreate('PRODUCTS')
+      floatingActionButton: _canCreateCurrentTab
           ? FloatingActionButton.extended(
               onPressed: () {
                 if (_tabController.index == 0) {
@@ -535,13 +556,13 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                     controller: _tabController,
                     children: [
                       // TAB 1: SẢN PHẨM
-                      _buildProductTabView(filteredProducts, totalProd, activeProd, inactiveProd, lowStockProd, false),
+                      PermissionHelper.canView('PRODUCTS') ? _buildProductTabView(filteredProducts, totalProd, activeProd, inactiveProd, lowStockProd, false) : _buildPermissionDenied(),
 
                       // TAB 2: QUÀ TẶNG
-                      _buildProductTabView(filteredGifts, totalGift, activeGift, inactiveGift, outOfStockGift, true),
+                      PermissionHelper.canView('PRODUCTS') ? _buildProductTabView(filteredGifts, totalGift, activeGift, inactiveGift, outOfStockGift, true) : _buildPermissionDenied(),
 
                       // TAB 3: DANH MỤC
-                      _buildCategoryTabView(filteredCategories),
+                      PermissionHelper.canView('CATEGORIES') ? _buildCategoryTabView(filteredCategories) : _buildPermissionDenied(),
                     ],
                   ),
                 ),
@@ -693,11 +714,11 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (PermissionHelper.canEdit('PRODUCTS')) ...[
+                          if (PermissionHelper.canEdit('CATEGORIES')) ...[
                             TextButton.icon(icon: const Icon(Icons.edit, size: 16, color: Colors.blue), label: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditCategoryDialog(c as Map<String, dynamic>)),
                             const SizedBox(width: 8),
                           ],
-                          if (PermissionHelper.canDelete('PRODUCTS'))
+                          if (PermissionHelper.canDelete('CATEGORIES'))
                             TextButton.icon(icon: const Icon(Icons.delete, size: 16, color: Colors.red), label: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deleteCategory(c)),
                         ],
                       )),

@@ -213,26 +213,54 @@ function FlashSaleFormDialog({ open, onClose, onSaved, editing }) {
 function FlashSaleProductsDialog({ open, onClose, sale }) {
   if (!sale) return null;
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 'bold' }}>⚡ Sản phẩm Flash Sale: {sale.tenKM}</DialogTitle>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+        ⚡ Sản phẩm Flash Sale: <Typography variant="h6" component="span" sx={{ fontWeight: 'bold', color: '#f5576c' }}>{sale.tenKM}</Typography>
+      </DialogTitle>
       <DialogContent dividers>
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
               <TableRow sx={{ background: '#ffebee' }}>
                 <TableCell sx={{ fontWeight: 'bold' }}>Sản Phẩm</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', textAlign: 'center' }}>Số Lượng (Đã Bán / Tổng)</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Giá Gốc</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Mức Giảm</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Giá Sale</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(sale.targets || []).map(ct => (
-                <TableRow key={ct.maSanPham}>
-                  <TableCell>{ct.tenSanPham}</TableCell>
-                  <TableCell>{formatVND(ct.giaBan)}</TableCell>
-                  <TableCell sx={{ color: 'red', fontWeight: 'bold' }}>{formatVND(ct.giaKhuyenMai)}</TableCell>
-                </TableRow>
-              ))}
+              {(sale.targets || []).map(ct => {
+                const diff = ct.giaBan - ct.giaKhuyenMai;
+                const pct = ct.giaBan > 0 ? Math.round((diff / ct.giaBan) * 100) : 0;
+                return (
+                  <TableRow key={ct.maSanPham}>
+                    <TableCell sx={{ fontWeight: 500 }}>{ct.tenSanPham}</TableCell>
+                    <TableCell sx={{ textAlign: 'center' }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {ct.daBan || 0} / {ct.soLuongBanDau || 100}
+                        </Typography>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={Math.min(100, ((ct.daBan || 0) / (ct.soLuongBanDau || 100)) * 100)} 
+                          color="error" 
+                          sx={{ width: 80, height: 6, borderRadius: 3, mt: 0.5 }}
+                        />
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
+                      {formatVND(ct.giaBan)}
+                    </TableCell>
+                    <TableCell sx={{ color: 'success.main', fontWeight: 'medium' }}>
+                      {pct > 0 ? `Giảm ${pct}% (-${formatVND(diff)})` : `Giảm -${formatVND(diff)}`}
+                    </TableCell>
+                    <TableCell sx={{ color: 'error.main', fontWeight: 'bold', fontSize: '1rem' }}>
+                      {formatVND(ct.giaKhuyenMai)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
@@ -265,7 +293,15 @@ export default function FlashSalesTab() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Xóa Flash Sale này?')) return;
-    await flashSaleService.deleteSale(id); load();
+    try {
+      await flashSaleService.deleteSale(id);
+      load();
+    } catch (e) {
+      console.error(e);
+      const errMsg = e.response?.data?.message || 'Không thể xóa Flash Sale này. Có thể chương trình đã bị xóa trước đó.';
+      alert(errMsg);
+      load();
+    }
   };
 
   const now = new Date();

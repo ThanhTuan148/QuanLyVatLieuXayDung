@@ -26,6 +26,7 @@ import {
   Avatar,
   IconButton,
   Pagination,
+  Snackbar,
 } from '@mui/material';
 import { Delete as DeleteIcon, Home as HomeIcon, Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import cartService from '../services/cartService';
@@ -44,6 +45,12 @@ let cachedVouchers = null;
 const ShoppingCartPage = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState(cachedCartItems || []);
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const showToast = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+  const handleCloseSnackbar = () => setSnackbar(prev => ({ ...prev, open: false }));
   const [loading, setLoading] = useState(!cachedCartItems);
   const [selectedIds, setSelectedIds] = useState(() => (cachedCartItems || []).map(i => i.cartId));
 
@@ -184,7 +191,7 @@ const ShoppingCartPage = () => {
 
     const maxStock = item.soLuongTon || 0;
     if (newQuantity > maxStock) {
-      alert(`Sản phẩm "${item.productName}" chỉ còn ${maxStock} sản phẩm trong kho.`);
+      showToast(`Sản phẩm "${item.productName}" chỉ còn ${maxStock} sản phẩm trong kho.`, 'warning');
       return;
     }
 
@@ -232,7 +239,7 @@ const ShoppingCartPage = () => {
     if (couponData && couponData.code) {
       if (appliedCoupon?.code === couponData.code) return;
       if (couponData.type === 'Freeship' && isAutoFreeShip) {
-        alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+        showToast("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.", 'info');
         return;
       }
       setAppliedCoupon({ 
@@ -250,7 +257,7 @@ const ShoppingCartPage = () => {
     if (uudai) {
       if (appliedCoupon?.code === uudai.maApDung) return;
       if (uudai.loaiGiamGia === 'Freeship' && isAutoFreeShip) {
-        alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+        showToast("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.", 'info');
         return;
       }
       setAppliedCoupon({ 
@@ -271,7 +278,7 @@ const ShoppingCartPage = () => {
       if (result.valid) {
         if (appliedCoupon?.code === result.code) return;
         if (result.type === 'Freeship' && isAutoFreeShip) {
-          alert("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.");
+          showToast("Đơn hàng đã được freeship, không thể áp dụng thêm mã freeship.", 'info');
           return;
         }
         setAppliedCoupon({ 
@@ -282,13 +289,13 @@ const ShoppingCartPage = () => {
           limit: result.maxDiscount,
           minOrderAmount: result.minOrderAmount || 0
         });
-        alert(`Áp dụng mã Coupon ${result.code} thành công!`);
+        showToast(`Áp dụng mã Coupon ${result.code} thành công!`, 'success');
         setCouponsOpen(false);
       } else {
-        alert(result.message || "Mã không hợp lệ");
+        showToast(result.message || "Mã không hợp lệ", 'error');
       }
     } catch (err) {
-      alert("Lỗi khi áp dụng mã");
+      showToast("Lỗi khi áp dụng mã", 'error');
     }
   };
 
@@ -318,7 +325,7 @@ const ShoppingCartPage = () => {
     if (appliedCoupon && appliedCoupon.minOrderAmount > 0) {
       if (currentBaseTotal < appliedCoupon.minOrderAmount) {
         setAppliedCoupon(null);
-        alert(`Mã giảm giá ${appliedCoupon.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${appliedCoupon.minOrderAmount.toLocaleString('vi-VN')}₫).`);
+        showToast(`Mã giảm giá ${appliedCoupon.code} đã bị gỡ do đơn hàng không còn đủ điều kiện tối thiểu (${appliedCoupon.minOrderAmount.toLocaleString('vi-VN')}₫).`, 'warning');
       }
     }
   }, [currentBaseTotal, appliedCoupon]);
@@ -623,12 +630,12 @@ const ShoppingCartPage = () => {
                           }
                           return i.productName;
                         }).join(', ');
-                        alert(`⚠️ Một số sản phẩm vượt quá tồn kho hoặc không còn bán: ${names}. Vui lòng xóa hoặc điều chỉnh lại số lượng.`);
+                        showToast(`⚠️ Một số sản phẩm vượt quá tồn kho hoặc không còn bán: ${names}. Vui lòng xóa hoặc điều chỉnh lại số lượng.`, 'error');
                         return;
                       }
 
                       if (selectedGifts.length < giftLimit) {
-                        alert(`🎁 Bạn chưa chọn đủ quà tặng! Vui lòng chọn đủ ${giftLimit} món quà để tiếp tục thanh toán.`);
+                        showToast(`🎁 Bạn chưa chọn đủ quà tặng! Vui lòng chọn đủ ${giftLimit} món quà để tiếp tục thanh toán.`, 'warning');
                         setRightTab(0); // Switch to Gifts tab
                         setGiftsOpen(true);
                       } else {
@@ -724,6 +731,9 @@ const ShoppingCartPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={snackbar.open} autoHideDuration={3000} onClose={handleCloseSnackbar}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>{snackbar.message}</Alert>
+      </Snackbar>
     </Container>
   );
 };

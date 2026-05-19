@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, InputBase, IconButton, Badge, Divider, CssBaseline, Paper, ClickAwayListener, Menu, MenuItem, Avatar } from '@mui/material';
+import { Box, Container, Typography, InputBase, IconButton, Badge, Divider, CssBaseline, Paper, ClickAwayListener, Menu, MenuItem, Avatar, Snackbar, Alert } from '@mui/material';
 import { Search as SearchIcon, FavoriteBorder as FavoriteIcon, ShoppingCartOutlined as CartIcon, Person as PersonIcon, CompareArrowsOutlined as CompareIcon, PhoneOutlined, CardGiftcardOutlined, AccountCircleOutlined, ListAltOutlined, LogoutOutlined, AccountBalanceWalletOutlined as AccountBalanceWalletIcon } from '@mui/icons-material';
 import { ThemeProvider } from '@mui/material/styles';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -15,6 +15,22 @@ import { PhotoCameraOutlined } from '@mui/icons-material';
 const ShoppingLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Global Toast Alert State
+  const [globalSnackbar, setGlobalSnackbar] = useState({ open: false, message: '', severity: 'info' });
+
+  useEffect(() => {
+    const handleGlobalAlert = (e) => {
+      const { message, severity } = e.detail || {};
+      setGlobalSnackbar({ open: true, message, severity: severity || 'info' });
+    };
+    window.addEventListener('global-alert', handleGlobalAlert);
+    return () => window.removeEventListener('global-alert', handleGlobalAlert);
+  }, []);
+
+  const handleCloseGlobalSnackbar = () => {
+    setGlobalSnackbar(prev => ({ ...prev, open: false }));
+  };
 
   const [cartCount, setCartCount] = useState(0);
   const [cartTotal, setCartTotal] = useState(0);
@@ -505,6 +521,9 @@ const ShoppingLayout = ({ children }) => {
             </Box>
           </Container>
         </Box>
+        <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={globalSnackbar.open} autoHideDuration={3000} onClose={handleCloseGlobalSnackbar}>
+          <Alert onClose={handleCloseGlobalSnackbar} severity={globalSnackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>{globalSnackbar.message}</Alert>
+        </Snackbar>
       </Box>
     </ThemeProvider>
   );

@@ -8,6 +8,7 @@ import DeliveryForm from '../components/DeliveryForm';
 import BatchSuggestionDialog from '../components/BatchSuggestionDialog';
 import DeliveryStatusUpdateDialog from '../components/DeliveryStatusUpdateDialog';
 import DataTable from '../components/DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState([]);
@@ -61,16 +62,16 @@ export default function DeliveriesPage() {
   };
 
   // Auth checking
+  const { permissions } = usePermissions();
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
-  const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
-  const isTaiXe = roleStr.includes('tài xế');
+  const canManageDelivery = permissions?.deliveries?.coTheTao;
 
   const fetchDeliveries = async () => {
     setLoading(true);
     try {
-      // Nếu là tài xế, chỉ lấy phiếu giao của mình
-      const params = isTaiXe ? { maNhanVien: user?.maNhanVien || user?.MaNhanVien } : {};
+      // Nếu chỉ có quyền xem (không có quyền tạo), chỉ lấy phiếu giao của mình
+      const params = !canManageDelivery ? { maNhanVien: user?.maNhanVien || user?.MaNhanVien || user?.employeeId } : {};
       const response = await api.get('/deliveries', { params });
       setDeliveries(response.data || []);
     } catch (err) {
@@ -138,7 +139,7 @@ export default function DeliveriesPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>🚚 Giao Hàng</Typography>
           <Typography variant="body2" color="textSecondary">Quản lý phiếu giao hàng</Typography>
         </Box>
-        {!isTaiXe && (
+        {canManageDelivery && (
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button variant="contained" onClick={handleRunAiRoute} sx={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(56,239,125,0.3)' }}>
               🗺️ AI Tối Ưu Lộ Trình Giao Hàng
