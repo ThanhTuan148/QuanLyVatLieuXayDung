@@ -435,23 +435,34 @@ function CreateAccountDialog({ open, onClose, employee, roles, onSaved }) {
 }
 
 // ─── Dialog Thêm/Sửa Nhân Viên ──────────────────────────────
-function EmployeeFormDialog({ open, onClose, editing, onSaved }) {
-  const [form, setForm] = useState({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '' });
+function EmployeeFormDialog({ open, onClose, editing, roles, onSaved }) {
+  const { user } = usePermissions();
+  const [form, setForm] = useState({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '', maVaiTro: '' });
   const [saving, setSaving] = useState(false);
+  const isSelf = editing && (editing.maNhanVien === user?.employeeId || editing.maNhanVien === user?.EmployeeId);
+
   useEffect(() => {
     if (open) {
-      if (editing) setForm({ maNV: editing.maNV || '', tenNV: editing.tenNV || '', sdt: editing.sdt || '', email: editing.email || '', diaChi: editing.diaChi || '', trangThai: editing.trangThai ?? true, sucChuaToiDa: editing.sucChuaToiDa || '' });
-      else setForm({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '' });
+      if (editing) setForm({ maNV: editing.maNV || '', tenNV: editing.tenNV || '', sdt: editing.sdt || '', email: editing.email || '', diaChi: editing.diaChi || '', trangThai: editing.trangThai ?? true, sucChuaToiDa: editing.sucChuaToiDa || '', maVaiTro: editing.maVaiTro || '' });
+      else setForm({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '', maVaiTro: '' });
     }
   }, [open, editing]);
   const handleSave = async () => {
+    if (!form.tenNV) return alert('Tên nhân viên không được trống');
     setSaving(true);
     try {
-      const payload = { ...form, MaNV: form.maNV, TenNV: form.tenNV };
+      const payload = { 
+        ...form, 
+        MaNV: form.maNV, 
+        TenNV: form.tenNV,
+        MaVaiTro: form.maVaiTro ? parseInt(form.maVaiTro) : null
+      };
       if (editing) await api.put(`/employees/${editing.maNhanVien}`, payload);
       else await api.post('/employees', payload);
       onSaved(); onClose();
-    } catch { alert('Lỗi'); }
+    } catch (e) { 
+      alert(e.response?.data?.message || 'Lỗi'); 
+    }
     finally { setSaving(false); }
   };
   return (
@@ -463,7 +474,27 @@ function EmployeeFormDialog({ open, onClose, editing, onSaved }) {
         <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
         <TextField fullWidth margin="dense" label="Địa Chỉ" value={form.diaChi} onChange={e => setForm({ ...form, diaChi: e.target.value })} />
         <TextField fullWidth margin="dense" label="Sức chứa xe" value={form.sucChuaToiDa} onChange={e => setForm({ ...form, sucChuaToiDa: e.target.value })} />
-        <FormControlLabel control={<Switch checked={form.trangThai} onChange={e => setForm({ ...form, trangThai: e.target.checked })} />} label="Đang làm việc" />
+        <FormControlLabel control={<Switch checked={form.trangThai} disabled={isSelf} onChange={e => setForm({ ...form, trangThai: e.target.checked })} />} label={isSelf ? "Đang làm việc (Không thể tự chỉnh sửa bản thân)" : "Đang làm việc"} />
+        
+        {!editing && (
+          <FormControl fullWidth margin="dense" sx={{ mt: 2 }}>
+            <InputLabel id="role-select-label">Vai Trò (Tự động cấp tài khoản)</InputLabel>
+            <Select
+              labelId="role-select-label"
+              value={form.maVaiTro}
+              label="Vai Trò (Tự động cấp tài khoản)"
+              onChange={e => setForm({ ...form, maVaiTro: e.target.value })}
+            >
+              <MenuItem value=""><em>Không tạo tài khoản</em></MenuItem>
+              {roles && roles.map(r => (
+                <MenuItem key={r.maVaiTro} value={r.maVaiTro}>{r.tenVT}</MenuItem>
+              ))}
+            </Select>
+            <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+              * Nếu chọn vai trò, hệ thống sẽ tự động tạo tài khoản đăng nhập cho nhân viên với Tên đăng nhập là SĐT và Mật khẩu mặc định là 123456.
+            </Typography>
+          </FormControl>
+        )}
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Hủy</Button><Button variant="contained" onClick={handleSave} disabled={saving}>Lưu</Button></DialogActions>
     </Dialog>
@@ -481,6 +512,7 @@ export default function EmployeesPage() {
   const [roleDialog, setRoleDialog] = useState(null);
   const [createAccDialog, setCreateAccDialog] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const fileInputRef = React.useRef(null);
 
   const { user } = usePermissions();
   const isAdmin = user?.role?.toLowerCase().includes('admin') || 
@@ -545,9 +577,26 @@ export default function EmployeesPage() {
     },
     { field: 'tenVaiTro', headerName: 'Vai Trò', width: 130, renderCell: (p) => <Chip label={p.value || '—'} size="small" color="primary" variant="outlined" /> },
     {
-      field: 'trangThai', headerName: 'Trạng Thái', width: 120, renderCell: (p) => (
-        <Chip label={p.value ? 'Đang làm' : 'Nghỉ việc'} size="small" color={p.value ? 'success' : 'default'} onClick={() => handleToggleStatus(p.row.maNhanVien)} sx={{ cursor: 'pointer' }} />
-      )
+      field: 'trangThai', headerName: 'Trạng Thái', width: 120, renderCell: (p) => {
+        const isSelf = p.row.maNhanVien === user?.employeeId || p.row.maNhanVien === user?.EmployeeId;
+        return (
+          <Tooltip title={isSelf ? "Bạn không thể tự thay đổi trạng thái làm việc của chính mình" : ""}>
+            <span>
+              <Chip 
+                label={p.value ? 'Đang làm' : 'Nghỉ việc'} 
+                size="small" 
+                color={p.value ? 'success' : 'default'} 
+                onClick={() => {
+                  if (isSelf) return alert('Bạn không thể tự thay đổi trạng thái làm việc của chính mình!');
+                  handleToggleStatus(p.row.maNhanVien);
+                }} 
+                disabled={isSelf}
+                sx={{ cursor: isSelf ? 'not-allowed' : 'pointer', opacity: isSelf ? 0.7 : 1 }} 
+              />
+            </span>
+          </Tooltip>
+        );
+      }
     },
     {
       field: 'actions', headerName: 'Thao Tác', width: 180, sortable: false, renderCell: (p) => (
@@ -587,9 +636,9 @@ export default function EmployeesPage() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Box><Typography variant="h4" sx={{ fontWeight: 'bold' }}>👥 Nhân Viên</Typography><Typography variant="body2" color="textSecondary">Quản lý nhân sự và phân quyền</Typography></Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-emp" onChange={handleImport} />
-          <label htmlFor="import-emp"><Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">Nhập Excel</Button></label>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+          <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>Nhập Excel</Button>
           <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExport}>Xuất Excel</Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Thêm</Button>
         </Box>
@@ -605,7 +654,7 @@ export default function EmployeesPage() {
 
       <DataTable rows={employees} columns={columns} getRowId={(row) => row.maNhanVien} loading={loading} />
 
-      <EmployeeFormDialog open={formOpen} onClose={() => setFormOpen(false)} editing={editing} onSaved={load} />
+      <EmployeeFormDialog open={formOpen} onClose={() => setFormOpen(false)} editing={editing} roles={roles} onSaved={load} />
       <PermissionDialog open={!!permDialog} onClose={() => setPermDialog(null)} employee={permDialog} onSaved={load} />
       <ChangeRoleDialog open={!!roleDialog} onClose={() => setRoleDialog(null)} employee={roleDialog} roles={roles} onSaved={load} />
       <CreateAccountDialog open={!!createAccDialog} onClose={() => setCreateAccDialog(null)} employee={createAccDialog} roles={roles} onSaved={load} />

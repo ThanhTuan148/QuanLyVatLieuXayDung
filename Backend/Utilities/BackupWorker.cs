@@ -22,6 +22,8 @@ namespace BuildingMaterialAPI.Utilities
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Dịch vụ Sao lưu tự động đã khởi động.");
+            _lastActivityBackup = DateTime.Now; // Delay first activity backup check to avoid database query during cold start
+
 
             while (!stoppingToken.IsCancellationRequested)
             {

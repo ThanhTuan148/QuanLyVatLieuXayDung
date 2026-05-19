@@ -7,6 +7,9 @@ using BuildingMaterialAPI.Utilities;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Lắng nghe trên tất cả các địa chỉ IP (0.0.0.0) để các thiết bị LAN/Wi-Fi có thể kết nối
+builder.WebHost.UseUrls("http://0.0.0.0:5000", "https://0.0.0.0:5001");
+
 // Configure EPPlus License Context
 OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("Pann");
 
@@ -98,6 +101,47 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try {
         // --- Database Schema Fixes ---
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[BANNER]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[BANNER](
+                    [MaBanner] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [Title] [nvarchar](500) NULL,
+                    [Desc] [nvarchar](max) NULL,
+                    [Src] [nvarchar](max) NULL,
+                    [Bg] [nvarchar](100) NULL,
+                    [Panel] [nvarchar](100) NULL,
+                    [IsActive] [bit] NOT NULL DEFAULT 1,
+                    [OrderIndex] [int] NOT NULL DEFAULT 0
+                );
+
+                INSERT INTO [dbo].[BANNER] ([Title], [Desc], [Src], [Bg], [Panel], [IsActive], [OrderIndex])
+                VALUES 
+                (N'VẬT LIỆU XÂY DỰNG CAO CẤP', N'Cung cấp sắt, thép, cát, đá, xi măng, gạch chất lượng bền vững cho mọi công trình lớn nhỏ.', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#5A9BD5', N'#7CB3E5', 1, 0),
+                (N'ƯU ĐÃI LỚN MÙA MƯA', N'Giảm giá lên đến 15% cho đơn hàng thép xây dựng và gạch ốp lát. Miễn phí vận chuyển toàn quốc.', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#6BBF7A', N'#85CC92', 1, 1),
+                (N'CÁT ĐÁ XI MĂNG CHẤT LƯỢNG', N'Đảm bảo tiêu chuẩn chịu lực cực cao, hỗ trợ công trình vững chắc bền bỉ theo thời gian.', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#E882B4', N'#ED9DC4', 1, 2);
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[TEAM_MEMBER]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[TEAM_MEMBER](
+                    [MaThanhVien] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [Name] [nvarchar](200) NULL,
+                    [StudentId] [nvarchar](100) NULL,
+                    [Role] [nvarchar](200) NULL,
+                    [Avatar] [nvarchar](max) NULL,
+                    [Bg] [nvarchar](100) NULL,
+                    [OrderIndex] [int] NOT NULL DEFAULT 0
+                );
+
+                INSERT INTO [dbo].[TEAM_MEMBER] ([Name], [StudentId], [Role], [Avatar], [Bg], [OrderIndex])
+                VALUES 
+                (N'Trương Thanh Tuấn', N'2001224546', N'Trưởng nhóm phát triển', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#F4845F', 0),
+                (N'Phạm Hồ Thúy Vy', N'2001225958', N'Thiết kế UI/UX', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#6BBF7A', 1),
+                (N'Lê Trần Ngọc Yến', N'2001226134', N'Phát triển Backend', N'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png', N'#5A9BD5', 2);
+            END
+        ");
+
         // context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[KHUYENMAI_DOITUONG]') AND name = 'SoLuongKhuyenMai') ALTER TABLE [KHUYENMAI_DOITUONG] ADD [SoLuongKhuyenMai] int NULL;");
         // context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[KHUYENMAI_DOITUONG]') AND name = 'SoLuongDaBan') ALTER TABLE [KHUYENMAI_DOITUONG] ADD [SoLuongDaBan] int NOT NULL DEFAULT 0;");
         // context.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONGNO]') AND name = 'MaNhaCungCap') ALTER TABLE [CONGNO] ADD [MaNhaCungCap] int NULL;");

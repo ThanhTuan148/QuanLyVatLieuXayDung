@@ -223,7 +223,7 @@ class ApiService {
   }
 
   // =========================================================================
-  // CRUD ENDPOINTS
+  // CRUD ENDPOINTS & ADVANCED ACTIONS
   // =========================================================================
   // Products
   Future<Response> createProduct(Map<String, dynamic> data) async => _dio.post('products', data: data);
@@ -245,9 +245,55 @@ class ApiService {
   Future<Response> updatePromotion(int id, Map<String, dynamic> data) async => _dio.put('promotions/$id', data: data);
   Future<Response> deletePromotion(int id) async => _dio.delete('promotions/$id');
 
+  // Procurement / Nhập hàng
+  Future<Response> getProcurements() async => _dio.get('procurement');
+  Future<Response> getProcurementDetail(int id) async => _dio.get('procurement/$id');
+  Future<Response> createProcurementProposal(Map<String, dynamic> data) async => _dio.post('procurement/proposal', data: data);
+  Future<Response> updateProcurementProposal(int id, Map<String, dynamic> data) async => _dio.put('procurement/$id', data: data);
+  Future<Response> approveProcurement(int id, Map<String, dynamic> data) async => _dio.put('procurement/$id/approve', data: data);
+  Future<Response> approveProcurementItems(int id, Map<String, dynamic> data) async => _dio.put('procurement/$id/approve-items', data: data);
+  Future<Response> rejectProcurement(int id, Map<String, dynamic> data) async => _dio.put('procurement/$id/reject', data: data);
+  Future<Response> receiveProcurementItems(int id, List<dynamic> items) async => _dio.put('procurement/$id/receive', data: items);
+
   // Categories
   Future<Response> getCategories() async => _dio.get('categories');
   Future<Response> createCategory(Map<String, dynamic> data) async => _dio.post('categories', data: data);
   Future<Response> updateCategory(int id, Map<String, dynamic> data) async => _dio.put('categories/$id', data: data);
   Future<Response> deleteCategory(int id) async => _dio.delete('categories/$id');
+
+  // Returns (Đổi / Trả)
+  Future<Response> getCustomerReturns() async => _dio.get('returns/customer');
+  Future<Response> getSupplierReturns() async => _dio.get('returns/supplier');
+  Future<Response> createCustomerReturn(Map<String, dynamic> data) async => _dio.post('returns/customer', data: data);
+  Future<Response> approveCustomerReturn(int id) async => _dio.put('returns/customer/$id/approve');
+  Future<Response> receiveCustomerReturn(int id) async => _dio.put('returns/customer/$id/receive');
+  Future<Response> createSupplierReturn(Map<String, dynamic> data) async => _dio.post('returns/supplier', data: data);
+  Future<Response> approveSupplierReturn(int id) async => _dio.put('returns/supplier/$id/approve');
+  Future<Response> receiveSupplierReturn(int id) async => _dio.put('returns/supplier/$id/receive');
+
+  // Debts (Công Nợ)
+  Future<Response> getDebtsFiltered({String? type, String? status}) async => _dio.get('debts', queryParameters: {'type': type, 'status': status});
+  Future<Response> getDebtStatistics() async => _dio.get('debts/statistics');
+  Future<Response> getDebtWarnings() async => _dio.get('debts/warnings');
+  Future<Response> getDebtHistory(int id) async => _dio.get('debts/$id/history');
+  Future<Response> recordDebtPayment(Map<String, dynamic> data) async => _dio.post('debts/payment', data: data);
+
+  // Price History (Lịch Sử Giá)
+  Future<Response> getPriceHistoryFiltered({int? productId, int days = 180}) async => _dio.get('price-history', queryParameters: {'productId': productId, 'days': days});
+  Future<Response> getPriceHistoryOverview() async => _dio.get('price-history/products-overview');
+  Future<Response> getPriceHistorySummary({int days = 30}) async => _dio.get('price-history/summary', queryParameters: {'days': days});
+  Future<Response> getPriceHistoryChart(int id, {int days = 180}) async => _dio.get('price-history/product/$id/chart', queryParameters: {'days': days});
+
+  // Employees (Nhân Viên)
+  Future<Response> createEmployee(Map<String, dynamic> data) async => _dio.post('employees', data: data);
+  Future<Response> updateEmployee(int id, Map<String, dynamic> data) async => _dio.put('employees/$id', data: data);
+  Future<Response> deleteEmployee(int id) async => _dio.delete('employees/$id');
+  Future<Response> toggleEmployeeStatus(int id) async => _dio.put('employees/$id/toggle-status');
+  Future<Response> getRoles() async => _dio.get('employees/roles');
+  Future<Response> changeEmployeeRole(int id, int roleId) async => _dio.put('employees/$id/role', data: {'maVaiTro': roleId});
+  Future<Response> createEmployeeAccount(int id, Map<String, dynamic> data) async => _dio.post('employees/$id/create-account', data: data);
+  Future<Response> getEmployeeModulePermissions(int id) async => _dio.get('employees/$id/module-permissions');
+  Future<Response> getRolePermissions(int id) async => _dio.get('employees/$id/permissions');
+  Future<Response> setEmployeeModulePermissions(int id, List<dynamic> permissions) async => _dio.put('employees/$id/module-permissions', data: permissions);
 }
+

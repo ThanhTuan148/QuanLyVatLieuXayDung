@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Fab, Paper, Typography, IconButton, TextField, 
-  Avatar, List, ListItem, ListItemText, Divider, Badge 
+  Avatar, List, ListItem, ListItemText, Divider, Badge, Button,
+  CircularProgress, Chip
 } from '@mui/material';
 import { 
   Chat as ChatIcon, 
   Close as CloseIcon, 
   Send as SendIcon,
   Minimize as MinimizeIcon,
-  DragHandle as DragIcon
+  DragHandle as DragIcon,
+  SmartToyOutlined as SmartToyIcon,
+  SupportAgentOutlined as SupportAgentIcon,
+  ShoppingCartOutlined as ShoppingCartIcon,
+  Circle as CircleIcon
 } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import api from '../services/api';
@@ -23,11 +28,12 @@ const FloatingChat = () => {
   const [user, setUser] = useState(null);
   const [chatMode, setChatMode] = useState('AI'); // 'AI' or 'Staff'
   const [allProducts, setAllProducts] = useState([]);
+  const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef(null);
   const connectionRef = useRef(null); // Prevent duplicate connections
 
   // Draggable state - Initial position bottom right
-  const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
+  const [position, setPosition] = useState({ x: window.innerWidth - 90, y: window.innerHeight - 90 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
@@ -60,7 +66,7 @@ const FloatingChat = () => {
         guestId = 'Guest_' + Math.floor(Math.random() * 1000000);
         localStorage.setItem('guestChatId', guestId);
       }
-      setUser({ tenKH: 'Khách', maKhachHang: guestId });
+      setUser({ tenKH: 'Khách hàng', maKhachHang: guestId });
       customerId = guestId;
     }
 
@@ -80,8 +86,8 @@ const FloatingChat = () => {
     
     const handleResize = () => {
       setPosition(prev => ({
-        x: Math.min(prev.x, window.innerWidth - 60),
-        y: Math.min(prev.y, window.innerHeight - 60)
+        x: Math.min(prev.x, window.innerWidth - 80),
+        y: Math.min(prev.y, window.innerHeight - 80)
       }));
     };
     window.addEventListener('resize', handleResize);
@@ -179,6 +185,7 @@ const FloatingChat = () => {
         }
       }
       alert(`🎉 Đã thêm thành công ${addedCount} loại vật liệu vào giỏ hàng của bạn!`);
+      window.dispatchEvent(new CustomEvent('cart-updated'));
     } catch (err) {
       console.error('Error adding estimate to cart:', err);
       alert('Không thể thêm vật tư vào giỏ hàng.');
@@ -186,33 +193,38 @@ const FloatingChat = () => {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || !connection || !user) return;
+    if (!input.trim() || !connection || !user || isSending) return;
     const senderRole = chatMode === 'AI' ? 'Customer_AI' : 'Customer_Staff';
+    setIsSending(true);
     try {
       await connection.invoke('SendMessage', String(user.maKhachHang), input, senderRole, null);
       setInput('');
     } catch (err) {
       console.error('Send message error:', err);
+    } finally {
+      setIsSending(false);
     }
   };
 
   // Draggable logic
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // Only left click
+    // Don't drag if clicking buttons
+    if (e.target.closest('button') || e.target.closest('svg')) return;
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
-      y: e.clientY - position.y
+      y: e.clientY - dragOffset.y
     });
   };
 
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isDragging) {
-        setPosition({
-          x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
-        });
+        // Enforce boundary limits to keep it visible inside viewport
+        const newX = Math.max(10, Math.min(e.clientX - dragOffset.x, window.innerWidth - 90));
+        const newY = Math.max(10, Math.min(e.clientY - dragOffset.y, window.innerHeight - 90));
+        setPosition({ x: newX, y: newY });
       }
     };
 
@@ -238,7 +250,20 @@ const FloatingChat = () => {
   return (
     <Box sx={{ position: 'fixed', left: position.x, top: position.y, zIndex: 9999 }}>
       {!isOpen ? (
-        <Badge badgeContent={unreadCount} color="error">
+        <Badge 
+          badgeContent={unreadCount} 
+          color="error" 
+          sx={{ 
+            '& .MuiBadge-badge': { 
+              fontSize: '0.75rem', 
+              height: 20, 
+              minWidth: 20, 
+              borderRadius: '10px', 
+              boxShadow: '0 0 10px rgba(255,0,0,0.5)',
+              fontWeight: 'bold' 
+            } 
+          }}
+        >
           <Fab 
             color="primary" 
             onMouseDown={handleMouseDown}
@@ -249,27 +274,41 @@ const FloatingChat = () => {
               }
             }}
             sx={{ 
-              bgcolor: '#e68c55', 
-              '&:hover': { bgcolor: '#d47b44' },
-              cursor: isDragging ? 'grabbing' : 'pointer'
+              background: 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)',
+              boxShadow: '0 8px 24px rgba(230,140,85,0.35)',
+              color: 'white',
+              width: 60,
+              height: 60,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: 'pulseGlow 2s infinite ease-in-out',
+              cursor: isDragging ? 'grabbing' : 'pointer',
+              '&:hover': { 
+                background: 'linear-gradient(135deg, #d47b44 0%, #e68c55 100%)',
+                transform: 'scale(1.08) rotate(5deg)',
+                boxShadow: '0 12px 30px rgba(230,140,85,0.5)'
+              }
             }}
           >
-            <ChatIcon />
+            <ChatIcon sx={{ fontSize: 28 }} />
           </Fab>
         </Badge>
       ) : (
         <Paper 
-          elevation={6} 
+          elevation={12} 
           sx={{ 
-            width: 320, 
-            height: 450, 
+            width: 360, 
+            height: 520, 
             display: 'flex', 
             flexDirection: 'column',
-            borderRadius: 3,
+            borderRadius: '24px',
             overflow: 'hidden',
             position: 'absolute',
             bottom: 0,
-            right: 0
+            right: 0,
+            border: '1px solid rgba(230, 140, 85, 0.12)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+            background: '#ffffff',
+            transition: 'all 0.3s ease'
           }}
         >
           {/* Header */}
@@ -277,60 +316,87 @@ const FloatingChat = () => {
             onMouseDown={handleMouseDown}
             sx={{ 
               p: 2, 
-              bgcolor: '#e68c55', 
+              background: 'linear-gradient(135deg, #e68c55 0%, #d47b44 100%)', 
               color: 'white', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              cursor: 'move'
+              cursor: 'move',
+              boxShadow: '0 4px 12px rgba(230,140,85,0.15)',
+              zIndex: 10
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Avatar sx={{ width: 32, height: 32, bgcolor: 'white', color: '#e68c55' }}>H</Avatar>
-              <Typography variant="subtitle1" fontWeight="bold">Hỗ trợ trực tuyến</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+              <Box sx={{ position: 'relative' }}>
+                <Avatar sx={{ width: 38, height: 38, bgcolor: 'white', color: '#e68c55', fontWeight: 'bold', fontSize: '1rem', border: '2px solid rgba(255,255,255,0.8)' }}>
+                  TD
+                </Avatar>
+                {/* Active status indicator green dot */}
+                <CircleIcon sx={{ position: 'absolute', right: -2, bottom: -2, width: 14, height: 14, color: '#4caf50', border: '2px solid #e68c55', borderRadius: '50%' }} />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight="800" sx={{ lineHeight: 1.1 }}>VLXD Thành Đạt</Typography>
+                <Typography variant="caption" sx={{ opacity: 0.85, fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <CircleIcon sx={{ width: 6, height: 6, color: '#4caf50' }} /> Trực tuyến 24/7
+                </Typography>
+              </Box>
             </Box>
-            <Box>
-              <IconButton size="small" onClick={() => setIsOpen(false)} sx={{ color: 'white' }}>
-                <MinimizeIcon />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <IconButton size="small" onClick={() => setIsOpen(false)} sx={{ color: 'white', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+                <MinimizeIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Box>
           </Box>
 
-          {/* Mode Selector */}
-          <Box sx={{ display: 'flex', bgcolor: '#fff', borderBottom: '1px solid #eee', p: 0.5 }}>
-            <Box 
-              onClick={() => setChatMode('AI')}
-              sx={{ 
-                flex: 1, 
-                py: 1, 
-                textAlign: 'center', 
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                color: chatMode === 'AI' ? '#e68c55' : '#888',
-                borderBottom: chatMode === 'AI' ? '2px solid #e68c55' : 'none',
-                transition: 'all 0.2s',
-                '&:hover': { bgcolor: '#fff6f0' }
-              }}
-            >
-              🤖 Trợ lý AI
-            </Box>
-            <Box 
-              onClick={() => setChatMode('Staff')}
-              sx={{ 
-                flex: 1, 
-                py: 1, 
-                textAlign: 'center', 
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                color: chatMode === 'Staff' ? '#e68c55' : '#888',
-                borderBottom: chatMode === 'Staff' ? '2px solid #e68c55' : 'none',
-                transition: 'all 0.2s',
-                '&:hover': { bgcolor: '#fff6f0' }
-              }}
-            >
-              💬 Nhân viên
+          {/* Mode Selector - iOS Segment Control Style */}
+          <Box sx={{ p: 1.5, bgcolor: '#ffffff', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+            <Box sx={{ display: 'flex', bgcolor: '#f0f0f0', borderRadius: '24px', p: 0.5, border: '1px solid #ebebeb' }}>
+              <Box 
+                onClick={() => setChatMode('AI')}
+                sx={{ 
+                  flex: 1, 
+                  py: 1, 
+                  textAlign: 'center', 
+                  cursor: 'pointer',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  borderRadius: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0.5,
+                  color: chatMode === 'AI' ? '#e68c55' : '#666',
+                  bgcolor: chatMode === 'AI' ? 'white' : 'transparent',
+                  boxShadow: chatMode === 'AI' ? '0 4px 10px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': { color: chatMode === 'AI' ? '#e68c55' : '#333' }
+                }}
+              >
+                <SmartToyIcon sx={{ fontSize: 16 }} /> Trợ lý AI
+              </Box>
+              <Box 
+                onClick={() => setChatMode('Staff')}
+                sx={{ 
+                  flex: 1, 
+                  py: 1, 
+                  textAlign: 'center', 
+                  cursor: 'pointer',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  borderRadius: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0.5,
+                  color: chatMode === 'Staff' ? '#e68c55' : '#666',
+                  bgcolor: chatMode === 'Staff' ? 'white' : 'transparent',
+                  boxShadow: chatMode === 'Staff' ? '0 4px 10px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': { color: chatMode === 'Staff' ? '#e68c55' : '#333' }
+                }}
+              >
+                <SupportAgentIcon sx={{ fontSize: 16 }} /> Nhân viên
+              </Box>
             </Box>
           </Box>
 
@@ -341,12 +407,34 @@ const FloatingChat = () => {
               flexGrow: 1, 
               overflowY: 'auto', 
               p: 2, 
-              bgcolor: '#f5f5f5',
+              bgcolor: '#fbfaf8',
               display: 'flex',
               flexDirection: 'column',
-              gap: 1
+              gap: 1.5,
+              '&::-webkit-scrollbar': { width: '6px' },
+              '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+              '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(230,140,85,0.15)', borderRadius: '10px' },
+              '&::-webkit-scrollbar-thumb:hover': { bgcolor: 'rgba(230,140,85,0.3)' }
             }}
           >
+            {messages.length === 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.7, p: 3, textAlign: 'center' }}>
+                {chatMode === 'AI' ? (
+                  <>
+                    <SmartToyIcon sx={{ fontSize: 44, color: '#e68c55', mb: 1 }} />
+                    <Typography variant="subtitle2" fontWeight="bold">Xin chào quý khách!</Typography>
+                    <Typography variant="caption" color="text.secondary">Tôi là Trợ lý ảo AI của Thành Đạt. Tôi có thể tư vấn kỹ thuật xây dựng và ước lượng vật tư xây nhà nhanh chóng cho bạn.</Typography>
+                  </>
+                ) : (
+                  <>
+                    <SupportAgentIcon sx={{ fontSize: 44, color: '#e68c55', mb: 1 }} />
+                    <Typography variant="subtitle2" fontWeight="bold">Nhân viên trực tuyến</Typography>
+                    <Typography variant="caption" color="text.secondary">Vui lòng gửi tin nhắn. Đội ngũ nhân viên bán hàng của Thành Đạt sẽ hỗ trợ báo giá tốt nhất cho bạn ngay.</Typography>
+                  </>
+                )}
+              </Box>
+            )}
+
             {messages
               .filter(m => {
                 if (chatMode === 'AI') {
@@ -367,64 +455,112 @@ const FloatingChat = () => {
                     sx={{ 
                       alignSelf: isCustomer ? 'flex-end' : 'flex-start',
                       maxWidth: '85%',
-                      bgcolor: isCustomer ? '#e68c55' : (isAI ? '#e3f2fd' : 'white'),
-                      color: isCustomer ? 'white' : '#333',
-                      p: 1.5,
-                      borderRadius: isCustomer ? '15px 15px 0 15px' : '15px 15px 15px 0',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                      border: isAI ? '1px solid #bbdefb' : 'none'
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isCustomer ? 'flex-end' : 'flex-start'
                     }}
                   >
-                    {isAI && (
-                      <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#1976d2', mb: 0.5, display: 'block' }}>
-                        🤖 Trợ lý ảo AI
+                    <Box
+                      sx={{ 
+                        bgcolor: isCustomer ? '#e68c55' : (isAI ? '#ffffff' : '#fff5ee'),
+                        background: isCustomer ? 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)' : undefined,
+                        color: isCustomer ? 'white' : '#2d2d2d',
+                        p: 1.8,
+                        borderRadius: isCustomer ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                        boxShadow: isCustomer 
+                          ? '0 4px 12px rgba(230,140,85,0.18)' 
+                          : '0 4px 12px rgba(0,0,0,0.03)',
+                        border: isCustomer ? 'none' : '1px solid rgba(230, 140, 85, 0.08)'
+                      }}
+                    >
+                      {isAI && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
+                          <Chip 
+                            icon={<SmartToyIcon style={{ color: '#1976d2', fontSize: '0.85rem' }} />} 
+                            label="Trợ lý ảo AI" 
+                            size="small" 
+                            sx={{ 
+                              height: 18, 
+                              fontSize: '0.65rem', 
+                              fontWeight: '800', 
+                              bgcolor: 'rgba(25, 118, 210, 0.08)',
+                              color: '#1976d2',
+                              border: 'none',
+                              '& .MuiChip-icon': { marginLeft: '4px', marginRight: '-2px' }
+                            }} 
+                          />
+                        </Box>
+                      )}
+                      
+                      {!isCustomer && !isAI && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
+                          <Chip 
+                            icon={<SupportAgentIcon style={{ color: '#e68c55', fontSize: '0.85rem' }} />} 
+                            label="Nhân viên" 
+                            size="small" 
+                            sx={{ 
+                              height: 18, 
+                              fontSize: '0.65rem', 
+                              fontWeight: '800', 
+                              bgcolor: 'rgba(230, 140, 85, 0.08)',
+                              color: '#e68c55',
+                              border: 'none',
+                              '& .MuiChip-icon': { marginLeft: '4px', marginRight: '-2px' }
+                            }} 
+                          />
+                        </Box>
+                      )}
+
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.5, fontSize: '0.85rem', fontWeight: '500' }}>
+                        {cleanText}
                       </Typography>
-                    )}
-                    <Typography variant="body2" style={{ whiteSpace: 'pre-line' }}>{cleanText}</Typography>
 
-                    {actionData && actionData.items && (
-                      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#ffffff', borderRadius: 2, border: '1px dashed #e68c55', color: '#333' }}>
-                        <Typography variant="subtitle2" fontWeight="bold" color="#e68c55" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          📊 Ước tính từ Thành Đạt:
-                        </Typography>
-                        {actionData.items.map((item, idx) => {
-                          const prod = allProducts.find(p => {
-                            if (!p || !item.maSP) return false;
-                            const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
-                            const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
-                            const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
-                                                 item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
-                            return codeMatch || nameMatch || partialMatch;
-                          });
-                          return (
-                            <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, fontSize: '12px' }}>
-                              <span>• {prod ? prod.tenSP : item.maSP}:</span>
-                              <span style={{ fontWeight: 'bold' }}>{item.quantity} {prod ? prod.donViTinh : (item.unit || item.donViTinh || 'Đơn vị')}</span>
-                            </Box>
-                          );
-                        })}
-                        <Fab
-                          variant="extended"
-                          size="small"
-                          onClick={() => handleAddEstimateToCart(actionData.items)}
-                          sx={{ 
-                            mt: 1.5, 
-                            width: '100%', 
-                            fontSize: '11px', 
-                            fontWeight: 'bold',
-                            bgcolor: '#e68c55',
-                            color: 'white',
-                            boxShadow: 'none',
-                            textTransform: 'none',
-                            '&:hover': { bgcolor: '#d47b44' }
-                          }}
-                        >
-                          🛒 Thêm tất cả vào giỏ hàng
-                        </Fab>
-                      </Box>
-                    )}
-
-                    <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', textAlign: 'right', mt: 0.5 }}>
+                      {actionData && actionData.items && (
+                        <Box sx={{ mt: 2, p: 2, bgcolor: '#ffffff', borderRadius: '14px', border: '1px solid rgba(230,140,85,0.25)', color: '#333', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
+                          <Typography variant="subtitle2" fontWeight="800" color="#e68c55" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.8rem' }}>
+                            📊 Bảng ước tính khối lượng vật tư:
+                          </Typography>
+                          {actionData.items.map((item, idx) => {
+                            const prod = allProducts.find(p => {
+                              if (!p || !item.maSP) return false;
+                              const codeMatch = p.maSP.toLowerCase() === item.maSP.toLowerCase();
+                              const nameMatch = p.tenSP.toLowerCase() === item.maSP.toLowerCase();
+                              const partialMatch = p.tenSP.toLowerCase().includes(item.maSP.toLowerCase()) || 
+                                                   item.maSP.toLowerCase().includes(p.tenSP.toLowerCase());
+                              return codeMatch || nameMatch || partialMatch;
+                            });
+                            return (
+                              <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8, fontSize: '11px', borderBottom: '1px dashed #f0f0f0', pb: 0.5 }}>
+                                <span style={{ color: '#555' }}>• {prod ? prod.tenSP : item.maSP}:</span>
+                                <span style={{ fontWeight: '800', color: '#2d2d2d' }}>{item.quantity} {prod ? prod.donViTinh : (item.unit || item.donViTinh || 'Đơn vị')}</span>
+                              </Box>
+                            );
+                          })}
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<ShoppingCartIcon />}
+                            onClick={() => handleAddEstimateToCart(actionData.items)}
+                            sx={{ 
+                              mt: 1.5, 
+                              width: '100%', 
+                              fontSize: '0.72rem', 
+                              fontWeight: '800',
+                              background: 'linear-gradient(135deg, #e68c55 0%, #f79b7f 100%)',
+                              color: 'white',
+                              boxShadow: '0 4px 10px rgba(230,140,85,0.2)',
+                              textTransform: 'none',
+                              borderRadius: '8px',
+                              py: 0.8,
+                              '&:hover': { background: 'linear-gradient(135deg, #d47b44 0%, #e68c55 100%)', boxShadow: '0 6px 14px rgba(230,140,85,0.3)' }
+                            }}
+                          >
+                            Thêm tất cả vào giỏ hàng
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                    <Typography variant="caption" sx={{ opacity: 0.6, fontSize: '0.68rem', mt: 0.5, mx: 0.5 }}>
                       {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Typography>
                   </Box>
@@ -432,22 +568,65 @@ const FloatingChat = () => {
               })}
           </Box>
 
-          {/* Input */}
-          <Box sx={{ p: 1.5, bgcolor: 'white', borderTop: '1px solid #eee', display: 'flex', gap: 1 }}>
+          {/* Input Box */}
+          <Box sx={{ p: 1.8, bgcolor: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.04)', display: 'flex', gap: 1, alignItems: 'center' }}>
             <TextField 
               fullWidth 
               size="small" 
-              placeholder="Nhập tin nhắn..." 
+              placeholder="Nhập tin nhắn tư vấn..." 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '24px',
+                  bgcolor: '#f5f5f5',
+                  fontSize: '0.85rem',
+                  border: 'none',
+                  '& fieldset': { border: 'none' },
+                  '&:hover fieldset': { border: 'none' },
+                  '&.Mui-focused fieldset': { border: 'none' }
+                }
+              }}
             />
-            <IconButton color="primary" onClick={handleSend} disabled={!input.trim()}>
-              <SendIcon />
+            <IconButton 
+              color="primary" 
+              onClick={handleSend} 
+              disabled={!input.trim() || isSending}
+              sx={{ 
+                bgcolor: input.trim() ? '#e68c55' : '#f0f0f0', 
+                color: input.trim() ? 'white' : '#bbb', 
+                p: 1.1,
+                boxShadow: input.trim() ? '0 4px 10px rgba(230,140,85,0.25)' : 'none',
+                transition: 'all 0.2s',
+                '&:hover': { 
+                  bgcolor: input.trim() ? '#d47b44' : '#f0f0f0',
+                  transform: input.trim() ? 'scale(1.05)' : 'none'
+                },
+                '&.Mui-disabled': { bgcolor: '#f0f0f0', color: '#bbb' }
+              }}
+            >
+              {isSending ? <CircularProgress size={18} sx={{ color: '#e68c55' }} /> : <SendIcon sx={{ fontSize: 18 }} />}
             </IconButton>
           </Box>
         </Paper>
       )}
+
+      {/* Dynamic pulse animation style */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes pulseGlow {
+          0% {
+            box-shadow: 0 0 0 0 rgba(230, 140, 85, 0.4);
+          }
+          70% {
+            box-shadow: 0 0 0 12px rgba(230, 140, 85, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(230, 140, 85, 0);
+          }
+        }
+      `}} />
     </Box>
   );
 };

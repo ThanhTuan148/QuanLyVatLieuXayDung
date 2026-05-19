@@ -33,7 +33,11 @@ namespace BuildingMaterialAPI.Services
                     .Include(tk => tk.VaiTro)
                     .Include(tk => tk.NhanVien)
                     .Include(tk => tk.KhachHang)
-                    .FirstOrDefaultAsync(tk => tk.TenTK == username || tk.Email == username);
+                    .FirstOrDefaultAsync(tk => 
+                        tk.TenTK == username || 
+                        tk.Email == username ||
+                        (tk.NhanVien != null && tk.NhanVien.Sdt == username) ||
+                        (tk.KhachHang != null && tk.KhachHang.Sdt == username));
 
                 if (taiKhoan == null)
                 {

@@ -121,151 +121,173 @@ namespace BuildingMaterialAPI.Controllers
         {
             if (dto.ChiTiet == null || !dto.ChiTiet.Any()) return BadRequest("Vui lòng chọn sản phẩm cần đề xuất.");
 
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                // Thay vì tách ngay, tạo 1 phiếu duy nhất (NCC lấy theo mục đầu tiên)
-                var firstItem = dto.ChiTiet.First();
-                var phieu = new PhieuNhap
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    NgayNhap = dto.NgayNhap ?? DateTime.UtcNow,
-                    NgayGiaoHang = dto.NgayGiaoHang,
-                    TrangThai = "Đề Xuất",
-                    GhiChu = dto.GhiChu,
-                    MaNhaCungCap = firstItem.MaNhaCungCap ?? 0,
-                    MaNhanVien = dto.MaNhanVien,
-                    NgayTao = DateTime.UtcNow,
-                    NgayCapNhat = DateTime.UtcNow,
-                    TongTien = 0,
-                    ThanhToan = 0
-                };
-
-                _ctx.PhieuNhaps.Add(phieu);
-                await _ctx.SaveChangesAsync();
-
-                decimal tong = 0;
-                foreach (var ct in dto.ChiTiet)
-                {
-                    var tt = ct.SoLuong * ct.DonGia;
-                    tong += tt;
-                    _ctx.CTPNs.Add(new CTPN
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        MaPhieuNhap = phieu.MaPhieuNhap,
-                        MaSanPham = ct.MaSanPham,
-                        SoLuong = ct.SoLuong,
-                        DonGia = ct.DonGia,
-                        ThanhTien = tt,
-                        SoLuongDaNhan = 0,
-                        MaKhoHang = ct.MaKhoHang, 
-                        MaNhaCungCap = ct.MaNhaCungCap,
-                        NgayTao = DateTime.UtcNow,
-                        TrangThai = "Đề Xuất",
-                        GhiChu = ct.GhiChu
-                    });
-                }
+                        // Thay vì tách ngay, tạo 1 phiếu duy nhất (NCC lấy theo mục đầu tiên)
+                        var firstItem = dto.ChiTiet.First();
+                        var phieu = new PhieuNhap
+                        {
+                            NgayNhap = dto.NgayNhap ?? DateTime.UtcNow,
+                            NgayGiaoHang = dto.NgayGiaoHang,
+                            TrangThai = "Đề Xuất",
+                            GhiChu = dto.GhiChu,
+                            MaNhaCungCap = firstItem.MaNhaCungCap ?? 0,
+                            MaNhanVien = dto.MaNhanVien,
+                            NgayTao = DateTime.UtcNow,
+                            NgayCapNhat = DateTime.UtcNow,
+                            TongTien = 0,
+                            ThanhToan = 0
+                        };
 
-                phieu.TongTien = tong;
-                await _ctx.SaveChangesAsync();
+                        _ctx.PhieuNhaps.Add(phieu);
+                        await _ctx.SaveChangesAsync();
 
-                _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
-                {
-                    MaPhieuNhap = phieu.MaPhieuNhap,
-                    TrangThaiMoi = "Đề Xuất",
-                    NoiDungThayDoi = $"Nhân viên {dto.MaNhanVien} tạo đề xuất mới với {dto.ChiTiet.Count} sản phẩm (Có thể đa nhà cung cấp).",
-                    MaNguoiThucHien = dto.MaNhanVien
+                        decimal tong = 0;
+                        foreach (var ct in dto.ChiTiet)
+                        {
+                            var tt = ct.SoLuong * ct.DonGia;
+                            tong += tt;
+                            _ctx.CTPNs.Add(new CTPN
+                            {
+                                MaPhieuNhap = phieu.MaPhieuNhap,
+                                MaSanPham = ct.MaSanPham,
+                                SoLuong = ct.SoLuong,
+                                DonGia = ct.DonGia,
+                                ThanhTien = tt,
+                                SoLuongDaNhan = 0,
+                                MaKhoHang = ct.MaKhoHang, 
+                                MaNhaCungCap = ct.MaNhaCungCap,
+                                NgayTao = DateTime.UtcNow,
+                                TrangThai = "Đề Xuất",
+                                GhiChu = ct.GhiChu
+                            });
+                        }
+
+                        phieu.TongTien = tong;
+                        await _ctx.SaveChangesAsync();
+
+                        _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
+                        {
+                            MaPhieuNhap = phieu.MaPhieuNhap,
+                            TrangThaiMoi = "Đề Xuất",
+                            NoiDungThayDoi = $"Nhân viên {dto.MaNhanVien} tạo đề xuất mới với {dto.ChiTiet.Count} sản phẩm (Có thể đa nhà cung cấp).",
+                            MaNguoiThucHien = dto.MaNhanVien
+                        });
+                        await _ctx.SaveChangesAsync();
+                        
+                        await transaction.CommitAsync();
+
+                        // Reload để lấy MaPN
+                        var p = await _ctx.PhieuNhaps.FindAsync(phieu.MaPhieuNhap);
+                        await _notificationService.SendToPermissionAsync(
+                            "inventory",
+                            "Đề xuất nhập hàng mới",
+                            $"Nhân viên kho vừa lập đề xuất nhập hàng mới {p?.MaPN ?? phieu.MaPhieuNhap.ToString()}. Vui lòng kiểm tra và duyệt.",
+                            "DeXuat",
+                            "/procurement"
+                        );
+                        return Ok(new { message = "Đã tạo phiếu đề xuất thành công.", maPhieuNhap = phieu.MaPhieuNhap, maPN = p?.MaPN });
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
                 });
-                await _ctx.SaveChangesAsync();
-                
-                await transaction.CommitAsync();
-
-                // Reload để lấy MaPN
-                var p = await _ctx.PhieuNhaps.FindAsync(phieu.MaPhieuNhap);
-                await _notificationService.SendToPermissionAsync(
-                    "inventory",
-                    "Đề xuất nhập hàng mới",
-                    $"Nhân viên kho vừa lập đề xuất nhập hàng mới {p?.MaPN ?? phieu.MaPhieuNhap.ToString()}. Vui lòng kiểm tra và duyệt.",
-                    "DeXuat",
-                    "/procurement"
-                );
-                return Ok(new { message = "Đã tạo phiếu đề xuất thành công.", maPhieuNhap = phieu.MaPhieuNhap, maPN = p?.MaPN });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi xử lý tạo đề xuất.", error = ex.Message });
             }
         }
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProposal(int id, [FromBody] PhieuNhapDto dto)
         {
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
-                if (p == null) return NotFound();
-
-                // Cập nhật thông tin chung
-                string trangThaiCu = p.TrangThai;
-                p.GhiChu = dto.GhiChu;
-                p.NgayCapNhat = DateTime.UtcNow;
-                if (dto.NgayNhap.HasValue) p.NgayNhap = dto.NgayNhap.Value;
-                if (dto.NgayGiaoHang.HasValue) p.NgayGiaoHang = dto.NgayGiaoHang.Value;
-
-                if (!string.IsNullOrEmpty(dto.TargetStatus))
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    p.TrangThai = dto.TargetStatus;
-                }
-                else if (p.TrangThai == "Yêu Cầu Sửa")
-                {
-                    p.TrangThai = "Đề Xuất";
-                }
-
-                // Xóa chi tiết cũ và thêm mới (hoặc cập nhật thông minh hơn)
-                _ctx.CTPNs.RemoveRange(p.CTPNs);
-
-                decimal tong = 0;
-                foreach (var ct in dto.ChiTiet)
-                {
-                    var tt = ct.SoLuong * ct.DonGia;
-                    tong += tt;
-                    var nextTrangThai = (string.Equals(ct.TrangThai, "Từ Chối", StringComparison.OrdinalIgnoreCase)) ? "Từ Chối" : "Đề Xuất";
-                    Console.WriteLine($"Item {ct.MaSanPham} TrangThai: '{ct.TrangThai}' -> Saving as: {nextTrangThai}");
-                    
-                    _ctx.CTPNs.Add(new CTPN
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        MaPhieuNhap = p.MaPhieuNhap,
-                        MaSanPham = ct.MaSanPham,
-                        SoLuong = ct.SoLuong,
-                        DonGia = ct.DonGia,
-                        ThanhTien = tt,
-                        SoLuongDaNhan = 0,
-                        MaKhoHang = ct.MaKhoHang ?? 1,
-                        MaNhaCungCap = ct.MaNhaCungCap,
-                        NgayTao = DateTime.UtcNow,
-                        TrangThai = nextTrangThai,
-                        GhiChu = ct.GhiChu
-                    });
-                }
+                        var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
+                        if (p == null) return NotFound();
 
-                p.TongTien = tong;
+                        // Cập nhật thông tin chung
+                        string trangThaiCu = p.TrangThai;
+                        p.GhiChu = dto.GhiChu;
+                        p.NgayCapNhat = DateTime.UtcNow;
+                        if (dto.NgayNhap.HasValue) p.NgayNhap = dto.NgayNhap.Value;
+                        if (dto.NgayGiaoHang.HasValue) p.NgayGiaoHang = dto.NgayGiaoHang.Value;
 
-                _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
-                {
-                    MaPhieuNhap = p.MaPhieuNhap,
-                    TrangThaiCu = trangThaiCu,
-                    TrangThaiMoi = p.TrangThai,
-                    NoiDungThayDoi = $"Người dùng {dto.MaNhanVien} cập nhật thông tin phiếu. (Đã gửi lại đề xuất)",
-                    MaNguoiThucHien = dto.MaNhanVien
+                        if (!string.IsNullOrEmpty(dto.TargetStatus))
+                        {
+                            p.TrangThai = dto.TargetStatus;
+                        }
+                        else if (p.TrangThai == "Yêu Cầu Sửa")
+                        {
+                            p.TrangThai = "Đề Xuất";
+                        }
+
+                        // Xóa chi tiết cũ và thêm mới (hoặc cập nhật thông minh hơn)
+                        _ctx.CTPNs.RemoveRange(p.CTPNs);
+
+                        decimal tong = 0;
+                        foreach (var ct in dto.ChiTiet)
+                        {
+                            var tt = ct.SoLuong * ct.DonGia;
+                            tong += tt;
+                            var nextTrangThai = (string.Equals(ct.TrangThai, "Từ Chối", StringComparison.OrdinalIgnoreCase)) ? "Từ Chối" : "Đề Xuất";
+                            Console.WriteLine($"Item {ct.MaSanPham} TrangThai: '{ct.TrangThai}' -> Saving as: {nextTrangThai}");
+                            
+                            _ctx.CTPNs.Add(new CTPN
+                            {
+                                MaPhieuNhap = p.MaPhieuNhap,
+                                MaSanPham = ct.MaSanPham,
+                                SoLuong = ct.SoLuong,
+                                DonGia = ct.DonGia,
+                                ThanhTien = tt,
+                                SoLuongDaNhan = 0,
+                                MaKhoHang = ct.MaKhoHang ?? 1,
+                                MaNhaCungCap = ct.MaNhaCungCap,
+                                NgayTao = DateTime.UtcNow,
+                                TrangThai = nextTrangThai,
+                                GhiChu = ct.GhiChu
+                            });
+                        }
+
+                        p.TongTien = tong;
+
+                        _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
+                        {
+                            MaPhieuNhap = p.MaPhieuNhap,
+                            TrangThaiCu = trangThaiCu,
+                            TrangThaiMoi = p.TrangThai,
+                            NoiDungThayDoi = $"Người dùng {dto.MaNhanVien} cập nhật thông tin phiếu. (Đã gửi lại đề xuất)",
+                            MaNguoiThucHien = dto.MaNhanVien
+                        });
+
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        return Ok(new { message = "Đã cập nhật phiếu đề xuất thành công." });
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
                 });
-
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "Đã cập nhật phiếu đề xuất thành công." });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi cập nhật phiếu.", error = ex.Message });
             }
         }
@@ -273,126 +295,137 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPut("{id}/approve")]
         public async Task<IActionResult> ApproveProposal(int id, [FromBody] HistoryActionDto dto)
         {
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
-                if (p == null) return NotFound();
-                if (p.TrangThai != "Đề Xuất" && p.TrangThai != "Đề Xuất (Nhập Bù)" && p.TrangThai != "Đang xử lý" && p.TrangThai != "Chờ Duyệt" && p.TrangThai != "Yêu Cầu Sửa") 
-                    return BadRequest("Phiếu này không ở trạng thái cho phép duyệt.");
-
-                // Nhóm chi tiết theo Nhà cung cấp thực tế của sản phẩm
-                // Note: MaNhaCungCap trong CTPN (dto) không lưu vào DB, nhưng ta có thể lấy từ bảng NHACUNGCAP_SANPHAM 
-                // hoặc đơn giản là Nhân viên kho đã chọn NCC cho từng item trong lúc lập phiếu (CTPN.MaNhaCungCap không có trong Model CTPN gốc?)
-                // Kiểm tra lại Model CTPN: không có MaNhaCungCap. 
-                // Vậy ta sẽ lấy NCC mặc định của sản phẩm hoặc NCC rẻ nhất đã được chọn.
-                // TUY NHIÊN, yêu cầu là "Duyệt mới tự động tách phiếu". 
-                // Ta cần biết mỗi mặt hàng thuộc NCC nào.
-                
-                // Giải pháp: Dùng bảng NHACUNGCAP_SANPHAM để xác định NCC của từng mặt hàng trong phiếu.
-                // Hoặc giả định Frontend gửi kèm NCC trong lúc tạo (nhưng DB CTPN không lưu).
-                // Để đơn giản và chính xác nhất theo luồng hiện tại: 
-                // Ta sẽ lấy danh sách các NCC cung cấp các SP trong phiếu này.
-                
-                var items = p.CTPNs.ToList();
-                var productIds = items.Select(i => i.MaSanPham).ToList();
-                
-                // Lấy giá chào hàng để biết SP này thuộc về NCC nào (trong thực tế có thể 1 SP có nhiều NCC, 
-                // nhưng ta lấy NCC có giá khớp với giá đề xuất)
-                var supplierQuotes = await _ctx.NhaCungCapSanPhams
-                    .Where(x => productIds.Contains(x.MaSanPham))
-                    .ToListAsync();
-
-                var itemsWithSupplier = items.GroupBy(x => x.MaNhaCungCap ?? p.MaNhaCungCap).ToList();
-
-                string oldStatus = p.TrangThai;
-                int splitCount = 0;
-                List<int> approvedPhieuIds = new List<int>();
-
-                foreach (var group in itemsWithSupplier)
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    var maNCC = group.Key;
-                    PhieuNhap currentPhieu;
-
-                    if (maNCC == p.MaNhaCungCap)
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        currentPhieu = p;
-                    }
-                    else
-                    {
-                        // Tạo phiếu mới cho NCC khác
-                        currentPhieu = new PhieuNhap
-                        {
-                            NgayNhap = p.NgayNhap,
-                            TrangThai = "Đã Duyệt",
-                            GhiChu = p.GhiChu + $" (Tách từ {p.MaPN})",
-                            MaNhaCungCap = maNCC,
-                            MaNhanVien = p.MaNhanVien,
-                            NgayTao = DateTime.UtcNow,
-                            NgayCapNhat = DateTime.UtcNow,
-                            TongTien = group.Sum(x => x.ThanhTien ?? 0),
-                            ThanhToan = 0
-                        };
-                        _ctx.PhieuNhaps.Add(currentPhieu);
-                        await _ctx.SaveChangesAsync();
-                        splitCount++;
+                        var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
+                        if (p == null) return NotFound();
+                        if (p.TrangThai != "Đề Xuất" && p.TrangThai != "Đề Xuất (Nhập Bù)" && p.TrangThai != "Đang xử lý" && p.TrangThai != "Chờ Duyệt" && p.TrangThai != "Yêu Cầu Sửa") 
+                            return BadRequest("Phiếu này không ở trạng thái cho phép duyệt.");
 
-                        foreach (var item in group)
+                        // Nhóm chi tiết theo Nhà cung cấp thực tế của sản phẩm
+                        // Note: MaNhaCungCap trong CTPN (dto) không lưu vào DB, nhưng ta có thể lấy từ bảng NHACUNGCAP_SANPHAM 
+                        // hoặc đơn giản là Nhân viên kho đã chọn NCC cho từng item trong lúc lập phiếu (CTPN.MaNhaCungCap không có trong Model CTPN gốc?)
+                        // Kiểm tra lại Model CTPN: không có MaNhaCungCap. 
+                        // Vậy ta sẽ lấy NCC mặc định của sản phẩm hoặc NCC rẻ nhất đã được chọn.
+                        // TUY NHIÊN, yêu cầu là "Duyệt mới tự động tách phiếu". 
+                        // Ta cần biết mỗi mặt hàng thuộc NCC nào.
+                        
+                        // Giải pháp: Dùng bảng NHACUNGCAP_SANPHAM để xác định NCC của từng mặt hàng trong phiếu.
+                        // Hoặc giả định Frontend gửi kèm NCC trong lúc tạo (nhưng DB CTPN không lưu).
+                        // Để đơn giản và chính xác nhất theo luồng hiện tại: 
+                        // Ta sẽ lấy danh sách các NCC cung cấp các SP trong phiếu này.
+                        
+                        var items = p.CTPNs.ToList();
+                        var productIds = items.Select(i => i.MaSanPham).ToList();
+                        
+                        // Lấy giá chào hàng để biết SP này thuộc về NCC nào (trong thực tế có thể 1 SP có nhiều NCC, 
+                        // nhưng ta lấy NCC có giá khớp với giá đề xuất)
+                        var supplierQuotes = await _ctx.NhaCungCapSanPhams
+                            .Where(x => productIds.Contains(x.MaSanPham))
+                            .ToListAsync();
+
+                        var itemsWithSupplier = items.GroupBy(x => x.MaNhaCungCap ?? p.MaNhaCungCap).ToList();
+
+                        string oldStatus = p.TrangThai;
+                        int splitCount = 0;
+                        List<int> approvedPhieuIds = new List<int>();
+
+                        foreach (var group in itemsWithSupplier)
                         {
-                            item.MaPhieuNhap = currentPhieu.MaPhieuNhap;
+                            var maNCC = group.Key;
+                            PhieuNhap currentPhieu;
+
+                            if (maNCC == p.MaNhaCungCap)
+                            {
+                                currentPhieu = p;
+                            }
+                            else
+                            {
+                                // Tạo phiếu mới cho NCC khác
+                                currentPhieu = new PhieuNhap
+                                {
+                                    NgayNhap = p.NgayNhap,
+                                    TrangThai = "Đã Duyệt",
+                                    GhiChu = p.GhiChu + $" (Tách từ {p.MaPN})",
+                                    MaNhaCungCap = maNCC,
+                                    MaNhanVien = p.MaNhanVien,
+                                    NgayTao = DateTime.UtcNow,
+                                    NgayCapNhat = DateTime.UtcNow,
+                                    TongTien = group.Sum(x => x.ThanhTien ?? 0),
+                                    ThanhToan = 0
+                                };
+                                _ctx.PhieuNhaps.Add(currentPhieu);
+                                await _ctx.SaveChangesAsync();
+                                splitCount++;
+
+                                foreach (var item in group)
+                                {
+                                    item.MaPhieuNhap = currentPhieu.MaPhieuNhap;
+                                }
+                            }
+
+                            currentPhieu.TrangThai = "Đã Duyệt";
+                            currentPhieu.NgayCapNhat = DateTime.UtcNow;
+                            approvedPhieuIds.Add(currentPhieu.MaPhieuNhap);
+
+                            _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                                MaPhieuNhap = currentPhieu.MaPhieuNhap,
+                                TrangThaiCu = currentPhieu == p ? oldStatus : null,
+                                TrangThaiMoi = "Đã Duyệt",
+                                NoiDungThayDoi = currentPhieu == p ? "Quản lý đã phê duyệt toàn bộ đơn đề xuất." : $"Phiếu được tách tự động từ {p.MaPN} khi quản lý duyệt.",
+                                MaNguoiThucHien = dto.UserId
+                            });
                         }
+
+                        // Cập nhật lại tổng tiền phiếu gốc (nếu bị bớt item)
+                        // Phải lọc theo MaPhieuNhap == p.MaPhieuNhap vì item.MaPhieuNhap đã bị thay đổi trong bộ nhớ
+                        p.TongTien = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).Sum(c => c.ThanhTien ?? 0);
+
+                        if (p.TongTien == 0 && !p.CTPNs.Any(c => c.MaPhieuNhap == p.MaPhieuNhap))
+                        {
+                            // Nếu phiếu gốc không còn item nào (bị tách hết), đánh dấu là Đã Tách
+                            p.TrangThai = "Đã Tách";
+                        }
+
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        // Notify warehouse staff (requester)
+                        var requester = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
+                        if (requester != null && requester.MaTaiKhoan.HasValue)
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                "Đề xuất đã được duyệt",
+                                $"Đề xuất nhập hàng {p.MaPN} của bạn đã được quản lý phê duyệt {(splitCount > 0 ? $"và tách thành {splitCount + 1} đơn hàng" : "")}.",
+                                "HeThong",
+                                requester.MaTaiKhoan.ToString(),
+                                link: "/procurement"
+                            );
+                        }
+
+                        // Auto send emails to suppliers
+                        foreach (var phieuId in approvedPhieuIds)
+                        {
+                            await SendEmailToSupplierInternal(phieuId, dto.UserId);
+                        }
+
+                        return Ok(new { message = splitCount > 0 ? $"Đã phê duyệt và tách thành {splitCount + 1} phiếu nhập hàng!" : "Đã phê duyệt đề xuất nhập hàng!" });
                     }
-
-                    currentPhieu.TrangThai = "Đã Duyệt";
-                    currentPhieu.NgayCapNhat = DateTime.UtcNow;
-                    approvedPhieuIds.Add(currentPhieu.MaPhieuNhap);
-
-                    _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
-                        MaPhieuNhap = currentPhieu.MaPhieuNhap,
-                        TrangThaiCu = currentPhieu == p ? oldStatus : null,
-                        TrangThaiMoi = "Đã Duyệt",
-                        NoiDungThayDoi = currentPhieu == p ? "Quản lý đã phê duyệt toàn bộ đơn đề xuất." : $"Phiếu được tách tự động từ {p.MaPN} khi quản lý duyệt.",
-                        MaNguoiThucHien = dto.UserId
-                    });
-                }
-
-                // Cập nhật lại tổng tiền phiếu gốc (nếu bị bớt item)
-                // Phải lọc theo MaPhieuNhap == p.MaPhieuNhap vì item.MaPhieuNhap đã bị thay đổi trong bộ nhớ
-                p.TongTien = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).Sum(c => c.ThanhTien ?? 0);
-
-                if (p.TongTien == 0 && !p.CTPNs.Any(c => c.MaPhieuNhap == p.MaPhieuNhap))
-                {
-                    // Nếu phiếu gốc không còn item nào (bị tách hết), đánh dấu là Đã Tách
-                    p.TrangThai = "Đã Tách";
-                }
-
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                // Notify warehouse staff (requester)
-                var requester = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
-                if (requester != null && requester.MaTaiKhoan.HasValue)
-                {
-                    await _notificationService.SendNotificationAsync(
-                        "Đề xuất đã được duyệt",
-                        $"Đề xuất nhập hàng {p.MaPN} của bạn đã được quản lý phê duyệt {(splitCount > 0 ? $"và tách thành {splitCount + 1} đơn hàng" : "")}.",
-                        "HeThong",
-                        requester.MaTaiKhoan.ToString(),
-                        link: "/procurement"
-                    );
-                }
-
-                // Auto send emails to suppliers
-                foreach (var phieuId in approvedPhieuIds)
-                {
-                    await SendEmailToSupplierInternal(phieuId, dto.UserId);
-                }
-
-                return Ok(new { message = splitCount > 0 ? $"Đã phê duyệt và tách thành {splitCount + 1} phiếu nhập hàng!" : "Đã phê duyệt đề xuất nhập hàng!" });
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi xử lý duyệt và tách phiếu.", error = ex.Message });
             }
         }
@@ -605,176 +638,187 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPut("{id}/approve-items")]
         public async Task<IActionResult> ApproveSelectedItems(int id, [FromBody] ApproveItemsDto dto)
         {
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
-                if (p == null) return NotFound();
-
-                // 1. (ĐÃ BỎ LOGIC THU HỒI): Không thu hồi các phiếu đã tách. 
-                // Phiếu nào đã tách ra (Đã Duyệt) thì giữ nguyên, không xóa đi tạo lại để tránh gửi email 2 lần.
-                // Các item đã tách sẽ không nằm trong p.CTPNs nữa, nên sẽ tự động bị bỏ qua trong lần xử lý này.
-
-
-                var approvedItems = p.CTPNs.Where(c => dto.MacTPNDuyet.Contains(c.MaCTPN)).ToList();
-                var revisionItems = p.CTPNs.Where(c => dto.MacTPNSua.Contains(c.MaCTPN)).ToList();
-                var rejectedItems = p.CTPNs.Where(c => dto.MacTPNTuChoi.Contains(c.MaCTPN)).ToList();
-
-                // Cập nhật thông tin chi tiết (Số lượng, Đơn giá, NCC) nếu có gửi kèm
-                if (dto.ChiTietUpdate != null && dto.ChiTietUpdate.Any())
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    foreach (var upd in dto.ChiTietUpdate)
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        var item = p.CTPNs.FirstOrDefault(x => x.MaCTPN == upd.MaCTPN);
-                        if (item == null && upd.MaCTPN == 0) // Fallback cho trường hợp cũ hoặc mapping theo SanPham
-                             item = p.CTPNs.FirstOrDefault(x => x.MaSanPham == upd.MaSanPham);
+                        var p = await _ctx.PhieuNhaps.Include(x => x.CTPNs).FirstOrDefaultAsync(x => x.MaPhieuNhap == id);
+                        if (p == null) return NotFound();
 
-                        if (item != null)
+                        // 1. (ĐÃ BỎ LOGIC THU HỒI): Không thu hồi các phiếu đã tách. 
+                        // Phiếu nào đã tách ra (Đã Duyệt) thì giữ nguyên, không xóa đi tạo lại để tránh gửi email 2 lần.
+                        // Các item đã tách sẽ không nằm trong p.CTPNs nữa, nên sẽ tự động bị bỏ qua trong lần xử lý này.
+
+
+                        var approvedItems = p.CTPNs.Where(c => dto.MacTPNDuyet.Contains(c.MaCTPN)).ToList();
+                        var revisionItems = p.CTPNs.Where(c => dto.MacTPNSua.Contains(c.MaCTPN)).ToList();
+                        var rejectedItems = p.CTPNs.Where(c => dto.MacTPNTuChoi.Contains(c.MaCTPN)).ToList();
+
+                        // Cập nhật thông tin chi tiết (Số lượng, Đơn giá, NCC) nếu có gửi kèm
+                        if (dto.ChiTietUpdate != null && dto.ChiTietUpdate.Any())
                         {
-                            item.SoLuong = upd.SoLuong;
-                            item.DonGia = upd.DonGia;
-                            item.ThanhTien = upd.SoLuong * upd.DonGia;
-                            item.MaNhaCungCap = (upd.MaNhaCungCap > 0) ? upd.MaNhaCungCap : item.MaNhaCungCap;
-                            item.MaKhoHang = upd.MaKhoHang ?? item.MaKhoHang;
-                            item.GhiChu = upd.GhiChu;
-                        }
-                    }
-                }
-
-                if (approvedItems.Any())
-                {
-                    // Tách các mục được duyệt theo NCC
-                    var approvedWithSupplier = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).ToList();
-
-                    // TRƯỜNG HỢP ĐẶC BIỆT: Nếu chỉ duyệt cho 1 NCC duy nhất VÀ tất cả sản phẩm trong phiếu đều được duyệt (không có rejected/revision)
-                    // Thì cập nhật trực tiếp trên phiếu gốc, không cần tách.
-                    if (approvedWithSupplier.Count == 1 && approvedItems.Count == p.CTPNs.Count)
-                    {
-                        var maNCC = approvedWithSupplier[0].Key;
-                        p.TrangThai = "Đã Duyệt";
-                        p.MaNhaCungCap = maNCC;
-                        p.TongTien = approvedItems.Sum(x => x.ThanhTien ?? 0);
-                        
-                        foreach (var item in approvedItems)
-                        {
-                            item.TrangThai = "Đã Duyệt";
-                        }
-
-                        _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
-                            MaPhieuNhap = id,
-                            TrangThaiMoi = "Đã Duyệt",
-                            NoiDungThayDoi = "Phiếu được duyệt trực tiếp (toàn bộ sản phẩm cùng 1 NCC).",
-                            MaNguoiThucHien = dto.UserId
-                        });
-                        
-                        // TỰ ĐỘNG GỬI EMAIL CHO NCC
-                        await SendEmailToSupplierInternal(id, dto.UserId);
-                    }
-                    else
-                    {
-                        // Logic tách phiếu như cũ
-                        foreach (var group in approvedWithSupplier)
-                        {
-                            var maNCC = group.Key;
-                            // Tạo phiếu mới cho mỗi nhóm NCC đã duyệt
-                            var newApprovedPhieu = new PhieuNhap
+                            foreach (var upd in dto.ChiTietUpdate)
                             {
-                                NgayNhap = p.NgayNhap,
-                                TrangThai = "Đã Duyệt",
-                                GhiChu = $"[TáchTừPhiếu:{id}] " + p.GhiChu,
-                                MaNhaCungCap = maNCC,
-                                MaNhanVien = p.MaNhanVien,
-                                NgayTao = DateTime.UtcNow,
-                                NgayCapNhat = DateTime.UtcNow,
-                                TongTien = group.Sum(x => x.ThanhTien ?? 0),
-                                ThanhToan = 0
-                            };
-                            _ctx.PhieuNhaps.Add(newApprovedPhieu);
-                            await _ctx.SaveChangesAsync();
+                                var item = p.CTPNs.FirstOrDefault(x => x.MaCTPN == upd.MaCTPN);
+                                if (item == null && upd.MaCTPN == 0) // Fallback cho trường hợp cũ hoặc mapping theo SanPham
+                                     item = p.CTPNs.FirstOrDefault(x => x.MaSanPham == upd.MaSanPham);
 
-                            foreach (var item in group)
-                            {
-                                item.MaPhieuNhap = newApprovedPhieu.MaPhieuNhap;
-                                item.TrangThai = "Đã Duyệt";
+                                if (item != null)
+                                {
+                                    item.SoLuong = upd.SoLuong;
+                                    item.DonGia = upd.DonGia;
+                                    item.ThanhTien = upd.SoLuong * upd.DonGia;
+                                    item.MaNhaCungCap = (upd.MaNhaCungCap > 0) ? upd.MaNhaCungCap : item.MaNhaCungCap;
+                                    item.MaKhoHang = upd.MaKhoHang ?? item.MaKhoHang;
+                                    item.GhiChu = upd.GhiChu;
+                                }
                             }
+                        }
 
-                            _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
-                                MaPhieuNhap = newApprovedPhieu.MaPhieuNhap,
-                                TrangThaiMoi = "Đã Duyệt",
-                                NoiDungThayDoi = $"Phiếu được duyệt và tách từ {p.MaPN} theo nhà cung cấp.",
+                        if (approvedItems.Any())
+                        {
+                            // Tách các mục được duyệt theo NCC
+                            var approvedWithSupplier = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).ToList();
+
+                            // TRƯỜNG HỢP ĐẶC BIỆT: Nếu chỉ duyệt cho 1 NCC duy nhất VÀ tất cả sản phẩm trong phiếu đều được duyệt (không có rejected/revision)
+                            // Thì cập nhật trực tiếp trên phiếu gốc, không cần tách.
+                            if (approvedWithSupplier.Count == 1 && approvedItems.Count == p.CTPNs.Count)
+                            {
+                                var maNCC = approvedWithSupplier[0].Key;
+                                p.TrangThai = "Đã Duyệt";
+                                p.MaNhaCungCap = maNCC;
+                                p.TongTien = approvedItems.Sum(x => x.ThanhTien ?? 0);
+                                
+                                foreach (var item in approvedItems)
+                                {
+                                    item.TrangThai = "Đã Duyệt";
+                                }
+
+                                _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                                    MaPhieuNhap = id,
+                                    TrangThaiMoi = "Đã Duyệt",
+                                    NoiDungThayDoi = "Phiếu được duyệt trực tiếp (toàn bộ sản phẩm cùng 1 NCC).",
+                                    MaNguoiThucHien = dto.UserId
+                                });
+                                
+                                // TỰ ĐỘNG GỬI EMAIL CHO NCC
+                                await SendEmailToSupplierInternal(id, dto.UserId);
+                            }
+                            else
+                            {
+                                // Logic tách phiếu như cũ
+                                foreach (var group in approvedWithSupplier)
+                                {
+                                    var maNCC = group.Key;
+                                    // Tạo phiếu mới cho mỗi nhóm NCC đã duyệt
+                                    var newApprovedPhieu = new PhieuNhap
+                                    {
+                                        NgayNhap = p.NgayNhap,
+                                        TrangThai = "Đã Duyệt",
+                                        GhiChu = $"[TáchTừPhiếu:{id}] " + p.GhiChu,
+                                        MaNhaCungCap = maNCC,
+                                        MaNhanVien = p.MaNhanVien,
+                                        NgayTao = DateTime.UtcNow,
+                                        NgayCapNhat = DateTime.UtcNow,
+                                        TongTien = group.Sum(x => x.ThanhTien ?? 0),
+                                        ThanhToan = 0
+                                    };
+                                    _ctx.PhieuNhaps.Add(newApprovedPhieu);
+                                    await _ctx.SaveChangesAsync();
+
+                                    foreach (var item in group)
+                                    {
+                                        item.MaPhieuNhap = newApprovedPhieu.MaPhieuNhap;
+                                        item.TrangThai = "Đã Duyệt";
+                                    }
+
+                                    _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                                        MaPhieuNhap = newApprovedPhieu.MaPhieuNhap,
+                                        TrangThaiMoi = "Đã Duyệt",
+                                        NoiDungThayDoi = $"Phiếu được duyệt và tách từ {p.MaPN} theo nhà cung cấp.",
+                                        MaNguoiThucHien = dto.UserId
+                                    });
+
+                                    // BẮT BUỘC SAVE CHANGES ĐỂ CÁC ITEM ĐƯỢC CHUYỂN SANG PHIẾU MỚI TRƯỚC KHI GỬI EMAIL
+                                    await _ctx.SaveChangesAsync();
+
+                                    // TỰ ĐỘNG GỬI EMAIL CHO NCC (TÁCH PHIẾU)
+                                    await SendEmailToSupplierInternal(newApprovedPhieu.MaPhieuNhap, dto.UserId);
+                                }
+                            }
+                        }
+
+                        if (rejectedItems.Any())
+                        {
+                            foreach (var item in rejectedItems)
+                            {
+                                item.TrangThai = "Từ Chối";
+                            }
+                        }
+
+                        if (revisionItems.Any())
+                        {
+                            foreach (var item in revisionItems)
+                            {
+                                item.TrangThai = "Yêu Cầu Sửa";
+                            }
+                        }
+
+                        // Cập nhật trạng thái tổng quát cho phiếu gốc
+                        var remainingItems = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).ToList();
+                        p.TongTien = remainingItems.Sum(c => c.ThanhTien ?? 0);
+
+                        if (remainingItems.Any())
+                        {
+                            if (remainingItems.Any(c => c.TrangThai == "Yêu Cầu Sửa")) p.TrangThai = "Yêu Cầu Sửa";
+                            else if (remainingItems.All(c => c.TrangThai == "Từ Chối")) p.TrangThai = "Từ Chối";
+                            else if (remainingItems.All(c => c.TrangThai == "Đã Duyệt")) p.TrangThai = "Đã Duyệt";
+                            else p.TrangThai = "Đang xử lý"; // Mixed state
+                        }
+                        else
+                        {
+                            p.TrangThai = "Đã Tách";
+                        }
+
+                        p.NgayCapNhat = DateTime.UtcNow;
+
+                        // Log lịch sử cho phiếu gốc (nếu không phải trường hợp đã log ở trên)
+                        var hasGeneralHistory = _ctx.ChangeTracker.Entries<LichSuPhieuNhap>()
+                            .Any(e => e.Entity.MaPhieuNhap == id && e.State == EntityState.Added);
+
+                        if (!hasGeneralHistory)
+                        {
+                            var supplierCount = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).Count();
+                            var isSplitMsg = (supplierCount > 1 || (approvedItems.Any() && approvedItems.Count != p.CTPNs.Count)) ? "(Đã tách)" : "";
+                            
+                            _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
+                            {
+                                MaPhieuNhap = id,
+                                TrangThaiMoi = p.TrangThai,
+                                NoiDungThayDoi = $"Xử lý chi tiết: Duyệt {approvedItems.Count} {isSplitMsg}, Sửa {revisionItems.Count}, Từ chối {rejectedItems.Count}.",
                                 MaNguoiThucHien = dto.UserId
                             });
-
-                            // BẮT BUỘC SAVE CHANGES ĐỂ CÁC ITEM ĐƯỢC CHUYỂN SANG PHIẾU MỚI TRƯỚC KHI GỬI EMAIL
-                            await _ctx.SaveChangesAsync();
-
-                            // TỰ ĐỘNG GỬI EMAIL CHO NCC (TÁCH PHIẾU)
-                            await SendEmailToSupplierInternal(newApprovedPhieu.MaPhieuNhap, dto.UserId);
                         }
+
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        return Ok(new { message = "Đã xử lý duyệt phiếu thành công!" });
                     }
-                }
-
-                if (rejectedItems.Any())
-                {
-                    foreach (var item in rejectedItems)
+                    catch (Exception ex)
                     {
-                        item.TrangThai = "Từ Chối";
+                        await transaction.RollbackAsync();
+                        throw;
                     }
-                }
-
-                if (revisionItems.Any())
-                {
-                    foreach (var item in revisionItems)
-                    {
-                        item.TrangThai = "Yêu Cầu Sửa";
-                    }
-                }
-
-                // Cập nhật trạng thái tổng quát cho phiếu gốc
-                var remainingItems = p.CTPNs.Where(c => c.MaPhieuNhap == p.MaPhieuNhap).ToList();
-                p.TongTien = remainingItems.Sum(c => c.ThanhTien ?? 0);
-
-                if (remainingItems.Any())
-                {
-                    if (remainingItems.Any(c => c.TrangThai == "Yêu Cầu Sửa")) p.TrangThai = "Yêu Cầu Sửa";
-                    else if (remainingItems.All(c => c.TrangThai == "Từ Chối")) p.TrangThai = "Từ Chối";
-                    else if (remainingItems.All(c => c.TrangThai == "Đã Duyệt")) p.TrangThai = "Đã Duyệt";
-                    else p.TrangThai = "Đang xử lý"; // Mixed state
-                }
-                else
-                {
-                    p.TrangThai = "Đã Tách";
-                }
-
-                p.NgayCapNhat = DateTime.UtcNow;
-
-                // Log lịch sử cho phiếu gốc (nếu không phải trường hợp đã log ở trên)
-                var hasGeneralHistory = _ctx.ChangeTracker.Entries<LichSuPhieuNhap>()
-                    .Any(e => e.Entity.MaPhieuNhap == id && e.State == EntityState.Added);
-
-                if (!hasGeneralHistory)
-                {
-                    var supplierCount = approvedItems.GroupBy(item => item.MaNhaCungCap ?? p.MaNhaCungCap).Count();
-                    var isSplitMsg = (supplierCount > 1 || (approvedItems.Any() && approvedItems.Count != p.CTPNs.Count)) ? "(Đã tách)" : "";
-                    
-                    _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap
-                    {
-                        MaPhieuNhap = id,
-                        TrangThaiMoi = p.TrangThai,
-                        NoiDungThayDoi = $"Xử lý chi tiết: Duyệt {approvedItems.Count} {isSplitMsg}, Sửa {revisionItems.Count}, Từ chối {rejectedItems.Count}.",
-                        MaNguoiThucHien = dto.UserId
-                    });
-                }
-
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "Đã xử lý duyệt phiếu thành công!" });
+                });
             }
             catch (Exception ex)
             {
                 Console.WriteLine("APPROVE ITEMS EXCEPTION: " + ex.ToString());
-                await transaction.RollbackAsync();
                 var innerMsg = ex.InnerException != null ? ex.InnerException.Message : "";
                 return StatusCode(500, new { message = "Lỗi xử lý duyệt một phần.", error = ex.Message + " | Inner: " + innerMsg });
             }

@@ -15,7 +15,11 @@ class SharedPreferencesService {
 
   static String getServerUrl() {
     // Mặc định lấy theo IP Wi-Fi hiện tại của bạn
-    String url = _prefs.getString('server_url') ?? 'http://192.168.1.6:5213/api/';
+    String url = _prefs.getString('server_url') ?? 'http://192.168.1.51:5000/api/';
+    if (url.contains('192.168.1.43')) {
+      url = url.replaceAll('192.168.1.43', '192.168.1.51');
+      _prefs.setString('server_url', url);
+    }
     if (!url.endsWith('/')) url += '/';
     return url;
   }

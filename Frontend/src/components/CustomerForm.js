@@ -19,9 +19,13 @@ function CustomerForm({ open, onClose, onSaved, initial = {} }) {
   const handleChange = (e) => { const { name, value } = e.target; setForm((s) => ({ ...s, [name]: value })); };
 
   const handleSubmit = () => {
+    if (!form.sdt || !form.sdt.trim()) {
+      alert("Vui lòng nhập Số điện thoại (SĐT sẽ dùng làm tên đăng nhập tài khoản của khách hàng).");
+      return;
+    }
     const payload = {
       MaKH: form.maKH, TenKH: form.tenKH, Sdt: form.sdt, Email: form.email,
-      DiaChi: form.diaChi, LoaiKH: form.loaiKH, MaSoThue: form.maSoThue, NguoiLienHe: form.nguoiLienHe,
+      DiaChi: form.diaChi, LoaiKH: '', MaSoThue: '', NguoiLienHe: '',
       TrangThai: !!form.trangThai,
     };
     onSaved(payload);
@@ -32,13 +36,11 @@ function CustomerForm({ open, onClose, onSaved, initial = {} }) {
       <DialogTitle>{initial && initial.maKhachHang ? 'Sửa Khách Hàng' : 'Thêm Khách Hàng'}</DialogTitle>
       <DialogContent dividers>
         <TextField fullWidth margin="normal" label="Tên Khách Hàng" name="tenKH" value={form.tenKH} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="SĐT" name="sdt" value={form.sdt} onChange={handleChange} />
+        <TextField fullWidth margin="normal" label="SĐT (Tài khoản đăng nhập)" name="sdt" value={form.sdt} onChange={handleChange} required helperText="SĐT dùng làm tên đăng nhập, mật khẩu mặc định là 123456" />
         <TextField fullWidth margin="normal" label="Email" name="email" value={form.email} onChange={handleChange} />
         <TextField fullWidth margin="normal" label="Địa Chỉ" name="diaChi" value={form.diaChi} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="Loại KH" name="loaiKH" value={form.loaiKH} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="Mã Số Thuế" name="maSoThue" value={form.maSoThue} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="Người Liên Hệ" name="nguoiLienHe" value={form.nguoiLienHe} onChange={handleChange} />
         
+
         {initial && initial.maKhachHang && (
           <Grid container spacing={2} sx={{ mt: 1, mb: 1, p: 2, bgcolor: '#f9f9f9', borderRadius: 1 }}>
             <Grid item xs={6}>

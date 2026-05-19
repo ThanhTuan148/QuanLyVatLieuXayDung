@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Typography, Paper, LinearProgress
 } from '@mui/material';
@@ -17,6 +17,7 @@ function CategoriesTab() {
   const [loading, setLoading] = useState(!cachedCategories);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const fileInputRef = useRef(null);
 
   const { permissions } = usePermissions();
   const canCreate = permissions?.products?.coTheTao ?? true;
@@ -137,13 +138,11 @@ function CategoriesTab() {
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Quản Lý Danh Mục (Loại Sản Phẩm)</Typography>
           <Typography variant="body2" color="textSecondary">Phân loại các nhóm vật liệu xây dựng</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-categories" onChange={handleImport} />
-          <label htmlFor="import-excel-categories">
-            <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
-              Nhập Excel
-            </Button>
-          </label>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+          <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>
+            Nhập Excel
+          </Button>
           <Button variant="outlined" startIcon={<FileDownloadIcon />} color="primary" onClick={handleExport}>
             Xuất Excel
           </Button>

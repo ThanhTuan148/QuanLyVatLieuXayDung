@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'package:intl/intl.dart';
+import '../../core/permission_helper.dart';
+
 
 class PromotionsTab extends StatefulWidget {
   const PromotionsTab({super.key});
@@ -405,20 +407,22 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_tabController.index == 0) _showAddEditDialog('SanPham');
-          else if (_tabController.index == 1) _showAddEditDialog('GiaSoc');
-          else if (_tabController.index == 2) _showAddEditDialog('UuDai');
-          else _showAddEditDialog('Coupon');
-        },
-        icon: const Icon(Icons.add),
-        label: Text(
-          _tabController.index == 0 ? 'THÊM KHUYẾN MÃI' : (_tabController.index == 1 ? 'TẠO FLASH SALE' : (_tabController.index == 2 ? 'TẠO ƯU ĐÃI' : 'TẠO COUPON'))
-        ),
-        backgroundColor: Colors.pink.shade600,
-        foregroundColor: Colors.white,
-      ),
+      floatingActionButton: PermissionHelper.canCreate('PROMOTIONS')
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                if (_tabController.index == 0) _showAddEditDialog('SanPham');
+                else if (_tabController.index == 1) _showAddEditDialog('GiaSoc');
+                else if (_tabController.index == 2) _showAddEditDialog('UuDai');
+                else _showAddEditDialog('Coupon');
+              },
+              icon: const Icon(Icons.add),
+              label: Text(
+                _tabController.index == 0 ? 'THÊM KHUYẾN MÃI' : (_tabController.index == 1 ? 'TẠO FLASH SALE' : (_tabController.index == 2 ? 'TẠO ƯU ĐÃI' : 'TẠO COUPON'))
+              ),
+              backgroundColor: Colors.pink.shade600,
+              foregroundColor: Colors.white,
+            )
+          : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -543,8 +547,10 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('SanPham', p as Map<String, dynamic>)),
-                          TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('SanPham', p as Map<String, dynamic>)),
+                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),
                     ],
@@ -595,8 +601,10 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('GiaSoc', p as Map<String, dynamic>)),
-                          TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('GiaSoc', p as Map<String, dynamic>)),
+                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),
                     ],
@@ -662,8 +670,10 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('UuDai', p as Map<String, dynamic>)),
-                          TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('UuDai', p as Map<String, dynamic>)),
+                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),
                     ],
@@ -726,8 +736,10 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('Coupon', p as Map<String, dynamic>)),
-                          TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                          if (PermissionHelper.canEdit('PROMOTIONS'))
+                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('Coupon', p as Map<String, dynamic>)),
+                          if (PermissionHelper.canDelete('PROMOTIONS'))
+                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
                         ],
                       )),
                     ],

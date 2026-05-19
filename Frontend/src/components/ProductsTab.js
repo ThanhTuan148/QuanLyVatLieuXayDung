@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Typography, Paper, Chip, LinearProgress, TextField, InputAdornment, Card, CardContent, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Tooltip
@@ -25,6 +25,7 @@ function ProductsTab({ showGiftsOnly = false }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewImages, setViewImages] = useState(null);
+  const fileInputRef = useRef(null);
 
   const { permissions } = usePermissions();
   const canCreate = permissions?.products?.coTheTao ?? false;
@@ -233,15 +234,13 @@ function ProductsTab({ showGiftsOnly = false }) {
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{showGiftsOnly ? '🎁 Quản Lý Quà Tặng' : '📦 Quản Lý Sản Phẩm'}</Typography>
           <Typography variant="body2" color="textSecondary">{showGiftsOnly ? 'Danh sách sản phẩm quà tặng cho khách hàng' : 'Cơ sở dữ liệu vật liệu xây dựng'}</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {canCreate && (
             <>
-              <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-products" onChange={handleImport} />
-              <label htmlFor="import-excel-products">
-                <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
-                  Nhập Excel
-                </Button>
-              </label>
+              <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+              <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>
+                Nhập Excel
+              </Button>
             </>
           )}
           <Button variant="outlined" startIcon={<FileDownloadIcon />} color="primary" onClick={handleExport}>

@@ -43,34 +43,129 @@ namespace BuildingMaterialAPI.Controllers
             return nv == null ? NotFound() : Ok(nv);
         }
 
-        // ─── CREATE EMPLOYEE ───────────────────────────────────
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] NhanVienDto dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.TenNV)) return BadRequest(new { message = "Tên nhân viên không được trống" });
-            var nv = new NhanVien
+            if (dto == null || string.IsNullOrWhiteSpace(dto.TenNV)) 
+                return BadRequest(new { message = "Tên nhân viên không được trống" });
+
+            if (dto.MaVaiTro.HasValue && dto.MaVaiTro.Value > 0 && string.IsNullOrWhiteSpace(dto.Sdt))
             {
-                TenNV = dto.TenNV, Sdt = dto.Sdt, Email = dto.Email, DiaChi = dto.DiaChi,
-                TrangThai = dto.TrangThai, NgayTao = DateTime.UtcNow, NgayCapNhat = DateTime.UtcNow,
-                SucChuaToiDa = dto.SucChuaToiDa,
-                ChuKy = dto.ChuKy
-            };
-            _ctx.NhanViens.Add(nv);
-            try { await _ctx.SaveChangesAsync(); return Ok(new { maNhanVien = nv.MaNhanVien }); }
-            catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
+                return BadRequest(new { message = "Số điện thoại là bắt buộc để tạo tài khoản đăng nhập cho nhân viên." });
+            }
+
+            var executionStrategy = _ctx.Database.CreateExecutionStrategy();
+            try
+            {
+                return await executionStrategy.ExecuteAsync<IActionResult>(async () =>
+                {
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
+                    {
+                        int? maTaiKhoan = null;
+
+                        if (dto.MaVaiTro.HasValue && dto.MaVaiTro.Value > 0)
+                        {
+                            var existingUser = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.TenTK == dto.Sdt);
+                            if (existingUser != null)
+                            {
+                                return BadRequest(new { message = "Số điện thoại này đã được sử dụng cho một tài khoản khác." });
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(dto.Email))
+                            {
+                                var existingEmail = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.Email == dto.Email);
+                                if (existingEmail != null)
+                                {
+                                    return BadRequest(new { message = "Địa chỉ email này đã được sử dụng cho một tài khoản khác." });
+                                }
+                            }
+
+                            var tk = new TaiKhoan
+                            {
+                                TenTK = dto.Sdt,
+                                MatKhau = HashPassword("123456"),
+                                Email = dto.Email ?? "",
+                                MaVaiTro = dto.MaVaiTro.Value,
+                                TrangThai = dto.TrangThai,
+                                NgayTao = DateTime.UtcNow,
+                                NgayCapNhat = DateTime.UtcNow
+                            };
+
+                            _ctx.TaiKhoans.Add(tk);
+                            await _ctx.SaveChangesAsync();
+                            maTaiKhoan = tk.MaTaiKhoan;
+                        }
+
+                        string maNV = dto.MaNV;
+                        if (string.IsNullOrWhiteSpace(maNV))
+                        {
+                            var count = await _ctx.NhanViens.CountAsync() + 1;
+                            maNV = "NV" + count.ToString("D3");
+                        }
+
+                        var nv = new NhanVien
+                        {
+                            MaNV = maNV,
+                            TenNV = dto.TenNV,
+                            Sdt = dto.Sdt,
+                            Email = dto.Email,
+                            DiaChi = dto.DiaChi,
+                            TrangThai = dto.TrangThai,
+                            SucChuaToiDa = dto.SucChuaToiDa,
+                            ChuKy = dto.ChuKy,
+                            MaTaiKhoan = maTaiKhoan,
+                            NgayTao = DateTime.UtcNow,
+                            NgayCapNhat = DateTime.UtcNow
+                        };
+
+                        _ctx.NhanViens.Add(nv);
+                        await _ctx.SaveChangesAsync();
+
+                        await transaction.CommitAsync();
+                        return Ok(new { maNhanVien = nv.MaNhanVien, maNV = nv.MaNV });
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
+            }
         }
 
         // ─── UPDATE EMPLOYEE ───────────────────────────────────
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] NhanVienDto dto)
         {
-            var nv = await _ctx.NhanViens.FindAsync(id);
+            var nv = await _ctx.NhanViens.Include(n => n.TaiKhoan).FirstOrDefaultAsync(n => n.MaNhanVien == id);
             if (nv == null) return NotFound();
+
+            var currentEmpId = GetCurrentEmployeeId();
+            if (currentEmpId.HasValue && currentEmpId.Value == id && nv.TrangThai != dto.TrangThai)
+            {
+                return BadRequest(new { message = "Bạn không thể tự thay đổi trạng thái làm việc của chính mình." });
+            }
+
             nv.TenNV = dto.TenNV ?? nv.TenNV;
-            nv.Sdt = dto.Sdt; nv.Email = dto.Email; nv.DiaChi = dto.DiaChi;
+            nv.Sdt = dto.Sdt; 
+            nv.Email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : nv.Email; 
+            nv.DiaChi = dto.DiaChi;
             nv.TrangThai = dto.TrangThai; nv.NgayCapNhat = DateTime.UtcNow;
             nv.SucChuaToiDa = dto.SucChuaToiDa;
             nv.ChuKy = dto.ChuKy ?? nv.ChuKy;
+
+            if (nv.TaiKhoan != null)
+            {
+                nv.TaiKhoan.TrangThai = dto.TrangThai;
+                nv.TaiKhoan.Email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : nv.TaiKhoan.Email;
+                nv.TaiKhoan.NgayCapNhat = DateTime.UtcNow;
+            }
+
             try { await _ctx.SaveChangesAsync(); return Ok(nv); }
             catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
         }
@@ -272,6 +367,13 @@ namespace BuildingMaterialAPI.Controllers
         {
             var nv = await _ctx.NhanViens.Include(n => n.TaiKhoan).FirstOrDefaultAsync(n => n.MaNhanVien == id);
             if (nv == null) return NotFound();
+
+            var currentEmpId = GetCurrentEmployeeId();
+            if (currentEmpId.HasValue && currentEmpId.Value == id)
+            {
+                return BadRequest(new { message = "Bạn không thể tự thay đổi trạng thái làm việc của chính mình." });
+            }
+
             nv.TrangThai = !nv.TrangThai;
             if (nv.TaiKhoan != null) nv.TaiKhoan.TrangThai = nv.TrangThai;
             nv.NgayCapNhat = DateTime.UtcNow;
@@ -313,6 +415,20 @@ namespace BuildingMaterialAPI.Controllers
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
             return Convert.ToBase64String(bytes);
         }
+
+        private int? GetCurrentEmployeeId()
+        {
+            var authHeader = Request.Headers["Authorization"].ToString();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer token_")) return null;
+            
+            var parts = authHeader.Replace("Bearer token_", "").Split('_');
+            if (parts.Length > 0 && int.TryParse(parts[0], out int accountId))
+            {
+                var tk = _ctx.TaiKhoans.Include(t => t.NhanVien).FirstOrDefault(t => t.MaTaiKhoan == accountId);
+                return tk?.NhanVien?.MaNhanVien;
+            }
+            return null;
+        }
     }
 
     // ─── DTOs ──────────────────────────────────────────────────
@@ -326,6 +442,7 @@ namespace BuildingMaterialAPI.Controllers
         public bool TrangThai { get; set; } = true;
         public string? SucChuaToiDa { get; set; }
         public string? ChuKy { get; set; }
+        public int? MaVaiTro { get; set; }
     }
 
     public class ChangeRoleDto { public int MaVaiTro { get; set; } }

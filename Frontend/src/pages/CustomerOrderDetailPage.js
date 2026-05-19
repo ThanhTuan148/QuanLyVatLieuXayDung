@@ -275,26 +275,33 @@ const CustomerOrderDetailPage = () => {
         >
           Đơn hàng của tôi
         </Link>
-        <Typography color="text.primary">Chi tiết #{(order.maHD || order.maHoaDon)}</Typography>
+        <Typography color="text.primary">Chi tiết đơn hàng</Typography>
       </Breadcrumbs>
 
       {/* Header Info */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" fontWeight={800} gutterBottom>
-            Đơn hàng #{order.maHD || order.maHoaDon}
+          <Typography variant="h4" fontWeight={800} gutterBottom sx={{ color: '#1a202c' }}>
+            Chi Tiết Đơn Hàng
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <DateIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            <Typography variant="body2" color="text.secondary">
-              Ngày đặt: {order.ngayLap ? new Date(order.ngayLap).toLocaleString('vi-VN') : 'N/A'}
-            </Typography>
-          </Box>
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap sx={{ gap: 1.5 }}>
+            <Chip 
+              label={`Mã đơn: ${order.maHD || order.maHoaDon}`} 
+              size="small" 
+              sx={{ bgcolor: '#edf2f7', color: '#4a5568', fontWeight: 600, borderRadius: '6px', px: 0.5 }} 
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <DateIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" color="text.secondary">
+                Ngày đặt: {order.ngayLap ? new Date(order.ngayLap).toLocaleString('vi-VN') : 'N/A'}
+              </Typography>
+            </Box>
+          </Stack>
         </Box>
         <Chip
           label={getStatusLabel(order.trangThai)}
           color={getStatusColor(order.trangThai)}
-          sx={{ fontWeight: 700, px: 2, height: 40, fontSize: '1rem' }}
+          sx={{ fontWeight: 700, px: 2, height: 40, fontSize: '0.95rem', borderRadius: '10px' }}
         />
       </Box>
 

@@ -457,7 +457,6 @@ const ProductDetailPage = () => {
                >
                  Thêm vào yêu thích
                </Button>
-               <Button startIcon={<RulerIcon />} variant="text" sx={{ color: '#555', textTransform: 'none', fontWeight: 600 }}>Hướng dẫn kỹ thuật</Button>
             </Box>
 
           </Grid>
@@ -537,12 +536,13 @@ const ProductDetailPage = () => {
                     {product.thuongHieu || 'Sản phẩm tiêu chuẩn'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                     <Typography variant="body2" sx={{ fontWeight: 600, mr: 1, display: {xs: 'none', sm: 'block'} }}>Chia sẻ:</Typography>
-                     <IconButton size="small" sx={{ bgcolor: '#3b5998', color: '#fff', '&:hover': { bgcolor: '#2d4373'} }}><FacebookIcon fontSize="small" /></IconButton>
-                     <IconButton size="small" sx={{ bgcolor: '#cb2027', color: '#fff', '&:hover': { bgcolor: '#9f191f'} }}><PinterestIcon fontSize="small" /></IconButton>
-                     <Button variant="contained" sx={{ ml: 2, bgcolor: '#f0a06c', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover':{ bgcolor: '#cc7a4a'} }}>
-                       Liên hệ tư vấn
-                     </Button>
+                    <Button 
+                      variant="contained" 
+                      onClick={() => navigate('/contact')}
+                      sx={{ bgcolor: '#f0a06c', color: '#fff', borderRadius: '20px', textTransform: 'none', px: 3, '&:hover':{ bgcolor: '#cc7a4a'} }}
+                    >
+                      Liên hệ ngay
+                    </Button>
                   </Box>
                </Box>
                <Typography variant="body2" sx={{ color: '#888', mb: 3 }}>

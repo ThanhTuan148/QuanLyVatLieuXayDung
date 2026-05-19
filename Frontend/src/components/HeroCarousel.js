@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import teamService from '../services/teamService';
 
 const DEFAULT_SLIDES = [
@@ -19,7 +20,7 @@ const DEFAULT_SLIDES = [
 const SHOPPING_SLIDES = [
   {
     bg: '#f4f3ef',
-    label: 'BỘ SƯU TẬP ĐẶC BIỆT',
+    label: 'VẬT LIỆU TIÊU BIỂU',
     shortName: 'GẠCH MEN',
     name: 'GẠCH MEN CAO CẤP IMPERIAL',
     id: 'Bề mặt phủ men Nano kháng khuẩn siêu bóng, hoa văn đá cẩm thạch tự nhiên sang trọng.',
@@ -67,15 +68,49 @@ const SHOPPING_SLIDES = [
   },
 ];
 
-const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode = "team" }) => {
+const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode = "team", products = [] }) => {
   const [slides, setSlides] = useState(mode === "shopping" ? SHOPPING_SLIDES : DEFAULT_SLIDES);
   const [active, setActive] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [mobile, setMobile] = useState(window.innerWidth < 640);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (mode === "shopping") {
-      setSlides(SHOPPING_SLIDES);
+      if (products && products.length > 0) {
+        // Map products dynamically based on keywords for each slide type
+        const keyMap = [
+          { keys: ['gạch', 'men', 'gach'], fallbackIdx: 0 },
+          { keys: ['thép', 'sắt', 'sat', 'thep'], fallbackIdx: 1 },
+          { keys: ['kính', 'cát', 'đá', 'kinh', 'cat', 'da'], fallbackIdx: 2 },
+          { keys: ['xi măng', 'ximang', 'insee', 'hà tiên'], fallbackIdx: 3 },
+          { keys: ['ngói', 'mái', 'ngoi', 'mai'], fallbackIdx: 4 },
+          { keys: ['sơn', 'dulux', 'son'], fallbackIdx: 5 },
+        ];
+
+        const mappedSlides = SHOPPING_SLIDES.map((slide, idx) => {
+          const mapping = keyMap[idx] || { keys: [] };
+          // Find the first product that matches the category keywords
+          const matchedProduct = products.find(p => {
+            const name = (p.tenSP || '').toLowerCase();
+            const cat = (p.tenLoai || p.tenDanhMuc || '').toLowerCase();
+            return mapping.keys.some(k => name.includes(k) || cat.includes(k));
+          }) || products[idx % products.length]; // fallback to any product if no keyword matches
+
+          if (matchedProduct) {
+            return {
+              ...slide,
+              name: matchedProduct.tenSP.toUpperCase(),
+              id: matchedProduct.moTa || matchedProduct.tenLoai || slide.id,
+              targetProductId: matchedProduct.maSanPham || matchedProduct.maSP,
+            };
+          }
+          return slide;
+        });
+        setSlides(mappedSlides);
+      } else {
+        setSlides(SHOPPING_SLIDES);
+      }
       return;
     }
     const fetchTeam = async () => {
@@ -103,7 +138,7 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
       }
     };
     fetchTeam();
-  }, [mode]);
+  }, [mode, products]);
 
   useEffect(() => {
     slides.forEach(s => { const i = new Image(); i.src = s.img; });
@@ -220,8 +255,17 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
                       flexDirection: 'column',
                       justifyContent: 'flex-end',
                       pointerEvents: 'auto',
-                      zIndex: 30
-                    }}>
+                      zIndex: 30,
+                      cursor: s.targetProductId ? 'pointer' : 'default',
+                    }}
+                      onClick={() => {
+                        if (s.targetProductId) {
+                          navigate(`/product/${s.targetProductId}`);
+                        } else {
+                          window.location.href = ctaLink;
+                        }
+                      }}
+                    >
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(12px)', padding: '6px 18px', borderRadius: 999, marginBottom: 12, width: 'fit-content', border: '1px solid rgba(255,255,255,0.5)' }}>
                         <span style={{ fontSize: 12, fontWeight: 700, color: '#F7DC6F', letterSpacing: '0.15em' }}>{s.label}</span>
                       </div>
@@ -232,10 +276,26 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
                         {s.id}
                       </p>
                       <div>
-                        <a href={ctaLink} style={{ backgroundColor: '#ef4d23', color: '#fff', padding: mobile ? '10px 24px' : '14px 36px', borderRadius: 999, fontSize: mobile ? 13 : 15, fontWeight: 700, textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.1em', boxShadow: '0 10px 25px rgba(239, 77, 35, 0.4)', transition: 'transform 200ms, background-color 200ms', display: 'inline-block' }}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (s.targetProductId) {
+                              navigate(`/product/${s.targetProductId}`);
+                            } else {
+                              window.location.href = ctaLink;
+                            }
+                          }}
+                          style={{
+                            border: 'none',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            backgroundColor: '#ef4d23', color: '#fff', padding: mobile ? '10px 24px' : '14px 36px', borderRadius: 999, fontSize: mobile ? 13 : 15, fontWeight: 700, textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.1em', boxShadow: '0 10px 25px rgba(239, 77, 35, 0.4)', transition: 'transform 200ms, background-color 200ms', display: 'inline-block'
+                          }}
                           onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.backgroundColor = '#d9431d'; }}
                           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.backgroundColor = '#ef4d23'; }}
-                        >{ctaLabel}</a>
+                        >
+                          {ctaLabel}
+                        </button>
                       </div>
                     </div>
                   </>

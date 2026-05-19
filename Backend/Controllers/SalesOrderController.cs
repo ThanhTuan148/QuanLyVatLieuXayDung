@@ -26,34 +26,11 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetAll()
         {
             var orders = await _ctx.HoaDons
+                .AsNoTracking()
                 .Include(h => h.KhachHang)
                 .Include(h => h.NhanVien)
-                .Include(h => h.CTHDs)
                 .OrderByDescending(h => h.NgayLap)
                 .ToListAsync();
-
-            // Self-healing check for all orders in list
-            bool changed = false;
-            foreach (var h in orders)
-            {
-                bool isReturnState = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả"));
-                if (h.TrangThai != "Hoàn thành" && h.TrangThai != "Đã hủy" && !isReturnState && h.CTHDs != null && h.CTHDs.Any())
-                {
-                    var totalOrdered = h.CTHDs.Sum(ct => ct.SoLuong);
-                    var totalDelivered = await _ctx.CTPhieuGiaoHangs
-                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.TrangThai.Contains("Đã giao"))
-                        .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
-
-                    if (totalDelivered >= totalOrdered && totalOrdered > 0)
-                    {
-                        h.TrangThai = "Hoàn thành";
-                        h.NgayGiao = DateTime.UtcNow;
-                        h.NgayCapNhat = DateTime.UtcNow;
-                        changed = true;
-                    }
-                }
-            }
-            if (changed) await _ctx.SaveChangesAsync();
 
             return Ok(orders.Select(h => new
             {
@@ -75,34 +52,12 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetByCustomer(int customerId)
         {
             var orders = await _ctx.HoaDons
+                .AsNoTracking()
                 .Where(h => h.MaKhachHang == customerId)
                 .Include(h => h.KhachHang)
                 .Include(h => h.NhanVien)
-                .Include(h => h.CTHDs)
                 .OrderByDescending(h => h.NgayLap)
                 .ToListAsync();
-
-            bool changed = false;
-            foreach (var h in orders)
-            {
-                bool isReturnState = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả"));
-                if (h.TrangThai != "Hoàn thành" && h.TrangThai != "Đã hủy" && !isReturnState && h.CTHDs != null && h.CTHDs.Any())
-                {
-                    var totalOrdered = h.CTHDs.Sum(ct => ct.SoLuong);
-                    var totalDelivered = await _ctx.CTPhieuGiaoHangs
-                        .Where(c => c.PhieuGiaoHang.MaHoaDon == h.MaHoaDon && c.TrangThai.Contains("Đã giao"))
-                        .SumAsync(c => (int?)c.SoLuongGiao) ?? 0;
-
-                    if (totalDelivered >= totalOrdered && totalOrdered > 0)
-                    {
-                        h.TrangThai = "Hoàn thành";
-                        h.NgayGiao = DateTime.UtcNow;
-                        h.NgayCapNhat = DateTime.UtcNow;
-                        changed = true;
-                    }
-                }
-            }
-            if (changed) await _ctx.SaveChangesAsync();
 
             return Ok(orders.Select(h => new
             {
@@ -360,482 +315,512 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> Create([FromBody] HoaDonDto dto)
         {
             if (dto == null) return BadRequest();
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
-            try {
-                // Ràng buộc thời gian giao hàng (tối đa 3 ngày)
-                if (dto.NgayGiao.HasValue)
-                {
-                    var maxDate = DateTime.UtcNow.Date.AddDays(3);
-                    if (dto.NgayGiao.Value.Date > maxDate)
-                    {
-                        return BadRequest(new { message = "Thời gian giao hàng dự kiến không được quá 3 ngày kể từ ngày đặt hàng." });
-                    }
-                }
-
-                // Check debt limit based on membership rank
-                if (dto.MaKhachHang.HasValue && (dto.PTTT?.Contains("nợ") == true || dto.PTTT?.Contains("sau") == true || dto.PTTT?.Contains("khi nhận hàng") == true))
-                {
-                    var kh = await _ctx.KhachHangs.FindAsync(dto.MaKhachHang.Value);
-                    if (kh != null)
-                    {
-                        decimal limit = kh.HangThanhVien switch
-                        {
-                            "Bạc" => 50000000,
-                            "Vàng" => 70000000,
-                            "Kim cương" => 100000000,
-                            _ => 20000000 // Default for Bronze/Others
-                        };
-
-                        var currentDebt = await _ctx.CongNos
-                            .Where(c => c.MaKhachHang == dto.MaKhachHang.Value && c.LoaiCongNo == "Phải thu")
-                            .SumAsync(c => c.SoTienConLai ?? 0);
-
-                        // Amount that will be added to debt (Total - initial payment)
-                        var newDebtAmount = dto.TongTien - (dto.PTTT.Contains("ATM") ? (dto.ThanhToan ?? 0) : 0);
-
-                        if (currentDebt + newDebtAmount > limit)
-                        {
-                            return BadRequest(new { 
-                                message = $"Bạn đã vượt quá hạn mức nợ cho phép của hạng {kh.HangThanhVien} ({limit:N0}đ). " +
-                                          $"Dư nợ hiện tại: {currentDebt:N0}đ. Vui lòng thanh toán bớt nợ cũ trước khi đặt đơn hàng mới." 
-                            });
-                        }
-                    }
-                }
-
-                var hd = new HoaDon
-                {
-                    NgayLap = dto.NgayLap ?? DateTime.UtcNow,
-                    NgayGiao = dto.NgayGiao, TongTien = dto.TongTien,
-                    GiamGia = dto.GiamGia, 
-                    ThanhToan = dto.PTTT?.Contains("ATM") == true ? (dto.ThanhToan ?? 0) : 0,
-                    SoTienPhaiThu = dto.PTTT?.Contains("ATM") == true ? 0 : (dto.ThanhToan ?? 0),
-                    PTTT = dto.PTTT, TrangThai = dto.TrangThai ?? "Chờ xử lý",
-                    GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang, MaKhuyenMai = dto.MaKhuyenMai,
-                    NgayTao = DateTime.UtcNow,
-
-                    
-                    // New fields
-                    TenNguoiNhan = dto.TenNguoiNhan,
-                    SdtNguoiNhan = dto.SdtNguoiNhan,
-                    EmailNguoiNhan = dto.EmailNguoiNhan,
-                    DiaChiGiaoHang = dto.DiaChiGiaoHang,
-                    YeuCauVat = dto.YeuCauVat,
-                    VatType = dto.VatType,
-                    VatBuyerName = dto.VatBuyerName,
-                    VatEmail = dto.VatEmail,
-                    VatAddress = dto.VatAddress,
-                    VatIdCard = dto.VatIdCard,
-                    VatPassport = dto.VatPassport,
-                    VatCompanyName = dto.VatCompanyName,
-                    VatCompanyAddress = dto.VatCompanyAddress,
-                    VatTaxId = dto.VatTaxId,
-                    VatBudgetCode = dto.VatBudgetCode,
-                    PhiVanChuyen = dto.PhiVanChuyen ?? 0,
-                    AnhBangChung = dto.AnhBangChung
-                };
-                _ctx.HoaDons.Add(hd);
-                await _ctx.SaveChangesAsync();
-
-                // Log history: Create
-                _ctx.LichSuHoaDons.Add(new LichSuHoaDon
-                {
-                    MaHoaDon = hd.MaHoaDon,
-                    TrangThaiMoi = hd.TrangThai,
-                    NoiDungThayDoi = "Đơn hàng đã được khởi tạo.",
-                    MaNguoiThucHien = dto.MaNhanVien
-                });
-                await _ctx.SaveChangesAsync();
-
-                // Cập nhật số lượng sử dụng mã giảm giá (nếu có)
-                if (hd.MaKhuyenMai.HasValue)
-                {
-                    var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
-                    if (km != null)
-                    {
-                        km.SoLuongDaDung++;
-                        km.NgayCapNhat = DateTime.Now;
-                    }
-                }
-                await _ctx.SaveChangesAsync();
-
-                PhieuXuatKho? pxk = null;
-                // Đơn POS bán tại quầy: tạo phiếu xuất kho ngay (vì hàng xuất ngay)
-                if (hd.TrangThai == "Hoàn thành")
-                {
-                    var creator = await _ctx.NhanViens.FindAsync(hd.MaNhanVien);
-                    pxk = new PhieuXuatKho
-                    {
-                        MaHoaDon = hd.MaHoaDon,
-                        MaNhanVien = hd.MaNhanVien,
-                        NgayXuat = DateTime.UtcNow,
-                        NgayTao = DateTime.UtcNow,
-                        NguoiXuat = creator?.TenNV ?? "Hệ thống",
-                        GhiChu = $"Xuất kho trực tiếp tại quầy - Đơn hàng {hd.MaHD}",
-                        ChuKyNguoiLap = creator?.ChuKy,
-                        TrangThai = "Chờ xuất" // Thủ kho xác nhận trước khi Quản lý duyệt
-                    };
-                    _ctx.PhieuXuatKhos.Add(pxk);
-                    await _ctx.SaveChangesAsync();
-                }
-
-            if (dto.Items != null && dto.Items.Any())
+            
+            var executionStrategy = _ctx.Database.CreateExecutionStrategy();
+            try
             {
-                foreach (var item in dto.Items)
+                return await executionStrategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
-                        .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
-                        .OrderBy(k => k.MaKhoHang)
-                        .ToListAsync();
-                    
-                    var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
-                    var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
-                    
-                    if (tongTonHienTai < item.SoLuong)
-                    {
-                        var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
-                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
-                    }
-
-                    _ctx.CTHDs.Add(new CTHD
-                    {
-                        MaHoaDon = hd.MaHoaDon,
-                        MaSanPham = item.MaSanPham,
-                        SoLuong = item.SoLuong,
-                        DonGia = item.DonGia,
-                        GiamGia = item.GiamGia,
-                        ThanhTien = (item.SoLuong * item.DonGia) - item.GiamGia,
-                        NgayTao = DateTime.UtcNow,
-                        DiaChiGiaoHang = item.DiaChiGiaoHang,
-                        TenNguoiNhan = item.TenNguoiNhan,
-                        SdtNguoiNhan = item.SdtNguoiNhan
-                    });
-
-                    int remainingToDeduct = item.SoLuong;
-                    
-                    foreach (var kho in khoList)
-                    {
-                        if (remainingToDeduct <= 0) break;
-                        
-                        int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
-                        
-                        if (hd.TrangThai == "Hoàn thành")
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try {
+                        // Ràng buộc thời gian giao hàng (tối đa 3 ngày)
+                        if (dto.NgayGiao.HasValue)
                         {
-                            kho.SoLuong -= deductAmount;
-                            
-                            if (pxk != null)
+                            var maxDate = DateTime.UtcNow.Date.AddDays(3);
+                            if (dto.NgayGiao.Value.Date > maxDate)
                             {
-                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
-                                {
-                                    MaPhieuXK = pxk.MaPhieuXK,
-                                    MaSanPham = item.MaSanPham,
-                                    SoLuong = deductAmount,
-                                    MaKho = kho.MaKhoHang,
-                                    DonGiaVon = kho.SanPham?.GiaNhap ?? 0
-                                });
+                                return BadRequest(new { message = "Thời gian giao hàng dự kiến không được quá 3 ngày kể từ ngày đặt hàng." });
                             }
                         }
-                        
-                        kho.SoLuongTon -= deductAmount;
-                        kho.NgayCapNhat = DateTime.UtcNow;
-                        remainingToDeduct -= deductAmount;
-                        
-                        if (kho.SoLuongTon <= (kho.SanPham?.MucTonToiThieu ?? 5))
+
+                        // Check debt limit based on membership rank
+                        if (dto.MaKhachHang.HasValue && (dto.PTTT?.Contains("nợ") == true || dto.PTTT?.Contains("sau") == true || dto.PTTT?.Contains("khi nhận hàng") == true))
                         {
-                            await _notificationService.SendToPermissionAsync(
-                                "inventory",
-                                "Cảnh báo tồn kho thấp",
-                                $"Sản phẩm {kho.SanPham?.TenSP} sắp hết hàng trong kho {kho.MaKhoHang} (Còn {kho.SoLuongTon} {kho.SanPham?.DonViTinh}).",
-                                "HeThong",
-                                link: "/inventory"
-                            );
+                            var kh = await _ctx.KhachHangs.FindAsync(dto.MaKhachHang.Value);
+                            if (kh != null)
+                            {
+                                decimal limit = kh.HangThanhVien switch
+                                {
+                                    "Bạc" => 50000000,
+                                    "Vàng" => 70000000,
+                                    "Kim cương" => 100000000,
+                                    _ => 20000000 // Default for Bronze/Others
+                                };
+
+                                var currentDebt = await _ctx.CongNos
+                                    .Where(c => c.MaKhachHang == dto.MaKhachHang.Value && c.LoaiCongNo == "Phải thu")
+                                    .SumAsync(c => c.SoTienConLai ?? 0);
+
+                                // Amount that will be added to debt (Total - initial payment)
+                                var newDebtAmount = dto.TongTien - (dto.PTTT.Contains("ATM") ? (dto.ThanhToan ?? 0) : 0);
+
+                                if (currentDebt + newDebtAmount > limit)
+                                {
+                                    return BadRequest(new { 
+                                        message = $"Bạn đã vượt quá hạn mức nợ cho phép của hạng {kh.HangThanhVien} ({limit:N0}đ). " +
+                                                  $"Dư nợ hiện tại: {currentDebt:N0}đ. Vui lòng thanh toán bớt nợ cũ trước khi đặt đơn hàng mới." 
+                                    });
+                                }
+                            }
                         }
-                    }
 
-                    // CẬP NHẬT SỐ LƯỢNG ĐÃ BÁN TRONG FLASH SALE / KHUYẾN MÃI
-                    var activePromos = await _ctx.KhuyenMaiDoiTuongs
-                        .Include(k => k.KhuyenMai)
-                        .Where(k => k.MaSanPham == item.MaSanPham && 
-                                    k.KhuyenMai.TrangThai && 
-                                    k.KhuyenMai.ThoiGianBatDau <= DateTime.Now && 
-                                    k.KhuyenMai.ThoiGianKetThuc >= DateTime.Now)
-                        .ToListAsync();
-                    
-                    foreach (var p in activePromos)
-                    {
-                        p.SoLuongDaBan += item.SoLuong;
-                    }
-                }
-            }
+                        var hd = new HoaDon
+                        {
+                            NgayLap = dto.NgayLap ?? DateTime.UtcNow,
+                            NgayGiao = dto.NgayGiao, TongTien = dto.TongTien,
+                            GiamGia = dto.GiamGia, 
+                            ThanhToan = dto.PTTT?.Contains("ATM") == true ? (dto.ThanhToan ?? 0) : 0,
+                            SoTienPhaiThu = dto.PTTT?.Contains("ATM") == true ? 0 : (dto.ThanhToan ?? 0),
+                            PTTT = dto.PTTT, TrangThai = dto.TrangThai ?? "Chờ xử lý",
+                            GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang, MaKhuyenMai = dto.MaKhuyenMai,
+                            NgayTao = DateTime.UtcNow,
+                            
+                            // New fields
+                            TenNguoiNhan = dto.TenNguoiNhan,
+                            SdtNguoiNhan = dto.SdtNguoiNhan,
+                            EmailNguoiNhan = dto.EmailNguoiNhan,
+                            DiaChiGiaoHang = dto.DiaChiGiaoHang,
+                            YeuCauVat = dto.YeuCauVat,
+                            VatType = dto.VatType,
+                            VatBuyerName = dto.VatBuyerName,
+                            VatEmail = dto.VatEmail,
+                            VatAddress = dto.VatAddress,
+                            VatIdCard = dto.VatIdCard,
+                            VatPassport = dto.VatPassport,
+                            VatCompanyName = dto.VatCompanyName,
+                            VatCompanyAddress = dto.VatCompanyAddress,
+                            VatTaxId = dto.VatTaxId,
+                            VatBudgetCode = dto.VatBudgetCode,
+                            PhiVanChuyen = dto.PhiVanChuyen ?? 0,
+                            AnhBangChung = dto.AnhBangChung
+                        };
+                        _ctx.HoaDons.Add(hd);
+                        await _ctx.SaveChangesAsync();
 
-                await _ctx.SaveChangesAsync(); 
-                await SyncCongNoFromHoaDon(hd.MaHoaDon);
-                if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
-                    await RecalculateCustomerTier(hd.MaKhachHang.Value);
+                        // Log history: Create
+                        _ctx.LichSuHoaDons.Add(new LichSuHoaDon
+                        {
+                            MaHoaDon = hd.MaHoaDon,
+                            TrangThaiMoi = hd.TrangThai,
+                            NoiDungThayDoi = "Đơn hàng đã được khởi tạo.",
+                            MaNguoiThucHien = dto.MaNhanVien
+                        });
+                        await _ctx.SaveChangesAsync();
 
-                // Gửi thông báo cho hệ thống/Admin về đơn hàng mới
-                await _notificationService.SendToPermissionAsync(
-                    "orders",
-                    "Đơn hàng mới",
-                    $"Có đơn hàng mới {hd.MaHD} từ {(string.IsNullOrEmpty(hd.TenNguoiNhan) ? "Khách hàng" : hd.TenNguoiNhan)}. Tổng tiền: {hd.TongTien:N0}đ",
-                    "DonHang",
-                    link: $"/orders"
-                );
+                        // Cập nhật số lượng sử dụng mã giảm giá (nếu có)
+                        if (hd.MaKhuyenMai.HasValue)
+                        {
+                            var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
+                            if (km != null)
+                            {
+                                km.SoLuongDaDung++;
+                                km.NgayCapNhat = DateTime.Now;
+                            }
+                        }
+                        await _ctx.SaveChangesAsync();
 
-                // Gửi thông báo cho khách hàng
-                if (hd.MaKhachHang.HasValue)
-                {
-                    var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
-                    if (kh?.MaTaiKhoan.HasValue == true)
-                    {
-                        await _notificationService.SendNotificationAsync(
-                            "Đặt hàng thành công",
-                            $"Đơn hàng {hd.MaHD} của bạn đã được đặt thành công. Chúng tôi sẽ sớm xử lý.",
+                        PhieuXuatKho? pxk = null;
+                        // Đơn POS bán tại quầy: tạo phiếu xuất kho ngay (vì hàng xuất ngay)
+                        if (hd.TrangThai == "Hoàn thành")
+                        {
+                            var creator = await _ctx.NhanViens.FindAsync(hd.MaNhanVien);
+                            pxk = new PhieuXuatKho
+                            {
+                                MaHoaDon = hd.MaHoaDon,
+                                MaNhanVien = hd.MaNhanVien,
+                                NgayXuat = DateTime.UtcNow,
+                                NgayTao = DateTime.UtcNow,
+                                NguoiXuat = creator?.TenNV ?? "Hệ thống",
+                                GhiChu = $"Xuất kho trực tiếp tại quầy - Đơn hàng {hd.MaHD}",
+                                ChuKyNguoiLap = creator?.ChuKy,
+                                TrangThai = "Chờ xuất" // Thủ kho xác nhận trước khi Quản lý duyệt
+                            };
+                            _ctx.PhieuXuatKhos.Add(pxk);
+                            await _ctx.SaveChangesAsync();
+                        }
+
+                        if (dto.Items != null && dto.Items.Any())
+                        {
+                            foreach (var item in dto.Items)
+                            {
+                                var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
+                                    .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
+                                    .OrderBy(k => k.MaKhoHang)
+                                    .ToListAsync();
+                                
+                                var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
+                                var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
+                                
+                                if (tongTonHienTai < item.SoLuong)
+                                {
+                                    var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
+                                    throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
+                                }
+
+                                _ctx.CTHDs.Add(new CTHD
+                                {
+                                    MaHoaDon = hd.MaHoaDon,
+                                    MaSanPham = item.MaSanPham,
+                                    SoLuong = item.SoLuong,
+                                    DonGia = item.DonGia,
+                                    GiamGia = item.GiamGia,
+                                    ThanhTien = (item.SoLuong * item.DonGia) - item.GiamGia,
+                                    NgayTao = DateTime.UtcNow,
+                                    DiaChiGiaoHang = item.DiaChiGiaoHang,
+                                    TenNguoiNhan = item.TenNguoiNhan,
+                                    SdtNguoiNhan = item.SdtNguoiNhan
+                                });
+
+                                int remainingToDeduct = item.SoLuong;
+                                
+                                foreach (var kho in khoList)
+                                {
+                                    if (remainingToDeduct <= 0) break;
+                                    
+                                    int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
+                                    
+                                    if (hd.TrangThai == "Hoàn thành")
+                                    {
+                                        kho.SoLuong -= deductAmount;
+                                        
+                                        if (pxk != null)
+                                        {
+                                            _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                            {
+                                                MaPhieuXK = pxk.MaPhieuXK,
+                                                MaSanPham = item.MaSanPham,
+                                                SoLuong = deductAmount,
+                                                MaKho = kho.MaKhoHang,
+                                                DonGiaVon = kho.SanPham?.GiaNhap ?? 0
+                                            });
+                                        }
+                                    }
+                                    
+                                    kho.SoLuongTon -= deductAmount;
+                                    kho.NgayCapNhat = DateTime.UtcNow;
+                                    remainingToDeduct -= deductAmount;
+                                    
+                                    if (kho.SoLuongTon <= (kho.SanPham?.MucTonToiThieu ?? 5))
+                                    {
+                                        await _notificationService.SendToPermissionAsync(
+                                            "inventory",
+                                            "Cảnh báo tồn kho thấp",
+                                            $"Sản phẩm {kho.SanPham?.TenSP} sắp hết hàng trong kho {kho.MaKhoHang} (Còn {kho.SoLuongTon} {kho.SanPham?.DonViTinh}).",
+                                            "HeThong",
+                                            link: "/inventory"
+                                        );
+                                    }
+                                }
+
+                                // CẬP NHẬT SỐ LƯỢNG ĐÃ BÁN TRONG FLASH SALE / KHUYẾN MÃI
+                                var activePromos = await _ctx.KhuyenMaiDoiTuongs
+                                    .Include(k => k.KhuyenMai)
+                                    .Where(k => k.MaSanPham == item.MaSanPham && 
+                                                k.KhuyenMai.TrangThai && 
+                                                k.KhuyenMai.ThoiGianBatDau <= DateTime.Now && 
+                                                k.KhuyenMai.ThoiGianKetThuc >= DateTime.Now)
+                                    .ToListAsync();
+                                
+                                foreach (var p in activePromos)
+                                {
+                                    p.SoLuongDaBan += item.SoLuong;
+                                }
+                            }
+                        }
+
+                        await _ctx.SaveChangesAsync(); 
+                        await SyncCongNoFromHoaDon(hd.MaHoaDon);
+                        if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
+                            await RecalculateCustomerTier(hd.MaKhachHang.Value);
+
+                        // Gửi thông báo cho hệ thống/Admin về đơn hàng mới
+                        await _notificationService.SendToPermissionAsync(
+                            "orders",
+                            "Đơn hàng mới",
+                            $"Có đơn hàng mới {hd.MaHD} từ {(string.IsNullOrEmpty(hd.TenNguoiNhan) ? "Khách hàng" : hd.TenNguoiNhan)}. Tổng tiền: {hd.TongTien:N0}đ",
                             "DonHang",
-                            kh.MaTaiKhoan.Value.ToString(),
-                            link: $"/order-detail/{hd.MaHoaDon}"
+                            link: $"/orders"
                         );
-                    }
-                }
 
-                await transaction.CommitAsync();
-                return Ok(new { maHoaDon = hd.MaHoaDon });
+                        // Gửi thông báo cho khách hàng
+                        if (hd.MaKhachHang.HasValue)
+                        {
+                            var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
+                            if (kh?.MaTaiKhoan.HasValue == true)
+                            {
+                                await _notificationService.SendNotificationAsync(
+                                    "Đặt hàng thành công",
+                                    $"Đơn hàng {hd.MaHD} của bạn đã được đặt thành công. Chúng tôi sẽ sớm xử lý.",
+                                    "DonHang",
+                                    kh.MaTaiKhoan.Value.ToString(),
+                                    link: $"/order-detail/{hd.MaHoaDon}"
+                                );
+                            }
+                        }
+
+                        await transaction.CommitAsync();
+                        return Ok(new { maHoaDon = hd.MaHoaDon });
+                    }
+                    catch (DbUpdateException dbEx) 
+                    {
+                        await transaction.RollbackAsync();
+                        var innerMsg = dbEx.InnerException?.Message ?? dbEx.Message;
+                        Console.WriteLine($"[DB Error] {innerMsg}");
+                        throw;
+                    }
+                    catch (Exception ex) 
+                    { 
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
             }
-            catch (DbUpdateException dbEx) 
+            catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                var innerMsg = dbEx.InnerException?.Message ?? dbEx.Message;
-                Console.WriteLine($"[DB Error] {innerMsg}");
-                return StatusCode(500, new { message = "Lỗi cơ sở dữ liệu: " + innerMsg });
-            }
-            catch (Exception ex) 
-            { 
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); 
+                var finalMsg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = finalMsg });
             }
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] HoaDonDto dto)
         {
+            var executionStrategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                var hd = await _ctx.HoaDons.FindAsync(id);
-                if (hd == null) return NotFound();
-
-            if (dto.NgayLap.HasValue) hd.NgayLap = dto.NgayLap.Value;
-            hd.NgayGiao = dto.NgayGiao; hd.TongTien = dto.TongTien;
-            hd.GiamGia = dto.GiamGia; hd.ThanhToan = dto.ThanhToan;
-            hd.PTTT = dto.PTTT; 
-
-            string? oldStatus = hd.TrangThai;
-            hd.TrangThai = dto.TrangThai ?? hd.TrangThai;
-            hd.GhiChu = dto.GhiChu; hd.MaNhanVien = dto.MaNhanVien;
-            hd.MaKhachHang = dto.MaKhachHang; hd.MaKhuyenMai = dto.MaKhuyenMai;
-
-            if (oldStatus != hd.TrangThai)
-            {
-                _ctx.LichSuHoaDons.Add(new LichSuHoaDon
+                return await executionStrategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    MaHoaDon = id,
-                    TrangThaiCu = oldStatus,
-                    TrangThaiMoi = hd.TrangThai,
-                    NoiDungThayDoi = $"Cập nhật trạng thái từ '{oldStatus}' sang '{hd.TrangThai}'.",
-                    MaNguoiThucHien = dto.MaNhanVien
-                });
-            }
-
-            PhieuXuatKho? pxk = await _ctx.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == id);
-            // Đơn online: Tạo phiếu xuất kho khi Quản lý XÁC NHẬN đơn hàng
-            // (không phải lúc Hoàn thành - vì cần thủ kho soạn hàng trước khi giao)
-            if (hd.TrangThai == "Đã xác nhận" && oldStatus != "Đã xác nhận" && pxk == null)
-            {
-                int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
-                var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
-                pxk = new PhieuXuatKho
-                {
-                    MaHoaDon = id,
-                    MaNhanVien = dto.MaNhanVien ?? hd.MaNhanVien,
-                    NgayXuat = DateTime.UtcNow,
-                    NgayTao = DateTime.UtcNow,
-                    NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
-                    GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận",
-                    ChuKyNguoiLap = confirmedBy?.ChuKy,
-                    TrangThai = "Chờ duyệt" // Bước 1: Quản lý duyệt phiếu xuất
-                };
-                _ctx.PhieuXuatKhos.Add(pxk);
-                await _ctx.SaveChangesAsync();
-
-                _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
-                {
-                    MaPhieuXK = pxk.MaPhieuXK,
-                    TrangThaiMoi = "Chờ duyệt",
-                    NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
-                    MaNguoiThucHien = staffId,
-                    NgayTao = DateTime.UtcNow
-                });
-            }
-
-            // Nếu đã có phiếu xuất kho, xóa các chi tiết cũ để ghi lại (tránh nhân đôi)
-            if (pxk != null)
-            {
-                var oldPxkItems = await _ctx.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
-                _ctx.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
-            }
-
-            var oldItems = await _ctx.CTHDs.Where(c => c.MaHoaDon == id).ToListAsync();
-            foreach (var oldItem in oldItems)
-            {
-                var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == oldItem.MaSanPham);
-                if (kho != null) 
-                {
-                    if (hd.TrangThai == "Hoàn thành") kho.SoLuong += oldItem.SoLuong;
-                    kho.SoLuongTon += oldItem.SoLuong;
-                }
-
-                // Hoàn lại số lượng đã bán trong khuyến mãi của item cũ
-                var promosToRestore = await _ctx.KhuyenMaiDoiTuongs
-                    .Include(k => k.KhuyenMai)
-                    .Where(k => k.MaSanPham == oldItem.MaSanPham && k.KhuyenMai.TrangThai)
-                    .ToListAsync();
-                foreach (var p in promosToRestore)
-                {
-                    p.SoLuongDaBan = Math.Max(0, p.SoLuongDaBan - oldItem.SoLuong);
-                }
-
-                _ctx.CTHDs.Remove(oldItem);
-            }
-
-            // Hoàn lại lượt dùng mã giảm giá cũ
-            if (oldStatus != hd.TrangThai && oldStatus != "Đã hủy" && hd.MaKhuyenMai.HasValue)
-            {
-                // Logic này phức tạp vì Update có thể đổi MaKhuyenMai. 
-                // Để đơn giản, ta chỉ xử lý tăng/giảm dựa trên dto.MaKhuyenMai mới ở dưới.
-            }
-
-            if (dto.Items != null && dto.Items.Any())
-            {
-                foreach (var item in dto.Items)
-                {
-                    _ctx.CTHDs.Add(new CTHD
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        MaHoaDon = id, MaSanPham = item.MaSanPham, SoLuong = item.SoLuong,
-                        DonGia = item.DonGia, GiamGia = item.GiamGia,
-                        ThanhTien = (item.SoLuong * item.DonGia) - item.GiamGia,
-                        NgayTao = DateTime.UtcNow,
-                        DiaChiGiaoHang = item.DiaChiGiaoHang,
-                        TenNguoiNhan = item.TenNguoiNhan,
-                        SdtNguoiNhan = item.SdtNguoiNhan
-                    });
+                        var hd = await _ctx.HoaDons.FindAsync(id);
+                        if (hd == null) return NotFound();
 
-                    // CHỈ TRỪ TỒN KHO NẾU TRẠNG THÁI KHÁC "ĐÃ HỦY"
-                    if (hd.TrangThai != "Đã hủy")
-                    {
-                        var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
-                            .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
-                            .OrderBy(k => k.MaKhoHang)
-                            .ToListAsync();
+                        if (dto.NgayLap.HasValue) hd.NgayLap = dto.NgayLap.Value;
+                        hd.NgayGiao = dto.NgayGiao; hd.TongTien = dto.TongTien;
+                        hd.GiamGia = dto.GiamGia; hd.ThanhToan = dto.ThanhToan;
+                        hd.PTTT = dto.PTTT; 
 
-                        var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
-                        if (tongTonHienTai < item.SoLuong)
+                        string? oldStatus = hd.TrangThai;
+                        hd.TrangThai = dto.TrangThai ?? hd.TrangThai;
+                        hd.GhiChu = dto.GhiChu; hd.MaNhanVien = dto.MaNhanVien;
+                        hd.MaKhachHang = dto.MaKhachHang; hd.MaKhuyenMai = dto.MaKhuyenMai;
+
+                        if (oldStatus != hd.TrangThai)
                         {
-                            var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
-                            var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
-                            throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
+                            _ctx.LichSuHoaDons.Add(new LichSuHoaDon
+                            {
+                                MaHoaDon = id,
+                                TrangThaiCu = oldStatus,
+                                TrangThaiMoi = hd.TrangThai,
+                                NoiDungThayDoi = $"Cập nhật trạng thái từ '{oldStatus}' sang '{hd.TrangThai}'.",
+                                MaNguoiThucHien = dto.MaNhanVien
+                            });
                         }
 
-                        int remainingToDeduct = item.SoLuong;
-
-                        foreach (var kho in khoList)
+                        PhieuXuatKho? pxk = await _ctx.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == id);
+                        // Đơn online: Tạo phiếu xuất kho khi Quản lý XÁC NHẬN đơn hàng
+                        // (không phải lúc Hoàn thành - vì cần thủ kho soạn hàng trước khi giao)
+                        if (hd.TrangThai == "Đã xác nhận" && oldStatus != "Đã xác nhận" && pxk == null)
                         {
-                            if (remainingToDeduct <= 0) break;
-                            int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
-
-                            if (hd.TrangThai == "Hoàn thành" || hd.TrangThai == "Đã xác nhận")
+                            int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
+                            var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
+                            pxk = new PhieuXuatKho
                             {
-                                if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= deductAmount;
-                                
-                                // Log to outbound history
-                                if (pxk != null)
+                                MaHoaDon = id,
+                                MaNhanVien = dto.MaNhanVien ?? hd.MaNhanVien,
+                                NgayXuat = DateTime.UtcNow,
+                                NgayTao = DateTime.UtcNow,
+                                NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
+                                GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận",
+                                ChuKyNguoiLap = confirmedBy?.ChuKy,
+                                TrangThai = "Chờ duyệt" // Bước 1: Quản lý duyệt phiếu xuất
+                            };
+                            _ctx.PhieuXuatKhos.Add(pxk);
+                            await _ctx.SaveChangesAsync();
+
+                            _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+                            {
+                                MaPhieuXK = pxk.MaPhieuXK,
+                                TrangThaiMoi = "Chờ duyệt",
+                                NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
+                                MaNguoiThucHien = staffId,
+                                NgayTao = DateTime.UtcNow
+                            });
+                        }
+
+                        // Nếu đã có phiếu xuất kho, xóa các chi tiết cũ để ghi lại (tránh nhân đôi)
+                        if (pxk != null)
+                        {
+                            var oldPxkItems = await _ctx.CTPhieuXuatKhos.Where(c => c.MaPhieuXK == pxk.MaPhieuXK).ToListAsync();
+                            _ctx.CTPhieuXuatKhos.RemoveRange(oldPxkItems);
+                        }
+
+                        var oldItems = await _ctx.CTHDs.Where(c => c.MaHoaDon == id).ToListAsync();
+                        foreach (var oldItem in oldItems)
+                        {
+                            var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == oldItem.MaSanPham);
+                            if (kho != null) 
+                            {
+                                if (hd.TrangThai == "Hoàn thành") kho.SoLuong += oldItem.SoLuong;
+                                kho.SoLuongTon += oldItem.SoLuong;
+                            }
+
+                            // Hoàn lại số lượng đã bán trong khuyến mãi của item cũ
+                            var promosToRestore = await _ctx.KhuyenMaiDoiTuongs
+                                .Include(k => k.KhuyenMai)
+                                .Where(k => k.MaSanPham == oldItem.MaSanPham && k.KhuyenMai.TrangThai)
+                                .ToListAsync();
+                            foreach (var p in promosToRestore)
+                            {
+                                p.SoLuongDaBan = Math.Max(0, p.SoLuongDaBan - oldItem.SoLuong);
+                            }
+
+                            _ctx.CTHDs.Remove(oldItem);
+                        }
+
+                        // Hoàn lại lượt dùng mã giảm giá cũ
+                        if (oldStatus != hd.TrangThai && oldStatus != "Đã hủy" && hd.MaKhuyenMai.HasValue)
+                        {
+                            // Logic này phức tạp vì Update có thể đổi MaKhuyenMai. 
+                            // Để đơn giản, ta chỉ xử lý tăng/giảm dựa trên dto.MaKhuyenMai mới ở dưới.
+                        }
+
+                        // CRITICAL FIX: Save changes here to persist old CTHDs deletion and restored stocks in the DB!
+                        // This allows subsequent DB queries to see the updated/restored stock values within this transaction!
+                        await _ctx.SaveChangesAsync();
+
+                        if (dto.Items != null && dto.Items.Any())
+                        {
+                            foreach (var item in dto.Items)
+                            {
+                                _ctx.CTHDs.Add(new CTHD
                                 {
-                                    _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                    MaHoaDon = id, MaSanPham = item.MaSanPham, SoLuong = item.SoLuong,
+                                    DonGia = item.DonGia, GiamGia = item.GiamGia,
+                                    ThanhTien = (item.SoLuong * item.DonGia) - item.GiamGia,
+                                    NgayTao = DateTime.UtcNow,
+                                    DiaChiGiaoHang = item.DiaChiGiaoHang,
+                                    TenNguoiNhan = item.TenNguoiNhan,
+                                    SdtNguoiNhan = item.SdtNguoiNhan
+                                });
+
+                                // CHỈ TRỪ TỒN KHO NẾU TRẠNG THÁI KHÁC "ĐÃ HỦY"
+                                if (hd.TrangThai != "Đã hủy")
+                                {
+                                    var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
+                                        .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
+                                        .OrderBy(k => k.MaKhoHang)
+                                        .ToListAsync();
+
+                                    var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
+                                    if (tongTonHienTai < item.SoLuong)
                                     {
-                                        MaPhieuXK = pxk.MaPhieuXK,
-                                        MaSanPham = item.MaSanPham,
-                                        SoLuong = deductAmount,
-                                        MaKho = kho.MaKhoHang,
-                                        DonGiaVon = kho.SanPham?.GiaNhap ?? 0
-                                    });
+                                        var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
+                                        var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
+                                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
+                                    }
+
+                                    int remainingToDeduct = item.SoLuong;
+
+                                    foreach (var kho in khoList)
+                                    {
+                                        if (remainingToDeduct <= 0) break;
+                                        int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
+
+                                        if (hd.TrangThai == "Hoàn thành" || hd.TrangThai == "Đã xác nhận")
+                                        {
+                                            if (hd.TrangThai == "Hoàn thành") kho.SoLuong -= deductAmount;
+                                            
+                                            // Log to outbound history
+                                            if (pxk != null)
+                                            {
+                                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                                {
+                                                    MaPhieuXK = pxk.MaPhieuXK,
+                                                    MaSanPham = item.MaSanPham,
+                                                    SoLuong = deductAmount,
+                                                    MaKho = kho.MaKhoHang,
+                                                    DonGiaVon = kho.SanPham?.GiaNhap ?? 0
+                                                });
+                                            }
+                                        }
+                                        kho.SoLuongTon -= deductAmount;
+                                        remainingToDeduct -= deductAmount;
+                                    }
+
+                                    // Cập nhật số lượng đã bán mới cho khuyến mãi
+                                    var newPromos = await _ctx.KhuyenMaiDoiTuongs
+                                        .Include(k => k.KhuyenMai)
+                                        .Where(k => k.MaSanPham == item.MaSanPham && 
+                                                    k.KhuyenMai.TrangThai && 
+                                                    k.KhuyenMai.ThoiGianBatDau <= DateTime.Now && 
+                                                    k.KhuyenMai.ThoiGianKetThuc >= DateTime.Now)
+                                        .ToListAsync();
+                                    foreach (var p in newPromos)
+                                    {
+                                        p.SoLuongDaBan += item.SoLuong;
+                                    }
                                 }
                             }
-                            kho.SoLuongTon -= deductAmount;
-                            remainingToDeduct -= deductAmount;
                         }
 
-                        // Cập nhật số lượng đã bán mới cho khuyến mãi
-                        var newPromos = await _ctx.KhuyenMaiDoiTuongs
-                            .Include(k => k.KhuyenMai)
-                            .Where(k => k.MaSanPham == item.MaSanPham && 
-                                        k.KhuyenMai.TrangThai && 
-                                        k.KhuyenMai.ThoiGianBatDau <= DateTime.Now && 
-                                        k.KhuyenMai.ThoiGianKetThuc >= DateTime.Now)
-                            .ToListAsync();
-                        foreach (var p in newPromos)
+                        await _ctx.SaveChangesAsync(); 
+                        await SyncCongNoFromHoaDon(hd.MaHoaDon);
+                        if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
+                            await RecalculateCustomerTier(hd.MaKhachHang.Value);
+
+                        // Gửi thông báo cho khách hàng
+                        if (hd.MaKhachHang.HasValue && oldStatus != hd.TrangThai)
                         {
-                            p.SoLuongDaBan += item.SoLuong;
+                            var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
+                            if (kh?.MaTaiKhoan.HasValue == true)
+                            {
+                                string title = "";
+                                string content = "";
+                                if (hd.TrangThai == "Đã xác nhận")
+                                {
+                                    title = "Đơn hàng đã được xác nhận";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã được quản lý xác nhận và đang chờ chuẩn bị.";
+                                }
+                                else if (hd.TrangThai == "Đã hủy")
+                                {
+                                    title = "Đơn hàng đã bị hủy";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã bị hủy. Vui lòng liên hệ nếu có thắc mắc.";
+                                }
+                                else if (hd.TrangThai == "Hoàn thành")
+                                {
+                                    title = "Đơn hàng hoàn tất";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã hoàn tất. Cảm ơn bạn đã tin tưởng chúng tôi!";
+                                }
+                                else if (hd.TrangThai == "Yêu cầu đổi/trả hàng")
+                                {
+                                    title = "Đã nhận yêu cầu đổi trả";
+                                    content = $"Yêu cầu đổi trả cho đơn hàng {hd.MaHD} của bạn đã được tiếp nhận.";
+                                }
+
+                                if (!string.IsNullOrEmpty(title))
+                                {
+                                    await _notificationService.SendNotificationAsync(
+                                        title,
+                                        content,
+                                        "DonHang",
+                                        kh.MaTaiKhoan.Value.ToString(),
+                                        link: $"/order-detail/{hd.MaHoaDon}"
+                                    );
+                                }
+                            }
                         }
+
+                        await transaction.CommitAsync();
+                        return Ok(new { maHoaDon = hd.MaHoaDon });
                     }
-                }
-            }
-
-                await _ctx.SaveChangesAsync(); 
-                await SyncCongNoFromHoaDon(hd.MaHoaDon);
-                if (hd.TrangThai == "Hoàn thành" && hd.MaKhachHang.HasValue) 
-                    await RecalculateCustomerTier(hd.MaKhachHang.Value);
-
-                // Gửi thông báo cho khách hàng
-                if (hd.MaKhachHang.HasValue && oldStatus != hd.TrangThai)
-                {
-                    var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
-                    if (kh?.MaTaiKhoan.HasValue == true)
+                    catch (Exception ex)
                     {
-                        string title = "";
-                        string content = "";
-                        if (hd.TrangThai == "Đã xác nhận")
-                        {
-                            title = "Đơn hàng đã được xác nhận";
-                            content = $"Đơn hàng {hd.MaHD} của bạn đã được quản lý xác nhận và đang chờ chuẩn bị.";
-                        }
-                        else if (hd.TrangThai == "Đã hủy")
-                        {
-                            title = "Đơn hàng đã bị hủy";
-                            content = $"Đơn hàng {hd.MaHD} của bạn đã bị hủy. Vui lòng liên hệ nếu có thắc mắc.";
-                        }
-                        else if (hd.TrangThai == "Hoàn thành")
-                        {
-                            title = "Đơn hàng hoàn tất";
-                            content = $"Đơn hàng {hd.MaHD} của bạn đã hoàn tất. Cảm ơn bạn đã tin tưởng chúng tôi!";
-                        }
-                        else if (hd.TrangThai == "Yêu cầu đổi/trả hàng")
-                        {
-                            title = "Đã nhận yêu cầu đổi trả";
-                            content = $"Yêu cầu đổi trả cho đơn hàng {hd.MaHD} của bạn đã được tiếp nhận.";
-                        }
-
-                        if (!string.IsNullOrEmpty(title))
-                        {
-                            await _notificationService.SendNotificationAsync(
-                                title,
-                                content,
-                                "DonHang",
-                                kh.MaTaiKhoan.Value.ToString(),
-                                link: $"/order-detail/{hd.MaHoaDon}"
-                            );
-                        }
+                        await transaction.RollbackAsync();
+                        throw;
                     }
-                }
-
-                return Ok(new { maHoaDon = hd.MaHoaDon });
+                });
             }
             catch (Exception ex) 
             { 
@@ -843,6 +828,246 @@ namespace BuildingMaterialAPI.Controllers
                 return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); 
             }
         }
+
+        [HttpPatch("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
+        {
+            if (dto == null || string.IsNullOrEmpty(dto.Status)) return BadRequest(new { message = "Trạng thái không hợp lệ." });
+
+            var executionStrategy = _ctx.Database.CreateExecutionStrategy();
+            try
+            {
+                return await executionStrategy.ExecuteAsync<IActionResult>(async () =>
+                {
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
+                    {
+                        var hd = await _ctx.HoaDons
+                            .Include(h => h.CTHDs)
+                            .FirstOrDefaultAsync(h => h.MaHoaDon == id);
+                            
+                        if (hd == null) return NotFound();
+
+                        string? oldStatus = hd.TrangThai;
+                        string newStatus = dto.Status;
+
+                        if (oldStatus == newStatus)
+                        {
+                            return Ok(new { maHoaDon = hd.MaHoaDon, message = "Trạng thái không thay đổi." });
+                        }
+
+                        hd.TrangThai = newStatus;
+                        hd.NgayCapNhat = DateTime.UtcNow;
+
+                        // Log history
+                        _ctx.LichSuHoaDons.Add(new LichSuHoaDon
+                        {
+                            MaHoaDon = id,
+                            TrangThaiCu = oldStatus,
+                            TrangThaiMoi = newStatus,
+                            NoiDungThayDoi = $"Cập nhật trạng thái từ '{oldStatus}' sang '{newStatus}' qua phản hồi nhanh.",
+                            MaNguoiThucHien = dto.MaNhanVien
+                        });
+
+                        // 1. If approved: "Đã xác nhận"
+                        if (newStatus == "Đã xác nhận" && oldStatus != "Đã xác nhận")
+                        {
+                            PhieuXuatKho? pxk = await _ctx.PhieuXuatKhos.FirstOrDefaultAsync(p => p.MaHoaDon == id);
+                            if (pxk == null)
+                            {
+                                int? staffId = dto.MaNhanVien ?? hd.MaNhanVien;
+                                var confirmedBy = staffId.HasValue ? await _ctx.NhanViens.FindAsync(staffId.Value) : null;
+                                pxk = new PhieuXuatKho
+                                {
+                                    MaHoaDon = id,
+                                    MaNhanVien = staffId,
+                                    NgayXuat = DateTime.UtcNow,
+                                    NgayTao = DateTime.UtcNow,
+                                    NguoiXuat = confirmedBy?.TenNV ?? "Hệ thống",
+                                    GhiChu = $"Xuất kho cho đơn hàng online {hd.MaHD} - Quản lý đã xác nhận nhanh",
+                                    ChuKyNguoiLap = confirmedBy?.ChuKy,
+                                    TrangThai = "Chờ duyệt"
+                                };
+                                _ctx.PhieuXuatKhos.Add(pxk);
+                                await _ctx.SaveChangesAsync(); // Persist to get ID
+
+                                _ctx.LichSuPhieuXuatKhos.Add(new LichSuPhieuXuatKho
+                                {
+                                    MaPhieuXK = pxk.MaPhieuXK,
+                                    TrangThaiMoi = "Chờ duyệt",
+                                    NoiDungThayDoi = $"Khởi tạo phiếu xuất kho sau khi Quản lý xác nhận đơn hàng {hd.MaHD}. Người thực hiện: {confirmedBy?.TenNV ?? "Hệ thống"}",
+                                    MaNguoiThucHien = staffId,
+                                    NgayTao = DateTime.UtcNow
+                                });
+
+                                // Copy CTHD items to CTPhieuXuatKho and deduct reserved stock
+                                foreach (var item in hd.CTHDs)
+                                {
+                                    var khoList = await _ctx.CTKhoHangs.Include(k => k.SanPham)
+                                        .Where(k => k.MaSanPham == item.MaSanPham && k.SoLuongTon > 0)
+                                        .OrderBy(k => k.MaKhoHang)
+                                        .ToListAsync();
+
+                                    var tongTonHienTai = khoList.Sum(k => k.SoLuongTon);
+                                    if (tongTonHienTai < item.SoLuong)
+                                    {
+                                        var spInfo = await _ctx.SanPhams.FindAsync(item.MaSanPham);
+                                        var tenSP = spInfo?.TenSP ?? $"Sản phẩm ID {item.MaSanPham}";
+                                        throw new Exception($"Sản phẩm '{tenSP}' không đủ tồn kho (Yêu cầu: {item.SoLuong}, Tổng hiện có: {tongTonHienTai}). Vui lòng kiểm tra lại!");
+                                    }
+
+                                    int remainingToDeduct = item.SoLuong;
+                                    foreach (var kho in khoList)
+                                    {
+                                        if (remainingToDeduct <= 0) break;
+                                        int deductAmount = Math.Min(kho.SoLuongTon, remainingToDeduct);
+
+                                        _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                        {
+                                            MaPhieuXK = pxk.MaPhieuXK,
+                                            MaSanPham = item.MaSanPham,
+                                            SoLuong = deductAmount,
+                                            MaKho = kho.MaKhoHang,
+                                            DonGiaVon = kho.SanPham?.GiaNhap ?? 0
+                                        });
+
+                                        kho.SoLuongTon -= deductAmount;
+                                        kho.NgayCapNhat = DateTime.UtcNow;
+                                        remainingToDeduct -= deductAmount;
+                                    }
+                                }
+                            }
+                        }
+                        // 2. If completed: "Hoàn thành"
+                        else if (newStatus == "Hoàn thành" && oldStatus != "Hoàn thành")
+                        {
+                            // Deduct physical inventory stock
+                            var pxkItems = await _ctx.CTPhieuXuatKhos
+                                .Where(x => x.PhieuXuatKho.MaHoaDon == id)
+                                .ToListAsync();
+
+                            foreach (var pxkItem in pxkItems)
+                            {
+                                var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == pxkItem.MaSanPham && k.MaKhoHang == pxkItem.MaKho);
+                                if (kho != null)
+                                {
+                                    kho.SoLuong -= pxkItem.SoLuong;
+                                    kho.NgayCapNhat = DateTime.UtcNow;
+                                }
+                            }
+
+                            if (hd.MaKhachHang.HasValue)
+                            {
+                                await RecalculateCustomerTier(hd.MaKhachHang.Value);
+                            }
+                        }
+                        // 3. If canceled: "Đã hủy"
+                        else if (newStatus == "Đã hủy" && oldStatus != "Đã hủy")
+                        {
+                            // Cancel delivery slips
+                            var pxkList = await _ctx.PhieuXuatKhos.Where(p => p.MaHoaDon == id).ToListAsync();
+                            foreach (var p in pxkList)
+                            {
+                                p.TrangThai = "Đã hủy";
+                            }
+
+                            if (oldStatus == "Đã xác nhận" || oldStatus == "Hoàn thành")
+                            {
+                                var pxkItems = await _ctx.CTPhieuXuatKhos
+                                    .Where(x => x.PhieuXuatKho.MaHoaDon == id)
+                                    .ToListAsync();
+
+                                foreach (var pxkItem in pxkItems)
+                                {
+                                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == pxkItem.MaSanPham && k.MaKhoHang == pxkItem.MaKho);
+                                    if (kho != null)
+                                    {
+                                        if (oldStatus == "Hoàn thành") kho.SoLuong += pxkItem.SoLuong;
+                                        kho.SoLuongTon += pxkItem.SoLuong;
+                                        kho.NgayCapNhat = DateTime.UtcNow;
+                                    }
+                                }
+                            }
+
+                            // Restore voucher count
+                            if (hd.MaKhuyenMai.HasValue)
+                            {
+                                var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
+                                if (km != null) km.SoLuongDaDung = Math.Max(0, km.SoLuongDaDung - 1);
+                            }
+                        }
+
+                        await _ctx.SaveChangesAsync();
+                        await SyncCongNoFromHoaDon(id);
+
+                        // Notifications
+                        await _notificationService.SendToPermissionAsync(
+                            "orders",
+                            "Cập nhật đơn hàng",
+                            $"Đơn hàng {hd.MaHD} đã chuyển sang trạng thái: {newStatus}",
+                            "DonHang",
+                            link: $"/orders"
+                        );
+
+                        if (hd.MaKhachHang.HasValue)
+                        {
+                            var kh = await _ctx.KhachHangs.FindAsync(hd.MaKhachHang.Value);
+                            if (kh?.MaTaiKhoan.HasValue == true)
+                            {
+                                string title = "";
+                                string content = "";
+                                if (newStatus == "Đã xác nhận")
+                                {
+                                    title = "Đơn hàng đã được xác nhận";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã được quản lý xác nhận.";
+                                }
+                                else if (newStatus == "Đã hủy")
+                                {
+                                    title = "Đơn hàng đã bị hủy";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã bị hủy.";
+                                }
+                                else if (newStatus == "Hoàn thành")
+                                {
+                                    title = "Đơn hàng hoàn tất";
+                                    content = $"Đơn hàng {hd.MaHD} của bạn đã hoàn tất.";
+                                }
+
+                                if (!string.IsNullOrEmpty(title))
+                                {
+                                    await _notificationService.SendNotificationAsync(
+                                        title,
+                                        content,
+                                        "DonHang",
+                                        kh.MaTaiKhoan.Value.ToString(),
+                                        link: $"/order-detail/{id}"
+                                    );
+                                }
+                            }
+                        }
+
+                        await transaction.CommitAsync();
+                        return Ok(new { maHoaDon = hd.MaHoaDon, message = "Cập nhật trạng thái thành công." });
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UpdateStatus Error] {ex.InnerException?.Message ?? ex.Message}");
+                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
+            }
+        }
+
+        public class UpdateStatusDto
+        {
+            public string Status { get; set; } = "";
+            public int? MaNhanVien { get; set; }
+        }
+
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)

@@ -35,11 +35,11 @@ function OrdersPage() {
 
   useEffect(() => { fetchOrders(); }, []);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (silent = false) => {
+    if (!silent) setLoading(true);
     try { const res = await orderService.getAllOrders(); setOrders(res.data || []); }
     catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
   const handleSave = async (payload) => {
@@ -75,57 +75,36 @@ function OrdersPage() {
   };
 
   const handleApprove = async (order) => {
+    const originalOrders = [...orders];
+    
+    // Optimistic UI Update: Change status instantly
+    setOrders(prev => prev.map(o => o.maHoaDon === order.maHoaDon ? { ...o, trangThai: 'Đã xác nhận' } : o));
+
     try {
-      const detailRes = await orderService.getOrderById(order.maHoaDon);
-      const fullOrder = detailRes.data;
-      
-      const fullPayload = {
-        NgayLap: fullOrder.ngayLap,
-        NgayGiao: fullOrder.ngayGiao,
-        TongTien: fullOrder.tongTien,
-        ThanhToan: fullOrder.thanhToan,
-        GiamGia: fullOrder.giamGia,
-        PTTT: fullOrder.pttt,
-        TrangThai: 'Đã xác nhận',
-        GhiChu: fullOrder.ghiChu,
-        MaKhachHang: fullOrder.maKhachHang,
-        MaNhanVien: JSON.parse(localStorage.getItem('user'))?.maNhanVien || fullOrder.maNhanVien,
-        MaKhuyenMai: fullOrder.maKhuyenMai,
-
-        TenNguoiNhan: fullOrder.tenNguoiNhan,
-        SdtNguoiNhan: fullOrder.sdtNguoiNhan,
-        EmailNguoiNhan: fullOrder.emailNguoiNhan,
-        DiaChiGiaoHang: fullOrder.diaChiGiaoHang,
-        PhiVanChuyen: fullOrder.phiVanChuyen,
-        YeuCauVat: fullOrder.yeuCauVat,
-        VatType: fullOrder.vatType,
-        VatBuyerName: fullOrder.vatBuyerName,
-        VatEmail: fullOrder.vatEmail,
-        VatAddress: fullOrder.vatAddress,
-        VatIdCard: fullOrder.vatIdCard,
-        VatPassport: fullOrder.vatPassport,
-        VatCompanyName: fullOrder.vatCompanyName,
-        VatCompanyAddress: fullOrder.vatCompanyAddress,
-        VatTaxId: fullOrder.vatTaxId,
-        VatBudgetCode: fullOrder.vatBudgetCode,
-
-        Items: fullOrder.chiTiet.map(i => ({
-          MaSanPham: i.maSanPham,
-          SoLuong: i.soLuong,
-          DonGia: i.donGia,
-          GiamGia: 0,
-          DiaChiGiaoHang: i.diaChiGiaoHang || i.DiaChiGiaoHang,
-          TenNguoiNhan: i.tenNguoiNhan || i.TenNguoiNhan,
-          SdtNguoiNhan: i.sdtNguoiNhan || i.SdtNguoiNhan
-        }))
-      };
-      
-      await orderService.updateOrder(order.maHoaDon, fullPayload);
-      fetchOrders();
+      await orderService.updateOrderStatus(order.maHoaDon, 'Đã xác nhận');
+      fetchOrders(true); // Silent background refresh
     } catch (err) {
-      alert('Lỗi duyệt đơn: ' + err.message);
+      // Revert if API fails
+      setOrders(originalOrders);
+      const msg = err.response?.data?.message || err.message;
+      alert('Lỗi duyệt đơn: ' + msg);
     }
   };
+
+  const handleEditClick = async (order) => {
+    try {
+      setLoading(true);
+      const res = await orderService.getOrderById(order.maHoaDon);
+      setEditing(res.data);
+      setFormOpen(true);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message;
+      alert('Không thể tải chi tiết đơn hàng để chỉnh sửa: ' + msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const columns = [
     { 
@@ -190,7 +169,7 @@ function OrdersPage() {
             <Button size="small" color="success" variant="contained" disableElevation onClick={() => handleApprove(params.row)}>Duyệt</Button>
           )}
           <Button size="small" variant="outlined" onClick={() => { setSelectedOrderId(params.row.maHoaDon); setDetailOpen(true); }}>Chi tiết</Button>
-          {canEdit && <Button size="small" variant="outlined" color="primary" onClick={() => { setEditing(params.row); setFormOpen(true); }}>Sửa</Button>}
+          {canEdit && <Button size="small" variant="outlined" color="primary" onClick={() => handleEditClick(params.row)}>Sửa</Button>}
           {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(params.row.maHoaDon)}>Xóa</Button>}
           {params.row.trangThai === 'Hoàn thành' && params.row.vatEmail && (
             <Button

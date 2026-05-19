@@ -3,6 +3,8 @@ using BuildingMaterialAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using BuildingMaterialAPI.Services;
+
 namespace BuildingMaterialAPI.Controllers
 {
     [ApiController]
@@ -10,7 +12,13 @@ namespace BuildingMaterialAPI.Controllers
     public class CustomerController : ControllerBase
     {
         private readonly ApplicationDbContext _ctx;
-        public CustomerController(ApplicationDbContext ctx) { _ctx = ctx; }
+        private readonly IAuthService _authService;
+
+        public CustomerController(ApplicationDbContext ctx, IAuthService _auth)
+        {
+            _ctx = ctx;
+            _authService = _auth;
+        }
 
         // ─── Hạng thành viên theo tổng chi tiêu ──────────────────────
         private static string TinhHang(decimal tongChiTieu) => tongChiTieu switch
@@ -111,26 +119,96 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> Create([FromBody] KhachHangDto dto)
         {
             if (dto == null) return BadRequest();
-            var kh = new KhachHang
+
+            if (string.IsNullOrWhiteSpace(dto.SDT))
             {
-                TenKH = dto.TenKH ?? "",
-                Sdt = dto.SDT, Email = dto.Email, DiaChi = dto.DiaChi,
-                LoaiKH = dto.LoaiKH, NguoiLienHe = dto.NguoiLienHe, MaSoThue = dto.MaSoThue,
-                TrangThai = dto.TrangThai,
-                HangThanhVien = "Đồng",  // Mặc định Đồng
-                AnhDaiDien = dto.AnhDaiDien,
-                TongChiTieu = 0,
-                NgayTao = DateTime.UtcNow, NgayCapNhat = DateTime.UtcNow,
-            };
-            _ctx.KhachHangs.Add(kh);
-            try { await _ctx.SaveChangesAsync(); return Ok(kh); }
-            catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
+                return BadRequest(new { message = "Số điện thoại là bắt buộc để tạo tài khoản đăng nhập cho khách hàng." });
+            }
+
+            var executionStrategy = _ctx.Database.CreateExecutionStrategy();
+            try
+            {
+                return await executionStrategy.ExecuteAsync<IActionResult>(async () =>
+                {
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
+                    {
+                        var existingUser = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.TenTK == dto.SDT);
+                        if (existingUser != null)
+                        {
+                            return BadRequest(new { message = "Số điện thoại này đã được sử dụng cho một tài khoản khác." });
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(dto.Email))
+                        {
+                            var existingEmail = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.Email == dto.Email);
+                            if (existingEmail != null)
+                            {
+                                return BadRequest(new { message = "Địa chỉ email này đã được sử dụng cho một tài khoản khác." });
+                            }
+                        }
+
+                        var vaiTroKH = await _ctx.VaiTros.FirstOrDefaultAsync(v => v.TenVT.ToLower().Contains("khách hàng") || v.TenVT.ToLower() == "customer");
+                        if (vaiTroKH == null)
+                        {
+                            return BadRequest(new { message = "Không tìm thấy vai trò Khách hàng trong hệ thống." });
+                        }
+
+                        var taiKhoan = new TaiKhoan
+                        {
+                            TenTK = dto.SDT,
+                            MatKhau = _authService.HashPassword("123456"),
+                            Email = dto.Email,
+                            MaVaiTro = vaiTroKH.MaVaiTro,
+                            TrangThai = true,
+                            NgayTao = DateTime.UtcNow,
+                            NgayCapNhat = DateTime.UtcNow
+                        };
+
+                        _ctx.TaiKhoans.Add(taiKhoan);
+                        await _ctx.SaveChangesAsync();
+
+                        var kh = new KhachHang
+                        {
+                            TenKH = dto.TenKH ?? "",
+                            Sdt = dto.SDT,
+                            Email = dto.Email,
+                            DiaChi = dto.DiaChi,
+                            LoaiKH = dto.LoaiKH,
+                            NguoiLienHe = dto.NguoiLienHe,
+                            MaSoThue = dto.MaSoThue,
+                            TrangThai = dto.TrangThai,
+                            HangThanhVien = "Đồng",
+                            AnhDaiDien = dto.AnhDaiDien,
+                            TongChiTieu = 0,
+                            MaTaiKhoan = taiKhoan.MaTaiKhoan,
+                            NgayTao = DateTime.UtcNow,
+                            NgayCapNhat = DateTime.UtcNow,
+                        };
+
+                        _ctx.KhachHangs.Add(kh);
+                        await _ctx.SaveChangesAsync();
+
+                        await transaction.CommitAsync();
+                        return Ok(kh);
+                    }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
+            }
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] KhachHangDto dto)
         {
-            var kh = await _ctx.KhachHangs.FindAsync(id);
+            var kh = await _ctx.KhachHangs.Include(k => k.TaiKhoan).FirstOrDefaultAsync(k => k.MaKhachHang == id);
             if (kh == null) return NotFound();
             kh.TenKH = string.IsNullOrWhiteSpace(dto.TenKH) ? kh.TenKH : dto.TenKH;
             kh.Sdt = string.IsNullOrWhiteSpace(dto.SDT) ? null : dto.SDT;
@@ -145,6 +223,45 @@ namespace BuildingMaterialAPI.Controllers
             kh.CCCD = dto.CCCD;
             if (!string.IsNullOrWhiteSpace(dto.AnhDaiDien)) { kh.AnhDaiDien = dto.AnhDaiDien; }
             kh.NgayCapNhat = DateTime.UtcNow;
+
+            if (kh.TaiKhoan != null)
+            {
+                kh.TaiKhoan.TrangThai = dto.TrangThai;
+                if (!string.IsNullOrWhiteSpace(dto.SDT))
+                {
+                    kh.TaiKhoan.TenTK = dto.SDT;
+                }
+                if (!string.IsNullOrWhiteSpace(dto.Email))
+                {
+                    kh.TaiKhoan.Email = dto.Email;
+                }
+                kh.TaiKhoan.NgayCapNhat = DateTime.UtcNow;
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.SDT))
+            {
+                var existingUser = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.TenTK == dto.SDT);
+                if (existingUser == null)
+                {
+                    var vaiTroKH = await _ctx.VaiTros.FirstOrDefaultAsync(v => v.TenVT.ToLower().Contains("khách hàng") || v.TenVT.ToLower() == "customer");
+                    if (vaiTroKH != null)
+                    {
+                        var taiKhoan = new TaiKhoan
+                        {
+                            TenTK = dto.SDT,
+                            MatKhau = _authService.HashPassword("123456"),
+                            Email = dto.Email ?? "",
+                            MaVaiTro = vaiTroKH.MaVaiTro,
+                            TrangThai = dto.TrangThai,
+                            NgayTao = DateTime.UtcNow,
+                            NgayCapNhat = DateTime.UtcNow
+                        };
+                        _ctx.TaiKhoans.Add(taiKhoan);
+                        await _ctx.SaveChangesAsync();
+                        kh.MaTaiKhoan = taiKhoan.MaTaiKhoan;
+                    }
+                }
+            }
+
             try { await _ctx.SaveChangesAsync(); return Ok(kh); }
             catch (Exception ex) { return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message }); }
         }
@@ -239,11 +356,38 @@ namespace BuildingMaterialAPI.Controllers
                 }
                 else
                 {
+                    int? generatedMaTaiKhoan = null;
+                    if (!string.IsNullOrWhiteSpace(sdt))
+                    {
+                        var existingUser = await _ctx.TaiKhoans.FirstOrDefaultAsync(t => t.TenTK == sdt);
+                        if (existingUser == null)
+                        {
+                            var vaiTroKH = await _ctx.VaiTros.FirstOrDefaultAsync(v => v.TenVT.ToLower().Contains("khách hàng") || v.TenVT.ToLower() == "customer");
+                            if (vaiTroKH != null)
+                            {
+                                var taiKhoan = new TaiKhoan
+                                {
+                                    TenTK = sdt,
+                                    MatKhau = _authService.HashPassword("123456"),
+                                    Email = email,
+                                    MaVaiTro = vaiTroKH.MaVaiTro,
+                                    TrangThai = true,
+                                    NgayTao = DateTime.UtcNow,
+                                    NgayCapNhat = DateTime.UtcNow
+                                };
+                                _ctx.TaiKhoans.Add(taiKhoan);
+                                await _ctx.SaveChangesAsync();
+                                generatedMaTaiKhoan = taiKhoan.MaTaiKhoan;
+                            }
+                        }
+                    }
+
                     _ctx.KhachHangs.Add(new KhachHang
                     {
                         TenKH = ten, Sdt = sdt, Email = email, DiaChi = diaChi,
                         LoaiKH = loai, NguoiLienHe = nguoi, MaSoThue = mst, TrangThai = trangThai,
                         HangThanhVien = "Đồng", TongChiTieu = 0,
+                        MaTaiKhoan = generatedMaTaiKhoan,
                         NgayTao = DateTime.UtcNow, NgayCapNhat = DateTime.UtcNow
                     });
                 }

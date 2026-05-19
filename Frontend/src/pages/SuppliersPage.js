@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Typography, Chip, Card, CardContent, Grid
 } from '@mui/material';
@@ -15,6 +15,7 @@ function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const fileInputRef = useRef(null);
 
   const { permissions } = usePermissions();
   const canCreate = permissions?.suppliers?.coTheTao ?? false;
@@ -132,13 +133,11 @@ function SuppliersPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>🏭 Quản Lý Nhà Cung Cấp</Typography>
           <Typography variant="body2" color="textSecondary">Danh sách các nhà cung cấp vật liệu xây dựng</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} id="import-excel-suppliers" onChange={handleImport} />
-          <label htmlFor="import-excel-suppliers">
-            <Button variant="outlined" component="span" startIcon={<FileUploadIcon />} color="success">
-              Nhập Excel
-            </Button>
-          </label>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+          <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>
+            Nhập Excel
+          </Button>
           <Button variant="outlined" startIcon={<FileDownloadIcon />} color="primary" onClick={handleExport}>
             Xuất Excel
           </Button>

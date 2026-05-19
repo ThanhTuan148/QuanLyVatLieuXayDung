@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
+import '../../core/permission_helper.dart';
+
 
 class ProductsTab extends StatefulWidget {
   const ProductsTab({super.key});
@@ -476,20 +478,22 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_tabController.index == 0) {
-            _showAddEditProductDialog(null, false);
-          } else if (_tabController.index == 1) {
-            _showAddEditProductDialog(null, true);
-          } else {
-            _showAddEditCategoryDialog();
-          }
-        },
-        icon: Icon(_tabController.index == 2 ? Icons.add_chart : Icons.add),
-        label: Text(_tabController.index == 0 ? 'Thêm Sản Phẩm' : (_tabController.index == 1 ? 'Thêm Quà Tặng' : 'Thêm Phân Loại')),
-        backgroundColor: Colors.purple.shade800,
-      ),
+      floatingActionButton: PermissionHelper.canCreate('PRODUCTS')
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                if (_tabController.index == 0) {
+                  _showAddEditProductDialog(null, false);
+                } else if (_tabController.index == 1) {
+                  _showAddEditProductDialog(null, true);
+                } else {
+                  _showAddEditCategoryDialog();
+                }
+              },
+              icon: Icon(_tabController.index == 2 ? Icons.add_chart : Icons.add),
+              label: Text(_tabController.index == 0 ? 'Thêm Sản Phẩm' : (_tabController.index == 1 ? 'Thêm Quà Tặng' : 'Thêm Phân Loại')),
+              backgroundColor: Colors.purple.shade800,
+            )
+          : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -637,8 +641,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                             DataCell(Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _showAddEditProductDialog(p as Map<String, dynamic>, isGift)),
-                                IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteProduct(p)),
+                                if (PermissionHelper.canEdit('PRODUCTS'))
+                                  IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _showAddEditProductDialog(p as Map<String, dynamic>, isGift)),
+                                if (PermissionHelper.canDelete('PRODUCTS'))
+                                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteProduct(p)),
                               ],
                             )),
                           ],
@@ -687,9 +693,12 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton.icon(icon: const Icon(Icons.edit, size: 16, color: Colors.blue), label: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditCategoryDialog(c as Map<String, dynamic>)),
-                          const SizedBox(width: 8),
-                          TextButton.icon(icon: const Icon(Icons.delete, size: 16, color: Colors.red), label: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deleteCategory(c)),
+                          if (PermissionHelper.canEdit('PRODUCTS')) ...[
+                            TextButton.icon(icon: const Icon(Icons.edit, size: 16, color: Colors.blue), label: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditCategoryDialog(c as Map<String, dynamic>)),
+                            const SizedBox(width: 8),
+                          ],
+                          if (PermissionHelper.canDelete('PRODUCTS'))
+                            TextButton.icon(icon: const Icon(Icons.delete, size: 16, color: Colors.red), label: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deleteCategory(c)),
                         ],
                       )),
                     ],

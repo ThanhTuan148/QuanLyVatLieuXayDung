@@ -369,137 +369,148 @@ namespace BuildingMaterialAPI.Controllers
             // Auto-init tables first to ensure columns exist
             await InitInventoryTables();
 
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                // Find a default manager to assign to old records
-                var defaultManager = await _ctx.NhanViens
-                    .Include(n => n.TaiKhoan)
-                    .ThenInclude(t => t.VaiTro)
-                    .FirstOrDefaultAsync(n => n.TaiKhoan != null && (n.TaiKhoan.VaiTro.TenVT == "Quản lý" || n.TaiKhoan.VaiTro.TenVT == "Giám đốc"));
-
-                // Fix existing records with NULL status
-                if (defaultManager != null)
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    await _ctx.Database.ExecuteSqlRawAsync(
-                        "UPDATE PHIEUXUATKHO SET TrangThai = N'Đã duyệt', MaNguoiDuyet = {0}, ChuKyQuanLy = {1} WHERE TrangThai IS NULL OR MaNguoiDuyet IS NULL", 
-                        defaultManager.MaNhanVien, defaultManager.ChuKy ?? (object)DBNull.Value);
-                }
-                else
-                {
-                    await _ctx.Database.ExecuteSqlRawAsync("UPDATE PHIEUXUATKHO SET TrangThai = N'Đã duyệt' WHERE TrangThai IS NULL");
-                }
-
-                int count = 0;
-
-                // 1. Sync from existing Delivery Notes (PhieuGiaoHang)
-                var pghs = await _ctx.PhieuGiaoHangs
-                    .Include(p => p.CTPhieuGiaoHangs)
-                    .Where(p => !_ctx.PhieuXuatKhos.Any(px => px.MaPhieuGH == p.MaPhieuGH))
-                    .ToListAsync();
-
-                foreach (var p in pghs)
-                {
-                    var creator = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
-                    var pxk = new PhieuXuatKho
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        MaPhieuGH = p.MaPhieuGH,
-                        MaHoaDon = p.MaHoaDon,
-                        MaNhanVien = p.MaNhanVien,
-                        NgayXuat = p.NgayGiaoThucTe ?? p.NgayTao,
-                        NgayTao = DateTime.UtcNow,
-                        NguoiXuat = "Hệ thống (Đồng bộ dữ liệu cũ)",
-                        GhiChu = $"Đồng bộ từ Phiếu giao {p.MaGH}",
-                        ChuKyNguoiLap = creator?.ChuKy,
-                        TrangThai = "Đã duyệt",
-                        MaNguoiDuyet = defaultManager?.MaNhanVien,
-                        ChuKyQuanLy = defaultManager?.ChuKy,
-                        NgayDuyet = p.NgayGiaoThucTe ?? p.NgayTao
-                    };
-                    _ctx.PhieuXuatKhos.Add(pxk);
-                    await _ctx.SaveChangesAsync();
+                        // Find a default manager to assign to old records
+                        var defaultManager = await _ctx.NhanViens
+                            .Include(n => n.TaiKhoan)
+                            .ThenInclude(t => t.VaiTro)
+                            .FirstOrDefaultAsync(n => n.TaiKhoan != null && (n.TaiKhoan.VaiTro.TenVT == "Quản lý" || n.TaiKhoan.VaiTro.TenVT == "Giám đốc"));
 
-                    foreach (var ct in p.CTPhieuGiaoHangs)
-                    {
-                        var sp = await _ctx.SanPhams.FindAsync(ct.MaSanPham);
-                        var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
-                        _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                        // Fix existing records with NULL status
+                        if (defaultManager != null)
                         {
-                            MaPhieuXK = pxk.MaPhieuXK,
-                            MaSanPham = ct.MaSanPham,
-                            SoLuong = ct.SoLuongGiao,
-                            MaKho = kho?.MaKhoHang ?? 1,
-                            DonGiaVon = sp?.GiaNhap ?? 0
-                        });
-                    }
-                    count++;
-                }
-
-                // 2. Sync from completed direct orders (HoaDon Hoàn thành, no PhieuGiaoHang)
-                var hds = await _ctx.HoaDons
-                    .Include(h => h.CTHDs)
-                    .Where(h => h.TrangThai == "Hoàn thành")
-                    .Where(h => !_ctx.PhieuGiaoHangs.Any(p => p.MaHoaDon == h.MaHoaDon))
-                    .Where(h => !_ctx.PhieuXuatKhos.Any(px => px.MaHoaDon == h.MaHoaDon))
-                    .ToListAsync();
-
-                foreach (var h in hds)
-                {
-                    var creator = await _ctx.NhanViens.FindAsync(h.MaNhanVien);
-                    var pxk = new PhieuXuatKho
-                    {
-                        MaHoaDon = h.MaHoaDon,
-                        MaNhanVien = h.MaNhanVien,
-                        NgayXuat = h.NgayGiao ?? h.NgayLap,
-                        NgayTao = DateTime.UtcNow,
-                        NguoiXuat = "Hệ thống (Đồng bộ dữ liệu cũ)",
-                        GhiChu = $"Đồng bộ từ Đơn hàng trực tiếp {h.MaHD}",
-                        ChuKyNguoiLap = creator?.ChuKy,
-                        TrangThai = "Đã duyệt",
-                        MaNguoiDuyet = defaultManager?.MaNhanVien,
-                        ChuKyQuanLy = defaultManager?.ChuKy,
-                        NgayDuyet = h.NgayGiao ?? h.NgayLap
-                    };
-                    _ctx.PhieuXuatKhos.Add(pxk);
-                    await _ctx.SaveChangesAsync();
-
-                    foreach (var ct in h.CTHDs)
-                    {
-                        var sp = await _ctx.SanPhams.FindAsync(ct.MaSanPham);
-                        var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
-                        _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                            await _ctx.Database.ExecuteSqlRawAsync(
+                                "UPDATE PHIEUXUATKHO SET TrangThai = N'Đã duyệt', MaNguoiDuyet = {0}, ChuKyQuanLy = {1} WHERE TrangThai IS NULL OR MaNguoiDuyet IS NULL", 
+                                defaultManager.MaNhanVien, defaultManager.ChuKy ?? (object)DBNull.Value);
+                        }
+                        else
                         {
-                            MaPhieuXK = pxk.MaPhieuXK,
-                            MaSanPham = ct.MaSanPham,
-                            SoLuong = ct.SoLuong,
-                            MaKho = kho?.MaKhoHang ?? 1,
-                            DonGiaVon = sp?.GiaNhap ?? 0
-                        });
-                    }
-                    count++;
-                }
+                            await _ctx.Database.ExecuteSqlRawAsync("UPDATE PHIEUXUATKHO SET TrangThai = N'Đã duyệt' WHERE TrangThai IS NULL");
+                        }
 
-                // 3. Optional: Fix existing 0 cost items
-                var zeroCosts = await _ctx.CTPhieuXuatKhos
-                    .Where(x => x.DonGiaVon == 0)
-                    .Include(x => x.SanPham)
-                    .ToListAsync();
-                foreach (var z in zeroCosts)
-                {
-                    if (z.SanPham != null && z.SanPham.GiaNhap > 0)
+                        int count = 0;
+
+                        // 1. Sync from existing Delivery Notes (PhieuGiaoHang)
+                        var pghs = await _ctx.PhieuGiaoHangs
+                            .Include(p => p.CTPhieuGiaoHangs)
+                            .Where(p => !_ctx.PhieuXuatKhos.Any(px => px.MaPhieuGH == p.MaPhieuGH))
+                            .ToListAsync();
+
+                        foreach (var p in pghs)
+                        {
+                            var creator = await _ctx.NhanViens.FindAsync(p.MaNhanVien);
+                            var pxk = new PhieuXuatKho
+                            {
+                                MaPhieuGH = p.MaPhieuGH,
+                                MaHoaDon = p.MaHoaDon,
+                                MaNhanVien = p.MaNhanVien,
+                                NgayXuat = p.NgayGiaoThucTe ?? p.NgayTao,
+                                NgayTao = DateTime.UtcNow,
+                                NguoiXuat = "Hệ thống (Đồng bộ dữ liệu cũ)",
+                                GhiChu = $"Đồng bộ từ Phiếu giao {p.MaGH}",
+                                ChuKyNguoiLap = creator?.ChuKy,
+                                TrangThai = "Đã duyệt",
+                                MaNguoiDuyet = defaultManager?.MaNhanVien,
+                                ChuKyQuanLy = defaultManager?.ChuKy,
+                                NgayDuyet = p.NgayGiaoThucTe ?? p.NgayTao
+                            };
+                            _ctx.PhieuXuatKhos.Add(pxk);
+                            await _ctx.SaveChangesAsync();
+
+                            foreach (var ct in p.CTPhieuGiaoHangs)
+                            {
+                                var sp = await _ctx.SanPhams.FindAsync(ct.MaSanPham);
+                                var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
+                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                {
+                                    MaPhieuXK = pxk.MaPhieuXK,
+                                    MaSanPham = ct.MaSanPham,
+                                    SoLuong = ct.SoLuongGiao,
+                                    MaKho = kho?.MaKhoHang ?? 1,
+                                    DonGiaVon = sp?.GiaNhap ?? 0
+                                });
+                            }
+                            count++;
+                        }
+
+                        // 2. Sync from completed direct orders (HoaDon Hoàn thành, no PhieuGiaoHang)
+                        var hds = await _ctx.HoaDons
+                            .Include(h => h.CTHDs)
+                            .Where(h => h.TrangThai == "Hoàn thành")
+                            .Where(h => !_ctx.PhieuGiaoHangs.Any(p => p.MaHoaDon == h.MaHoaDon))
+                            .Where(h => !_ctx.PhieuXuatKhos.Any(px => px.MaHoaDon == h.MaHoaDon))
+                            .ToListAsync();
+
+                        foreach (var h in hds)
+                        {
+                            var creator = await _ctx.NhanViens.FindAsync(h.MaNhanVien);
+                            var pxk = new PhieuXuatKho
+                            {
+                                MaHoaDon = h.MaHoaDon,
+                                MaNhanVien = h.MaNhanVien,
+                                NgayXuat = h.NgayGiao ?? h.NgayLap,
+                                NgayTao = DateTime.UtcNow,
+                                NguoiXuat = "Hệ thống (Đồng bộ dữ liệu cũ)",
+                                GhiChu = $"Đồng bộ từ Đơn hàng trực tiếp {h.MaHD}",
+                                ChuKyNguoiLap = creator?.ChuKy,
+                                TrangThai = "Đã duyệt",
+                                MaNguoiDuyet = defaultManager?.MaNhanVien,
+                                ChuKyQuanLy = defaultManager?.ChuKy,
+                                NgayDuyet = h.NgayGiao ?? h.NgayLap
+                            };
+                            _ctx.PhieuXuatKhos.Add(pxk);
+                            await _ctx.SaveChangesAsync();
+
+                            foreach (var ct in h.CTHDs)
+                            {
+                                var sp = await _ctx.SanPhams.FindAsync(ct.MaSanPham);
+                                var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
+                                _ctx.CTPhieuXuatKhos.Add(new CTPhieuXuatKho
+                                {
+                                    MaPhieuXK = pxk.MaPhieuXK,
+                                    MaSanPham = ct.MaSanPham,
+                                    SoLuong = ct.SoLuong,
+                                    MaKho = kho?.MaKhoHang ?? 1,
+                                    DonGiaVon = sp?.GiaNhap ?? 0
+                                });
+                            }
+                            count++;
+                        }
+
+                        // 3. Optional: Fix existing 0 cost items
+                        var zeroCosts = await _ctx.CTPhieuXuatKhos
+                            .Where(x => x.DonGiaVon == 0)
+                            .Include(x => x.SanPham)
+                            .ToListAsync();
+                        foreach (var z in zeroCosts)
+                        {
+                            if (z.SanPham != null && z.SanPham.GiaNhap > 0)
+                            {
+                                z.DonGiaVon = z.SanPham.GiaNhap;
+                            }
+                        }
+
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        return Ok(new { message = $"Đã đồng bộ thành công {count} phiếu và cập nhật lại giá vốn cho các mặt hàng cũ.", count });
+                    }
+                    catch (Exception ex)
                     {
-                        z.DonGiaVon = z.SanPham.GiaNhap;
+                        await transaction.RollbackAsync();
+                        throw;
                     }
-                }
-
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = $"Đã đồng bộ thành công {count} phiếu và cập nhật lại giá vốn cho các mặt hàng cũ.", count });
+                });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi đồng bộ: " + ex.Message });
             }
         }
@@ -507,82 +518,93 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPost("sync-old-inbound")]
         public async Task<IActionResult> SyncOldInbound()
         {
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                int count = 0;
-                // Tìm các phiếu nhập đã hoàn thành/đã nhập kho nhưng có thể chưa được cộng vào CTKhoHang
-                // (Thường là các phiếu cũ hoặc được import từ Excel)
-                var pns = await _ctx.PhieuNhaps
-                    .Include(p => p.CTPNs)
-                    .Where(p => p.TrangThai == "Hoàn Thành" || p.TrangThai == "Đã Nhập Kho")
-                    .ToListAsync();
-
-                foreach (var p in pns)
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    // Kiểm tra xem phiếu này đã từng được "Nghiệm thu" (cộng kho) qua log chưa
-                    bool alreadyReceived = await _ctx.LichSuPhieuNhaps.AnyAsync(l => l.MaPhieuNhap == p.MaPhieuNhap && l.NoiDungThayDoi.Contains("nghiệm thu"));
-                    
-                    // Nếu là phiếu import từ Excel (có ghi chú đặc thù) thì cũng coi như đã xong
-                    if (p.GhiChu != null && p.GhiChu.Contains("Khởi tạo tồn kho đầu kỳ")) alreadyReceived = true;
-
-                    if (!alreadyReceived)
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        foreach (var ct in p.CTPNs)
+                        int count = 0;
+                        // Tìm các phiếu nhập đã hoàn thành/đã nhập kho nhưng có thể chưa được cộng vào CTKhoHang
+                        // (Thường là các phiếu cũ hoặc được import từ Excel)
+                        var pns = await _ctx.PhieuNhaps
+                            .Include(p => p.CTPNs)
+                            .Where(p => p.TrangThai == "Hoàn Thành" || p.TrangThai == "Đã Nhập Kho")
+                            .ToListAsync();
+
+                        foreach (var p in pns)
                         {
-                            int maKhoTarget = ct.MaKhoHang ?? 1;
-                            var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
-                                      ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
-                            int slNhan = ct.SoLuongDaNhan > 0 ? ct.SoLuongDaNhan : ct.SoLuong;
+                            // Kiểm tra xem phiếu này đã từng được "Nghiệm thu" (cộng kho) qua log chưa
+                            bool alreadyReceived = await _ctx.LichSuPhieuNhaps.AnyAsync(l => l.MaPhieuNhap == p.MaPhieuNhap && l.NoiDungThayDoi.Contains("nghiệm thu"));
                             
-                            if (kho != null)
+                            // Nếu là phiếu import từ Excel (có ghi chú đặc thù) thì cũng coi như đã xong
+                            if (p.GhiChu != null && p.GhiChu.Contains("Khởi tạo tồn kho đầu kỳ")) alreadyReceived = true;
+
+                            if (!alreadyReceived)
                             {
-                                kho.SoLuong += slNhan;
-                                kho.SoLuongTon += slNhan;
-                                kho.SoLuongNhap += slNhan;
-                                kho.NgayNhapCuoi = p.NgayNhap;
-                            }
-                            else
-                            {
-                                _ctx.CTKhoHangs.Add(new CTKhoHang {
-                                    MaKhoHang = maKhoTarget,
-                                    MaSanPham = ct.MaSanPham,
-                                    SoLuong = slNhan,
-                                    SoLuongTon = slNhan,
-                                    SoLuongNhap = slNhan,
-                                    NgayNhapCuoi = p.NgayNhap,
-                                    NgayCapNhat = DateTime.UtcNow
+                                foreach (var ct in p.CTPNs)
+                                {
+                                    int maKhoTarget = ct.MaKhoHang ?? 1;
+                                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget)
+                                              ?? _ctx.CTKhoHangs.Local.FirstOrDefault(k => k.MaSanPham == ct.MaSanPham && k.MaKhoHang == maKhoTarget);
+                                    int slNhan = ct.SoLuongDaNhan > 0 ? ct.SoLuongDaNhan : ct.SoLuong;
+                                    
+                                    if (kho != null)
+                                    {
+                                        kho.SoLuong += slNhan;
+                                        kho.SoLuongTon += slNhan;
+                                        kho.SoLuongNhap += slNhan;
+                                        kho.NgayNhapCuoi = p.NgayNhap;
+                                    }
+                                    else
+                                    {
+                                        _ctx.CTKhoHangs.Add(new CTKhoHang {
+                                            MaKhoHang = maKhoTarget,
+                                            MaSanPham = ct.MaSanPham,
+                                            SoLuong = slNhan,
+                                            SoLuongTon = slNhan,
+                                            SoLuongNhap = slNhan,
+                                            NgayNhapCuoi = p.NgayNhap,
+                                            NgayCapNhat = DateTime.UtcNow
+                                        });
+                                    }
+                                }
+                                
+                                // Đảm bảo MaNhanVien hợp lệ để tránh lỗi FK trong LichSu
+                                int? execId = p.MaNhanVien > 0 ? p.MaNhanVien : null;
+                                if (execId == null) {
+                                    var firstManager = await _ctx.NhanViens.FirstOrDefaultAsync();
+                                    execId = firstManager?.MaNhanVien;
+                                }
+
+                                // Đánh dấu log để không sync lại lần sau
+                                _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
+                                    MaPhieuNhap = p.MaPhieuNhap,
+                                    TrangThaiCu = p.TrangThai,
+                                    TrangThaiMoi = p.TrangThai,
+                                    NoiDungThayDoi = "Hệ thống đồng bộ dữ liệu tồn kho từ phiếu cũ.",
+                                    MaNguoiThucHien = execId,
+                                    NgayThayDoi = DateTime.UtcNow
                                 });
+                                count++;
                             }
                         }
-                        
-                        // Đảm bảo MaNhanVien hợp lệ để tránh lỗi FK trong LichSu
-                        int? execId = p.MaNhanVien > 0 ? p.MaNhanVien : null;
-                        if (execId == null) {
-                            var firstManager = await _ctx.NhanViens.FirstOrDefaultAsync();
-                            execId = firstManager?.MaNhanVien;
-                        }
 
-                        // Đánh dấu log để không sync lại lần sau
-                        _ctx.LichSuPhieuNhaps.Add(new LichSuPhieuNhap {
-                            MaPhieuNhap = p.MaPhieuNhap,
-                            TrangThaiCu = p.TrangThai,
-                            TrangThaiMoi = p.TrangThai,
-                            NoiDungThayDoi = "Hệ thống đồng bộ dữ liệu tồn kho từ phiếu cũ.",
-                            MaNguoiThucHien = execId,
-                            NgayThayDoi = DateTime.UtcNow
-                        });
-                        count++;
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+                        return Ok(new { message = $"Đã đồng bộ tồn kho thành công cho {count} phiếu nhập cũ.", count });
                     }
-                }
-
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return Ok(new { message = $"Đã đồng bộ tồn kho thành công cho {count} phiếu nhập cũ.", count });
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 var msg = ex.InnerException?.Message ?? ex.Message;
                 return StatusCode(500, new { message = "Lỗi đồng bộ nhập kho: " + msg });
             }

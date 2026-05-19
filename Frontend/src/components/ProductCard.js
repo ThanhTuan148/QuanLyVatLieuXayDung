@@ -40,7 +40,7 @@ const ProductCard = ({
   const originalPrice = product ? product.giaBan : 0;
   const hasDiscount = product && (product.giaSauKhuyenMai || product.giaKhuyenMai) && product.giaBan && (product.giaSauKhuyenMai || product.giaKhuyenMai) < product.giaBan;
   const discountPercent = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
-  
+
   const isOutOfStock = product && (product.soLuongTon <= 0 || product.soLuongTon === undefined);
 
   // Flash Sale progress
@@ -48,7 +48,7 @@ const ProductCard = ({
   const currentStock = product?.soLuongTon !== undefined ? product.soLuongTon : 0;
   const totalCount = product?.soLuongBanDau || 100;
   const percentSold = totalCount > 0 ? Math.min(100, Math.round((soldCount / totalCount) * 100)) : 0;
-  
+
   const isFlashSaleEmpty = showProgressBar && (currentStock <= 0 || soldCount >= totalCount);
 
   const buildImages = () => {
@@ -126,17 +126,17 @@ const ProductCard = ({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           pointerEvents: 'none'
         }}>
-          <Chip 
-            label="HẾT HÀNG" 
-            color="error" 
-            sx={{ 
-              fontWeight: 800, 
-              fontSize: '1rem', 
-              px: 2, py: 2, 
+          <Chip
+            label="HẾT HÀNG"
+            color="error"
+            sx={{
+              fontWeight: 800,
+              fontSize: '1rem',
+              px: 2, py: 2,
               borderRadius: '8px',
               boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
               transform: 'rotate(-10deg)'
-            }} 
+            }}
           />
         </Box>
       )}
@@ -241,20 +241,18 @@ const ProductCard = ({
           </>
         )}
 
-        {/* Action bar */}
+        {/* Top-Right circular quick actions */}
         <Box
           sx={{
             position: 'absolute',
-            bottom: 12,
-            left: 0,
-            right: 0,
+            top: 12,
+            right: 12,
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
             gap: 1,
-            zIndex: 2,
+            zIndex: 3,
             opacity: hovered ? 1 : 0,
-            transform: hovered ? 'translateY(0)' : 'translateY(10px)',
+            transform: hovered ? 'translateX(0)' : 'translateX(10px)',
             transition: 'opacity 0.25s ease, transform 0.25s ease',
           }}
         >
@@ -264,12 +262,14 @@ const ProductCard = ({
               size="small"
               onClick={(e) => { e.stopPropagation(); onQuickView(product, e); }}
               sx={{
-                bgcolor: '#fff', border: '1px solid #e0e0e0',
-                borderRadius: '50%', width: 38, height: 38,
-                '&:hover': { bgcolor: '#f5f5f5' },
+                bgcolor: '#fff', color: '#333',
+                border: '1px solid #e0e0e0',
+                borderRadius: '50%', width: 36, height: 36,
+                boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
+                '&:hover': { bgcolor: '#e68c55', color: '#fff', borderColor: '#e68c55' },
               }}
             >
-              <ZoomIcon fontSize="small" />
+              <ZoomIcon sx={{ fontSize: 16 }} />
             </IconButton>
           )}
 
@@ -279,52 +279,92 @@ const ProductCard = ({
             onClick={(e) => { e.stopPropagation(); onToggleFav && onToggleFav(product, e); }}
             sx={{
               bgcolor: isFavorite ? '#fff1f1' : '#fff',
+              color: isFavorite ? '#ef4444' : '#333',
               border: `1px solid ${isFavorite ? '#fca5a5' : '#e0e0e0'}`,
-              borderRadius: '50%', width: 38, height: 38,
-              '&:hover': { bgcolor: '#fff1f1' },
+              borderRadius: '50%', width: 36, height: 36,
+              boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
+              '&:hover': { bgcolor: '#fff1f1', color: '#ef4444' },
             }}
           >
             {isFavorite
-              ? <FavoriteFilledIcon fontSize="small" sx={{ color: '#ef4444' }} />
-              : <FavoriteIcon fontSize="small" />}
+              ? <FavoriteFilledIcon sx={{ fontSize: 16 }} />
+              : <FavoriteIcon sx={{ fontSize: 16 }} />}
           </IconButton>
+        </Box>
 
-          {/* Add to cart */}
+        {/* Slide-up Purchase Action Bar (Inside Image Container to prevent card jumping) */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            bgcolor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(8px)',
+            borderTop: '1px solid rgba(0,0,0,0.06)',
+            p: 1.2,
+            display: 'flex',
+            gap: 1,
+            zIndex: 3,
+            opacity: hovered ? 1 : 0,
+            transform: hovered ? 'translateY(0)' : 'translateY(100%)',
+            transition: 'opacity 0.28s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
           <Button
+            variant="outlined"
             size="small"
-            variant="contained"
             disabled={isOutOfStock}
             onClick={(e) => { e.stopPropagation(); onAddToCart && onAddToCart(product, e); }}
-            startIcon={<CartIcon sx={{ fontSize: '14px !important', mr: -0.5 }} />}
+            startIcon={<CartIcon sx={{ fontSize: '13px !important' }} />}
             sx={{
-              bgcolor: isOutOfStock ? '#eee' : '#fff', color: isOutOfStock ? '#999' : '#333',
-              border: '1px solid #e0e0e0', borderRadius: '20px',
-              textTransform: 'none', fontWeight: 600,
-              px: 1.5, py: 0.6, fontSize: '0.75rem', boxShadow: 'none',
-              '&:hover': { bgcolor: isOutOfStock ? '#eee' : '#e68c55', color: isOutOfStock ? '#999' : '#fff', borderColor: '#e68c55', boxShadow: 'none' },
+              flex: 1,
+              borderColor: '#e68c55',
+              color: '#e68c55',
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.72rem',
+              borderRadius: '6px',
+              py: 0.6,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                borderColor: '#d47a46',
+                bgcolor: 'rgba(230, 140, 85, 0.05)',
+              },
+              '&.Mui-disabled': {
+                borderColor: '#eee',
+                color: '#ccc'
+              }
             }}
           >
-            {isOutOfStock ? 'Hết hàng' : 'Giỏ hàng'}
+            {isOutOfStock ? 'Hết hàng' : 'Thêm giỏ'}
           </Button>
-
-          {/* Buy Now */}
           {!isOutOfStock && (
             <Button
-              size="small"
               variant="contained"
-              onClick={(e) => { 
-                e.stopPropagation(); 
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
                 if (onAddToCart) {
                   onAddToCart(product, e);
-                  navigate('/shopping-cart'); // Optional: usually handled by parent, but we can do it here or let parent pass a onBuyNow prop.
+                  navigate('/shopping-cart');
                 }
               }}
               sx={{
-                bgcolor: '#e68c55', color: '#fff',
-                border: '1px solid #e68c55', borderRadius: '20px',
-                textTransform: 'none', fontWeight: 600,
-                px: 1.5, py: 0.6, fontSize: '0.75rem', boxShadow: 'none',
-                '&:hover': { bgcolor: '#d47a46', borderColor: '#d47a46', boxShadow: 'none' },
+                flex: 1.2,
+                bgcolor: '#e68c55',
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                borderRadius: '6px',
+                py: 0.6,
+                whiteSpace: 'nowrap',
+                boxShadow: 'none',
+                '&:hover': {
+                  bgcolor: '#d47a46',
+                  boxShadow: 'none'
+                }
               }}
             >
               Mua ngay
@@ -334,15 +374,15 @@ const ProductCard = ({
       </Box>
 
       {/* Content */}
-      <CardContent sx={{ 
-        textAlign: horizontal ? 'left' : 'center', 
-        px: horizontal ? 3 : 2, 
-        pt: horizontal ? 2 : 2, 
-        pb: '16px !important', 
-        flexGrow: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: horizontal ? 'flex-start' : 'center' 
+      <CardContent sx={{
+        textAlign: horizontal ? 'left' : 'center',
+        px: horizontal ? 3 : 2,
+        pt: horizontal ? 2 : 2,
+        pb: '16px !important',
+        flexGrow: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: horizontal ? 'flex-start' : 'center'
       }}>
         <Typography variant="caption" sx={{ color: '#aaa', mb: 0.5, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {product.tenLoai || 'Vật liệu'}
@@ -366,35 +406,37 @@ const ProductCard = ({
           </Typography>
         )}
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: horizontal ? 'flex-start' : 'center', gap: 1, mt: 'auto' }}>
-          <Typography variant="body1" sx={{ color: '#e68c55', fontWeight: 700 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: horizontal ? 'flex-start' : 'center', gap: 1, mt: 'auto', width: '100%' }}>
+          <Typography variant="body1" sx={{ color: '#e68c55', fontWeight: 700, fontSize: compact ? '0.85rem' : '1rem' }}>
             {price.toLocaleString('vi-VN')}đ
           </Typography>
           {hasDiscount && (
-            <Typography variant="caption" sx={{ color: '#bbb', textDecoration: 'line-through' }}>
+            <Typography variant="caption" sx={{ color: '#bbb', textDecoration: 'line-through', fontSize: compact ? '0.7rem' : '0.8rem' }}>
               {originalPrice.toLocaleString('vi-VN')}đ
             </Typography>
           )}
         </Box>
 
+
+
         {/* Flash Sale Progress Bar */}
         {showProgressBar && (
-          <Box sx={{ 
-            width: '100%', maxWidth: '200px', height: '20px', bgcolor: '#fecaca', 
+          <Box sx={{
+            width: '100%', height: '20px', bgcolor: '#fecaca',
             borderRadius: '10px', position: 'relative', mt: 1.5, overflow: 'hidden'
           }}>
             {isFlashSaleEmpty ? (
-               <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                 Đã hết số lượng flashsales
-               </Typography>
+              <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                Đã hết số lượng flashsales
+              </Typography>
             ) : (
-               <>
-                 <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '10px', transition: 'width 0.5s' }} />
-                 <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', textShadow: '0px 0px 3px rgba(0,0,0,0.5)' }}>
-                   Đã bán {soldCount}/{totalCount}
-                 </Typography>
-                 <Box sx={{ position: 'absolute', left: 4, top: 0, fontSize: '0.8rem' }}>🔥</Box>
-               </>
+              <>
+                <Box sx={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${percentSold}%`, bgcolor: '#ef4444', borderRadius: '10px', transition: 'width 0.5s' }} />
+                <Typography variant="caption" sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', textShadow: '0px 0px 3px rgba(0,0,0,0.5)' }}>
+                  Đã bán {soldCount}/{totalCount}
+                </Typography>
+                <Box sx={{ position: 'absolute', left: 4, top: 0, fontSize: '0.8rem' }}>🔥</Box>
+              </>
             )}
           </Box>
         )}

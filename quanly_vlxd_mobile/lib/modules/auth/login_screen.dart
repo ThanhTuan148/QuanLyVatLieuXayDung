@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/shared_preferences_service.dart';
@@ -116,7 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (token.isNotEmpty) {
           SharedPreferencesService.setToken(token);
         }
-        SharedPreferencesService.setUser(userObj.toString());
+        SharedPreferencesService.setUser(jsonEncode(userObj));
+
 
         // 1. Quét toàn diện các key phân quyền từ Backend .NET
         final rawRole = userObj['role'] ?? userObj['Role'] ?? userObj['roleName'] ?? userObj['RoleName'] ?? userObj['role_name'] ?? userObj['quyen'] ?? userObj['Quyen'] ?? userObj['chucVu'] ?? userObj['roleId'] ?? '';

@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'services/shared_preferences_service.dart';
 import 'modules/auth/login_screen.dart';
-import 'modules/sales/sales_home_screen.dart';
-import 'modules/driver/driver_home_screen.dart';
-import 'modules/warehouse/warehouse_home_screen.dart';
-import 'modules/manager/manager_home_screen.dart';
-import 'modules/admin/admin_home_screen.dart';
+import 'modules/home/main_dynamic_home_screen.dart';
 
 void main() async {
   // Khởi tạo binding và SharedPreferences trước khi chạy app
@@ -51,11 +47,11 @@ class BuildingMaterialApp extends StatelessWidget {
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/sales/home': (context) => const SalesHomeScreen(),
-        '/driver/home': (context) => const DriverHomeScreen(),
-        '/warehouse/home': (context) => const WarehouseHomeScreen(),
-        '/manager/home': (context) => const ManagerHomeScreen(),
-        '/admin/home': (context) => const AdminHomeScreen(),
+        '/sales/home': (context) => const MainDynamicHomeScreen(),
+        '/driver/home': (context) => const MainDynamicHomeScreen(),
+        '/warehouse/home': (context) => const MainDynamicHomeScreen(),
+        '/manager/home': (context) => const MainDynamicHomeScreen(),
+        '/admin/home': (context) => const MainDynamicHomeScreen(),
       },
     );
   }

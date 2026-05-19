@@ -38,17 +38,95 @@ namespace BuildingMaterialAPI.Controllers
                 if (taiKhoan == null)
                     return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không chính xác" });
 
-                if (!taiKhoan.TrangThai)
+                if (taiKhoan.TrangThai == false)
                     return Unauthorized(new { message = "Tài khoản của bạn đã bị khóa." });
 
                 var nhanVien = taiKhoan.NhanVien;
                 var khachHang = taiKhoan.KhachHang;
+
+                if (khachHang != null && khachHang.TrangThai == false)
+                    return Unauthorized(new { message = "Tài khoản khách hàng này đã ngưng hoạt động." });
+
+                if (nhanVien != null && nhanVien.TrangThai == false)
+                    return Unauthorized(new { message = "Tài khoản nhân viên này đã ngưng hoạt động." });
+
                 var fullName = nhanVien?.TenNV ?? khachHang?.TenKH ?? taiKhoan.TenTK;
                 var phoneNumber = nhanVien?.Sdt ?? khachHang?.Sdt;
 
                 // Update last login
                 taiKhoan.DangNhapCuoi = DateTime.UtcNow;
                 await _ctx.SaveChangesAsync();
+
+                // ─── XÁC ĐỊNH DANH SÁCH MODULE ĐƯỢC PHÉP TRUY CẬP (ALLOWED MODULES) ───
+                var allowedModules = new List<string>();
+                var roleName = taiKhoan.VaiTro?.TenVT ?? "Unknown";
+
+                // 1. Gán các module mặc định theo vai trò gốc
+                if (roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager" || roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị"))
+                {
+                    allowedModules.AddRange(new[] { "DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT" });
+                }
+                else if (roleName.ToLower().Contains("bán hàng") || roleName.ToLower() == "sales")
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "ORDERS", "CUSTOMERS", "PROMOTIONS", "CHAT" });
+                }
+                else if (roleName.ToLower().Contains("thủ kho") || roleName.ToLower() == "warehouse")
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "STOCK_ORDERS", "INVENTORY", "RETURNS" });
+                }
+                else if (roleName.ToLower().Contains("tài xế") || roleName.ToLower() == "driver")
+                {
+                    allowedModules.AddRange(new[] { "DELIVERIES" });
+                }
+                else // Khách hàng hoặc Role khác
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "ORDERS", "CHAT" });
+                }
+
+                // 2. Gộp thêm các module được phân quyền động riêng cho nhân viên từ NhanVienModuleQuyen
+                var modulePermissions = new Dictionary<string, ModuleQuyenDto>();
+                var defaultAllModules = new[] { "DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT" };
+                bool isManagerOrAdmin = roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager" || roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị");
+
+                foreach (var m in defaultAllModules)
+                {
+                    bool canView = isManagerOrAdmin || allowedModules.Contains(m);
+                    bool canCrud = isManagerOrAdmin;
+
+                    if (roleName.ToLower().Contains("bán hàng") || roleName.ToLower() == "sales")
+                    {
+                        if (m == "ORDERS" || m == "CUSTOMERS" || m == "PRODUCTS") canCrud = true;
+                    }
+                    else if (roleName.ToLower().Contains("thủ kho") || roleName.ToLower() == "warehouse")
+                    {
+                        if (m == "STOCK_ORDERS" || m == "RETURNS" || m == "INVENTORY" || m == "PRODUCTS") canCrud = true;
+                    }
+
+                    modulePermissions[m] = new ModuleQuyenDto
+                    {
+                        Module = m, TenModule = m, CoTheXem = canView, CoTheTao = canCrud, CoTheSua = canCrud, CoTheXoa = canCrud
+                    };
+                }
+
+                if (nhanVien != null)
+                {
+                    var customPerms = await _ctx.NhanVienModuleQuyens
+                        .Where(q => q.MaNhanVien == nhanVien.MaNhanVien)
+                        .ToListAsync();
+
+                    foreach (var p in customPerms)
+                    {
+                        modulePermissions[p.Module] = new ModuleQuyenDto
+                        {
+                            Module = p.Module, TenModule = p.TenModule, CoTheXem = p.CoTheXem, CoTheTao = p.CoTheTao, CoTheSua = p.CoTheSua, CoTheXoa = p.CoTheXoa
+                        };
+
+                        if (p.CoTheXem && !allowedModules.Contains(p.Module))
+                        {
+                            allowedModules.Add(p.Module);
+                        }
+                    }
+                }
 
                 var response = new LoginResponseDto
                 {
@@ -58,10 +136,12 @@ namespace BuildingMaterialAPI.Controllers
                     Email = taiKhoan.Email,
                     FullName = fullName,
                     PhoneNumber = phoneNumber,
-                    RoleName = taiKhoan.VaiTro?.TenVT ?? "Unknown",
+                    RoleName = roleName,
                     IsActive = taiKhoan.TrangThai,
                     MaKhachHang = taiKhoan.KhachHang?.MaKhachHang,
-                    ChuKy = nhanVien?.ChuKy
+                    ChuKy = nhanVien?.ChuKy,
+                    AllowedModules = allowedModules,
+                    ModulePermissions = modulePermissions
                 };
 
                 return Ok(response);
@@ -262,5 +342,9 @@ namespace BuildingMaterialAPI.Controllers
         public bool IsActive { get; set; }
         public int? MaKhachHang { get; set; }
         public string? ChuKy { get; set; }
+        public List<string> AllowedModules { get; set; } = new List<string>();
+        public Dictionary<string, ModuleQuyenDto> ModulePermissions { get; set; } = new Dictionary<string, ModuleQuyenDto>();
     }
 }
+
+

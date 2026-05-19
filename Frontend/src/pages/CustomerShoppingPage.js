@@ -13,6 +13,7 @@ import bannerService from '../services/bannerService';
 import storageHelper from '../services/storageHelper';
 import ProductCard from '../components/ProductCard';
 import HeroCarousel from '../components/HeroCarousel';
+import InteractiveLookbook from '../components/InteractiveLookbook';
 
 const slideInLeft = keyframes`
   0% { opacity: 0; transform: translateX(-50px); }
@@ -46,6 +47,7 @@ const CustomerShoppingPage = () => {
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quickViewQty, setQuickViewQty] = useState(1);
+  const [quickViewImgIdx, setQuickViewImgIdx] = useState(0);
   const [activeFlashSale, setActiveFlashSale] = useState(cachedData ? cachedData.activeFlashSale : null);
   const [timeLeft, setTimeLeft] = useState({ hours: '02', minutes: '00', seconds: '00' });
   const [bestSellerTab, setBestSellerTab] = useState('Tất cả');
@@ -313,12 +315,57 @@ const CustomerShoppingPage = () => {
   const handleOpenQuickView = (prod) => {
     setSelectedProduct(prod);
     setQuickViewQty(1);
+    setQuickViewImgIdx(0);
     setQuickViewOpen(true);
   };
 
   const handleCloseQuickView = () => {
     setQuickViewOpen(false);
   };
+
+  useEffect(() => {
+    const handleShowQuickViewEvent = (e) => {
+      const lookbookItem = e.detail;
+      if (!lookbookItem) return;
+
+      // If e.detail is already a full real product from displayItems.rawProduct, use it directly!
+      if (lookbookItem.maSanPham && lookbookItem.tenSanPham) {
+        handleOpenQuickView(lookbookItem);
+        return;
+      }
+
+      const titleText = lookbookItem.title || lookbookItem.tenSanPham || '';
+      if (!titleText) return;
+
+      const searchTerms = titleText.toLowerCase().split(' ');
+      const match = products.find(p => {
+        const pName = (p.tenSanPham || '').toLowerCase();
+        return searchTerms.some(term => term.length > 2 && pName.includes(term));
+      });
+
+      if (match) {
+        handleOpenQuickView(match);
+      } else {
+        const mockProduct = {
+          maSanPham: (lookbookItem.id || 0) + 10000,
+          tenSanPham: lookbookItem.title || lookbookItem.tenSanPham || 'Sản phẩm',
+          hinhAnh: lookbookItem.img || lookbookItem.hinhAnh,
+          giaBan: parseFloat((lookbookItem.price || '').replace(/[^\d]/g, '')) || lookbookItem.giaBan || 150000,
+          giaSauKhuyenMai: parseFloat((lookbookItem.price || '').replace(/[^\d]/g, '')) || lookbookItem.giaSauKhuyenMai || 150000,
+          moTa: lookbookItem.desc || lookbookItem.moTa || '',
+          thuongHieu: lookbookItem.category || lookbookItem.thuongHieu || '',
+          donViTinh: (lookbookItem.price || '').includes('/') ? lookbookItem.price.split('/')[1] : (lookbookItem.donViTinh || 'Sản phẩm'),
+          soLuongTon: 99
+        };
+        handleOpenQuickView(mockProduct);
+      }
+    };
+
+    window.addEventListener('showProductQuickView', handleShowQuickViewEvent);
+    return () => {
+      window.removeEventListener('showProductQuickView', handleShowQuickViewEvent);
+    };
+  }, [products]);
 
   const [categories, setCategories] = useState(cachedData ? cachedData.categories : []);
 
@@ -423,7 +470,7 @@ const CustomerShoppingPage = () => {
     <Box sx={{ width: '100%', overflowX: 'hidden', bgcolor: '#f8f7f4' }}>
 
       {/* Hero Section Carousel Replicating the Screenshot with Animation */}
-      <HeroCarousel ctaLink="#products" ctaLabel="SẢN PHẨM →" mode="shopping" />
+      <HeroCarousel ctaLink="#products" ctaLabel="SẢN PHẨM →" mode="shopping" products={products} />
 
 
       {/* Fahasa-style Flash Sale Section */}
@@ -522,7 +569,9 @@ const CustomerShoppingPage = () => {
                   display: 'flex',
                   gap: 2,
                   overflowX: 'auto',
-                  pb: 1,
+                  pt: 2,
+                  pb: 2,
+                  px: 1,
                   '&::-webkit-scrollbar': { display: 'none' },
                   msOverflowStyle: 'none',
                   scrollbarWidth: 'none',
@@ -836,6 +885,7 @@ const CustomerShoppingPage = () => {
                 display: 'flex',
                 gap: 3,
                 overflowX: 'auto',
+                pt: 2,
                 pb: 2,
                 px: 1,
                 '&::-webkit-scrollbar': { display: 'none' },
@@ -895,15 +945,86 @@ const CustomerShoppingPage = () => {
         {selectedProduct && (
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, p: 3 }}>
             {/* Left Image Area */}
-            <Box sx={{ width: { xs: '100%', md: '50%' }, p: 2, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, position: 'relative' }}>
-                <IconButton sx={{ position: 'absolute', left: -10 }}><Typography sx={{ fontSize: '1.5rem', color: '#999' }}>{'<'}</Typography></IconButton>
-                {selectedProduct.hinhAnh
-                  ? <img src={selectedProduct.hinhAnh} alt={selectedProduct.tenSP} style={{ maxWidth: '90%', maxHeight: '300px', objectFit: 'contain' }} />
-                  : <Box sx={{ fontSize: '8rem' }}>🏗️</Box>
+            <Box sx={{ width: { xs: '100%', md: '50%' }, p: 2, display: 'flex', flexDirection: 'column', position: 'relative', alignItems: 'center' }}>
+              {(() => {
+                const main = selectedProduct.hinhAnh || null;
+                let extras = [];
+                if (Array.isArray(selectedProduct.anhPhu)) {
+                  extras = selectedProduct.anhPhu;
+                } else if (typeof selectedProduct.anhPhu === 'string' && selectedProduct.anhPhu) {
+                  try { extras = JSON.parse(selectedProduct.anhPhu); } catch { extras = []; }
                 }
-                <IconButton sx={{ position: 'absolute', right: -10 }}><Typography sx={{ fontSize: '1.5rem', color: '#999' }}>{'>'}</Typography></IconButton>
-              </Box>
+                extras = extras.filter(Boolean);
+                const qvImages = main ? [main, ...extras].slice(0, 5) : [];
+                const hasMultipleQv = qvImages.length > 1;
+
+                return (
+                  <>
+                    <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300, position: 'relative', bgcolor: '#fbfbfb', borderRadius: '8px', overflow: 'hidden', border: '1px solid #f0f0f0' }}>
+                      {hasMultipleQv && (
+                        <IconButton
+                          onClick={() => setQuickViewImgIdx(prev => (prev - 1 + qvImages.length) % qvImages.length)}
+                          sx={{ position: 'absolute', left: 8, zIndex: 2, bgcolor: 'rgba(255,255,255,0.7)', '&:hover': { bgcolor: '#fff' } }}
+                        >
+                          <Typography sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', lineHeight: 1 }}>{'<'}</Typography>
+                        </IconButton>
+                      )}
+
+                      {qvImages.length > 0 ? (
+                        <img
+                          src={qvImages[quickViewImgIdx] || qvImages[0]}
+                          alt={selectedProduct.tenSP}
+                          style={{ maxWidth: '90%', maxHeight: '280px', objectFit: 'contain', transition: 'all 0.3s' }}
+                        />
+                      ) : (
+                        <Box sx={{ fontSize: '8rem' }}>🏗️</Box>
+                      )}
+
+                      {hasMultipleQv && (
+                        <IconButton
+                          onClick={() => setQuickViewImgIdx(prev => (prev + 1) % qvImages.length)}
+                          sx={{ position: 'absolute', right: 8, zIndex: 2, bgcolor: 'rgba(255,255,255,0.7)', '&:hover': { bgcolor: '#fff' } }}
+                        >
+                          <Typography sx={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#333', lineHeight: 1 }}>{'>'}</Typography>
+                        </IconButton>
+                      )}
+                    </Box>
+
+                    {/* Thumbnails Row */}
+                    {hasMultipleQv && (
+                      <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
+                        {qvImages.map((img, index) => (
+                          <Box
+                            key={index}
+                            onClick={() => setQuickViewImgIdx(index)}
+                            sx={{
+                              width: 55,
+                              height: 55,
+                              borderRadius: '6px',
+                              border: `2px solid ${index === quickViewImgIdx ? '#e68c55' : '#e0e0e0'}`,
+                              cursor: 'pointer',
+                              overflow: 'hidden',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: '#fff',
+                              transition: 'all 0.2s',
+                              boxShadow: index === quickViewImgIdx ? '0 2px 8px rgba(230,140,85,0.2)' : 'none',
+                              '&:hover': {
+                                borderColor: '#e68c55',
+                                transform: 'scale(1.05)',
+                              }
+                            }}
+                          >
+                            <img src={img} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+
               <Button
                 variant="contained"
                 fullWidth
@@ -1025,6 +1146,7 @@ const CustomerShoppingPage = () => {
                 display: 'flex',
                 gap: 3,
                 overflowX: 'auto',
+                pt: 2,
                 pb: 2,
                 px: 1,
                 '&::-webkit-scrollbar': { display: 'none' },
@@ -1114,6 +1236,7 @@ const CustomerShoppingPage = () => {
                   display: 'flex',
                   gap: 3,
                   overflowX: 'auto',
+                  pt: 2,
                   pb: 2,
                   px: 1,
                   '&::-webkit-scrollbar': { display: 'none' },
@@ -1162,11 +1285,14 @@ const CustomerShoppingPage = () => {
         </Container>
       </Box>
 
-      {/* Bộ sưu tập (Split Layout) */}
+      {/* Không gian trải nghiệm sản phẩm tiêu biểu */}
+      <InteractiveLookbook products={products} onQuickView={handleOpenQuickView} />
+
+      {/* Vật liệu tiêu biểu (Split Layout) */}
       <Box sx={{ py: 8 }}>
         <Container maxWidth="xl" sx={{ px: { xs: 4, md: 8, lg: 12 } }}>
-          <Typography variant="h3" sx={{ color: '#333', fontWeight: 700, mb: 1 }}>Bộ sưu tập</Typography>
-          <Typography variant="body1" sx={{ color: '#888', mb: 4 }}>Các sản phẩm phổ biến nhất từ bộ sưu tập</Typography>
+          <Typography variant="h3" sx={{ color: '#333', fontWeight: 700, mb: 1 }}>Vật liệu tiêu biểu</Typography>
+          <Typography variant="body1" sx={{ color: '#888', mb: 4 }}>Danh sách các dòng vật tư công trình chất lượng cao và được ưa chuộng nhất</Typography>
 
           <Grid container spacing={3}>
             {/* Products Carousel Left */}
@@ -1226,6 +1352,7 @@ const CustomerShoppingPage = () => {
                     display: 'flex',
                     gap: 3,
                     overflowX: 'auto',
+                    pt: 2,
                     pb: 2,
                     px: 1,
                     '&::-webkit-scrollbar': { display: 'none' },
@@ -1298,7 +1425,7 @@ const CustomerShoppingPage = () => {
                   </Box>
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#222', lineHeight: 1.2 }}>
-                      Showroom VLXD Thành Đạt
+                      Cửa hàng VLXD Thành Đạt
                     </Typography>
                     <Typography variant="caption" sx={{ color: '#666', display: 'block', mt: 0.5 }}>
                       829 Lạc Long Quân, P. Bảy Hiền, Q. Tân Bình, TP. HCM

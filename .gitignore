@@ -38,6 +38,8 @@ appsettings.local.json
 # Database files
 *.db
 *.sqlite
+*.bak
+Backend/Backups/
 
 # Logs
 logs
@@ -45,6 +47,8 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+Backend/run_error.txt
+Backend/run_output.txt
 
 # Mobile specific
 .expo/
