@@ -16,6 +16,7 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
   late TabController _tabController;
 
   List<dynamic> _promotions = [];
+  List<dynamic> _allProducts = [];
   bool _isLoading = true;
   String? _error;
   String _searchQuery = '';
@@ -32,6 +33,20 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
       }
     });
     _fetchPromotions();
+    _fetchProducts();
+  }
+
+  Future<void> _fetchProducts() async {
+    try {
+      final response = await _apiService.getProducts();
+      if (response.statusCode == 200 && response.data != null) {
+        if (mounted) {
+          setState(() {
+            _allProducts = response.data is List ? response.data : [response.data];
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -128,6 +143,17 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
     String hangApDung = isEdit ? (promo['hangThanhVien'] ?? promo['HangThanhVien'] ?? 'Mọi hạng').toString() : 'Mọi hạng';
     bool trangThai = isEdit ? (promo['trangThai'] ?? promo['TrangThai'] ?? true) : true;
 
+    List<int> selectedProductIds = [];
+    if (isEdit) {
+      final targets = promo['targets'] ?? promo['Targets'] ?? [];
+      for (var t in targets) {
+        final pid = t['maSanPham'] ?? t['MaSanPham'] ?? t['id'];
+        if (pid != null) {
+          selectedProductIds.add(pid is int ? pid : int.tryParse(pid.toString()) ?? 0);
+        }
+      }
+    }
+
     DateTime startDt = isEdit && promo['thoiGianBatDau'] != null ? DateTime.parse(promo['thoiGianBatDau'].toString()) : DateTime.now();
     DateTime endDt = isEdit && promo['thoiGianKetThuc'] != null ? DateTime.parse(promo['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
 
@@ -153,7 +179,6 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Tên chương trình (ẩn nếu là Coupon vì Coupon dùng Mã Code làm chính)
                       if (loaiKM != 'Coupon') ...[
                         TextFormField(
                           controller: tenCtrl,
@@ -162,8 +187,6 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                         ),
                         const SizedBox(height: 12),
                       ],
-
-                      // Mã Code (chỉ dành cho Ưu đãi hệ thống và Coupon)
                       if (loaiKM == 'UuDai' || loaiKM == 'Coupon') ...[
                         TextFormField(
                           controller: maApDungCtrl,
@@ -172,28 +195,23 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                         ),
                         const SizedBox(height: 12),
                       ],
-
-                      // Mô tả
                       TextFormField(
                         controller: moTaCtrl,
                         decoration: const InputDecoration(labelText: 'Mô tả chi tiết', border: OutlineInputBorder()),
                       ),
                       const SizedBox(height: 12),
-
-                      // Loại giảm giá
                       DropdownButtonFormField<String>(
                         value: loaiGiam,
+                        isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Loại giảm giá', border: OutlineInputBorder()),
                         items: const [
-                          DropdownMenuItem(value: 'PhanTram', child: Text('Giảm theo Phần trăm (%)')),
-                          DropdownMenuItem(value: 'SoTien', child: Text('Giảm trực tiếp Số tiền (đ)')),
-                          DropdownMenuItem(value: 'Freeship', child: Text('Miễn phí vận chuyển (Freeship)')),
+                          DropdownMenuItem(value: 'PhanTram', child: Text('Giảm theo Phần trăm (%)', overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(value: 'SoTien', child: Text('Giảm trực tiếp Số tiền (đ)', overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(value: 'Freeship', child: Text('Miễn phí vận chuyển (Freeship)', overflow: TextOverflow.ellipsis)),
                         ],
                         onChanged: (val) => setDialogState(() => loaiGiam = val!),
                       ),
                       const SizedBox(height: 12),
-
-                      // Giá trị giảm & Đơn tối thiểu
                       Row(
                         children: [
                           Expanded(
@@ -214,13 +232,12 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      // Hạng thành viên & Số lượng tối đa
                       Row(
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               value: hangApDung,
+                              isExpanded: true,
                               decoration: const InputDecoration(labelText: 'Hạng áp dụng', border: OutlineInputBorder()),
                               items: const [
                                 DropdownMenuItem(value: 'Mọi hạng', child: Text('Mọi hạng')),
@@ -245,8 +262,6 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      // Thời gian bắt đầu & kết thúc
                       Row(
                         children: [
                           Expanded(
@@ -276,8 +291,26 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      
+                      if (loaiKM == 'SanPham' || loaiKM == 'GiaSoc') ...[
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () async {
+                            await _showProductSelectionBottomSheet(selectedProductIds);
+                            setDialogState(() {});
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Sản phẩm áp dụng', 
+                              border: const OutlineInputBorder(),
+                              errorText: selectedProductIds.isEmpty ? 'Vui lòng chọn ít nhất 1 sản phẩm' : null,
+                            ),
+                            child: Text(selectedProductIds.isEmpty ? 'Chọn sản phẩm...' : 'Đã chọn ${selectedProductIds.length} sản phẩm', style: TextStyle(fontWeight: selectedProductIds.isEmpty ? FontWeight.normal : FontWeight.bold, color: selectedProductIds.isEmpty ? Colors.grey : Colors.blue)),
+                          ),
+                        ),
+                      ],
 
+                      const SizedBox(height: 12),
                       SwitchListTile(
                         title: const Text('Trạng thái hoạt động'),
                         value: trangThai,
@@ -292,6 +325,11 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                 ElevatedButton(
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
+                      if ((loaiKM == 'SanPham' || loaiKM == 'GiaSoc') && selectedProductIds.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn sản phẩm áp dụng!')));
+                        return;
+                      }
+
                       Navigator.pop(context);
                       setState(() => _isLoading = true);
 
@@ -308,6 +346,7 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                         'thoiGianBatDau': startDt.toIso8601String(),
                         'thoiGianKetThuc': endDt.toIso8601String(),
                         'trangThai': trangThai,
+                        'targets': selectedProductIds.map((id) => {'maSanPham': id}).toList(),
                       };
 
                       try {
@@ -331,6 +370,90 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
                   child: Text(isEdit ? 'Lưu Thay Đổi' : 'Thêm Mới'),
                 ),
               ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showProductSelectionBottomSheet(List<int> selectedProductIds) async {
+    List<int> tempSelected = List.from(selectedProductIds);
+    String filterQuery = '';
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final displayProducts = _allProducts.where((p) {
+              final ten = (p['tenSP'] ?? p['TenSP'] ?? '').toString().toLowerCase();
+              final ma = (p['maSP'] ?? p['MaSP'] ?? '').toString().toLowerCase();
+              return ten.contains(filterQuery.toLowerCase()) || ma.contains(filterQuery.toLowerCase());
+            }).toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Text('Chọn Sản Phẩm Áp Dụng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    onChanged: (val) => setSheetState(() => filterQuery = val),
+                    decoration: InputDecoration(
+                      hintText: 'Tìm kiếm sản phẩm...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: displayProducts.isEmpty
+                        ? const Center(child: Text('Không tìm thấy sản phẩm nào'))
+                        : ListView.builder(
+                            itemCount: displayProducts.length,
+                            itemBuilder: (context, index) {
+                              final p = displayProducts[index];
+                              final id = p['maSanPham'] ?? p['MaSanPham'] ?? p['id'];
+                              final isSelected = tempSelected.contains(id);
+
+                              return CheckboxListTile(
+                                title: Text(p['tenSP'] ?? p['TenSP'] ?? 'Sản phẩm', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(p['maSP'] ?? p['MaSP'] ?? ''),
+                                value: isSelected,
+                                onChanged: (val) {
+                                  setSheetState(() {
+                                    if (val == true) {
+                                      tempSelected.add(id);
+                                    } else {
+                                      tempSelected.remove(id);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800, foregroundColor: Colors.white),
+                      onPressed: () {
+                        selectedProductIds.clear();
+                        selectedProductIds.addAll(tempSelected);
+                        Navigator.pop(context);
+                      },
+                      child: Text('XÁC NHẬN CHỌN (${tempSelected.length})'),
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -515,259 +638,287 @@ class _PromotionsTabState extends State<PromotionsTab> with SingleTickerProvider
   }
 
   // =========================================================================
-  // BẢNG TAB 1: KHUYẾN MÃI SẢN PHẨM
+  // GIAO DIỆN DẠNG CARD CHUNG
+  // =========================================================================
+  Widget _buildCardList(List<dynamic> list, String type, Widget Function(dynamic) cardBuilder) {
+    if (list.isEmpty) return const Center(child: Text('Không có dữ liệu', style: TextStyle(color: Colors.grey)));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: list.length,
+      itemBuilder: (context, index) => cardBuilder(list[index]),
+    );
+  }
+
+  // =========================================================================
+  // TAB 1: KHUYẾN MÃI SẢN PHẨM
   // =========================================================================
   Widget _buildSanPhamTab(List<dynamic> list) {
-    return list.isEmpty
-        ? const Center(child: Text('Không tìm thấy khuyến mãi sản phẩm'))
-        : SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                columnSpacing: 24,
-                dataRowMaxHeight: 64,
-                columns: const [
-                  DataColumn(label: Text('Tên Chương Trình', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Hạng áp dụng', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Mức giảm', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Sản phẩm', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thời Hạn', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
+    return _buildCardList(list, 'SanPham', (p) {
+      final ten = p['tenKM'] ?? p['TenKM'] ?? 'Tên chương trình';
+      final hang = p['hangThanhVien'] ?? p['HangThanhVien'] ?? 'Mọi hạng';
+      final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'PhanTram';
+      final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
+      final targets = p['targets'] ?? p['Targets'] ?? [];
+      final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
+      final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
+      final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+      String mucGiamStr = loaiGiam == 'PhanTram' ? '-$giaTri%' : '-${_currencyFormat.format(giaTri)}';
+      if (loaiGiam == 'Freeship') mucGiamStr = 'Freeship';
+
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: Text(ten.toString(), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade800))),
+                  Chip(
+                    label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 10, fontWeight: FontWeight.bold)),
+                    backgroundColor: trangThai ? Colors.green.shade50 : Colors.red.shade50,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ],
-                rows: list.map((p) {
-                  final ten = p['tenKM'] ?? p['TenKM'] ?? 'Tên chương trình';
-                  final hang = p['hangThanhVien'] ?? p['HangThanhVien'] ?? 'Mọi hạng';
-                  final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'PhanTram';
-                  final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
-                  final targets = p['targets'] ?? p['Targets'] ?? [];
-                  final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
-                  final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
-                  final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
-
-                  String mucGiamStr = loaiGiam == 'PhanTram' ? '-$giaTri%' : '-${_currencyFormat.format(giaTri)}';
-                  if (loaiGiam == 'Freeship') mucGiamStr = 'Freeship';
-
-                  return DataRow(
-                    cells: [
-                      DataCell(SizedBox(width: 180, child: Text(ten.toString(), style: const TextStyle(fontWeight: FontWeight.bold)))),
-                      DataCell(Text(hang.toString())),
-                      DataCell(Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.orange.shade600, borderRadius: BorderRadius.circular(16)),
-                        child: Text(mucGiamStr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      )),
-                      DataCell(Chip(label: Text('${targets.length} SP', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)), backgroundColor: Colors.blue.shade50)),
-                      DataCell(Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}')),
-                      DataCell(Chip(
-                        label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
-                        backgroundColor: trangThai ? Colors.green.shade100 : Colors.red.shade100,
-                      )),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (PermissionHelper.canEdit('PROMOTIONS'))
-                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('SanPham', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('PROMOTIONS'))
-                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
               ),
-            ),
-          );
+              const Divider(),
+              Row(
+                children: [
+                  const Icon(Icons.star_rate, size: 16, color: Colors.orange), const SizedBox(width: 4), Text('Áp dụng: $hang', style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 16),
+                  const Icon(Icons.discount, size: 16, color: Colors.blue), const SizedBox(width: 4), Text('Mức giảm: $mucGiamStr', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.date_range, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  const Spacer(),
+                  Text('${targets.length} SP được chọn', style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (PermissionHelper.canEdit('PROMOTIONS')) TextButton.icon(icon: const Icon(Icons.edit, size: 18), label: const Text('Sửa'), onPressed: () => _showAddEditDialog('SanPham', p as Map<String, dynamic>)),
+                  if (PermissionHelper.canDelete('PROMOTIONS')) TextButton.icon(icon: const Icon(Icons.delete, size: 18, color: Colors.red), label: const Text('Xóa', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   // =========================================================================
-  // BẢNG TAB 2: FLASH SALES
+  // TAB 2: FLASH SALES
   // =========================================================================
   Widget _buildFlashSaleTab(List<dynamic> list) {
-    return list.isEmpty
-        ? const Center(child: Text('Không tìm thấy Flash Sales'))
-        : SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                columnSpacing: 32,
-                dataRowMaxHeight: 64,
-                columns: const [
-                  DataColumn(label: Text('Tiêu Đề', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Sản phẩm', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thời Hạn', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
-                ],
-                rows: list.map((p) {
-                  final ten = p['tenKM'] ?? p['TenKM'] ?? 'Flash sale';
-                  final targets = p['targets'] ?? p['Targets'] ?? [];
-                  final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
-                  final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 5));
-                  final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+    return _buildCardList(list, 'GiaSoc', (p) {
+      final ten = p['tenKM'] ?? p['TenKM'] ?? 'Flash sale';
+      final targets = p['targets'] ?? p['Targets'] ?? [];
+      final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
+      final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 5));
+      final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
 
-                  return DataRow(
-                    cells: [
-                      DataCell(SizedBox(width: 200, child: Text(ten.toString(), style: const TextStyle(fontWeight: FontWeight.bold)))),
-                      DataCell(Chip(label: Text('${targets.length} SP', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)), backgroundColor: Colors.red.shade50)),
-                      DataCell(Text('${DateFormat('HH:mm:ss dd/MM/yyyy').format(startDt)} - ${DateFormat('HH:mm:ss dd/MM/yyyy').format(endDt)}')),
-                      DataCell(Chip(
-                        label: Text(trangThai ? 'Đang chạy' : 'Kết thúc', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                        backgroundColor: trangThai ? Colors.red.shade600 : Colors.grey,
-                      )),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (PermissionHelper.canEdit('FLASHSALES'))
-                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('GiaSoc', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('FLASHSALES'))
-                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: Text(ten.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red))),
+                  Chip(
+                    label: Text(trangThai ? 'Đang chạy' : 'Kết thúc', style: TextStyle(color: trangThai ? Colors.white : Colors.grey.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
+                    backgroundColor: trangThai ? Colors.red.shade600 : Colors.grey.shade300,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
               ),
-            ),
-          );
+              const Divider(),
+              Row(
+                children: [
+                  const Icon(Icons.bolt, size: 18, color: Colors.orange), const SizedBox(width: 4), Text('${targets.length} Sản phẩm Flash Sale', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.timer_outlined, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${DateFormat('HH:mm dd/MM/yyyy').format(startDt)} - ${DateFormat('HH:mm dd/MM/yyyy').format(endDt)}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (PermissionHelper.canEdit('FLASHSALES')) TextButton.icon(icon: const Icon(Icons.edit, size: 18), label: const Text('Sửa'), onPressed: () => _showAddEditDialog('GiaSoc', p as Map<String, dynamic>)),
+                  if (PermissionHelper.canDelete('FLASHSALES')) TextButton.icon(icon: const Icon(Icons.delete, size: 18, color: Colors.red), label: const Text('Xóa', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   // =========================================================================
-  // BẢNG TAB 3: ƯU ĐÃI HỆ THỐNG
+  // TAB 3: ƯU ĐÃI HỆ THỐNG
   // =========================================================================
   Widget _buildUuDaiTab(List<dynamic> list) {
-    return list.isEmpty
-        ? const Center(child: Text('Không tìm thấy ưu đãi hệ thống'))
-        : SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                columnSpacing: 24,
-                dataRowMaxHeight: 64,
-                columns: const [
-                  DataColumn(label: Text('Tên Ưu Đãi', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Mã Code', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Loại', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Giá Trị', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Đơn Tối Thiểu', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thời Hạn', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Đã Dùng', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
+    return _buildCardList(list, 'UuDai', (p) {
+      final ten = p['tenKM'] ?? p['TenKM'] ?? 'Ưu đãi';
+      final code = p['maApDung'] ?? p['MaApDung'] ?? 'CODE';
+      final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'SoTien';
+      final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
+      final donToiThieu = p['donHangToiThieu'] ?? p['DonHangToiThieu'] ?? 0;
+      final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
+      final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
+      final daDung = p['soLuongDaDung'] ?? p['SoLuongDaDung'] ?? 0;
+      final toiDa = p['soLuongToiDa'] ?? p['SoLuongToiDa'] ?? 10;
+      final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+      String loaiStr = loaiGiam == 'PhanTram' ? 'Giảm %' : (loaiGiam == 'Freeship' ? 'Freeship' : 'Giảm Tiền');
+
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: Text(ten.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue))),
+                  Chip(
+                    label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 10, fontWeight: FontWeight.bold)),
+                    backgroundColor: trangThai ? Colors.green.shade50 : Colors.red.shade50,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ],
-                rows: list.map((p) {
-                  final ten = p['tenKM'] ?? p['TenKM'] ?? 'Ưu đãi';
-                  final code = p['maApDung'] ?? p['MaApDung'] ?? 'CODE';
-                  final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'SoTien';
-                  final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
-                  final donToiThieu = p['donHangToiThieu'] ?? p['DonHangToiThieu'] ?? 0;
-                  final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
-                  final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
-                  final daDung = p['soLuongDaDung'] ?? p['SoLuongDaDung'] ?? 0;
-                  final toiDa = p['soLuongToiDa'] ?? p['SoLuongToiDa'] ?? 10;
-                  final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
-
-                  String loaiStr = loaiGiam == 'PhanTram' ? 'Giảm %' : (loaiGiam == 'Freeship' ? 'Freeship' : 'Giảm Tiền');
-
-                  return DataRow(
-                    cells: [
-                      DataCell(SizedBox(width: 150, child: Text(ten.toString(), style: const TextStyle(fontWeight: FontWeight.bold)))),
-                      DataCell(Text(code.toString(), style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold))),
-                      DataCell(Chip(label: Text(loaiStr, style: const TextStyle(color: Colors.blue, fontSize: 12)), backgroundColor: Colors.white, side: const BorderSide(color: Colors.blue))),
-                      DataCell(Text(loaiGiam == 'PhanTram' ? '$giaTri%' : _currencyFormat.format(giaTri), style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Text(_currencyFormat.format(donToiThieu))),
-                      DataCell(Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}')),
-                      DataCell(Text('$daDung / $toiDa', style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Chip(
-                        label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
-                        backgroundColor: trangThai ? Colors.green.shade100 : Colors.red.shade100,
-                      )),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (PermissionHelper.canEdit('FLASHSALES'))
-                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('UuDai', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('FLASHSALES'))
-                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
               ),
-            ),
-          );
+              const Divider(),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.pink.shade50, border: Border.all(color: Colors.pink.shade200), borderRadius: BorderRadius.circular(6)),
+                    child: Text(code.toString(), style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('• $loaiStr', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
+                  const Spacer(),
+                  Text(loaiGiam == 'PhanTram' ? '$giaTri%' : _currencyFormat.format(giaTri), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.shopping_cart, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('Đơn từ: ${_currencyFormat.format(donToiThieu)}', style: const TextStyle(fontSize: 13)),
+                  const Spacer(),
+                  Text('Đã dùng: $daDung / $toiDa', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.date_range, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  const Spacer(),
+                  if (PermissionHelper.canEdit('FLASHSALES')) TextButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Sửa'), onPressed: () => _showAddEditDialog('UuDai', p as Map<String, dynamic>)),
+                  if (PermissionHelper.canDelete('FLASHSALES')) TextButton(child: const Text('Xóa', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   // =========================================================================
-  // BẢNG TAB 4: COUPON
+  // TAB 4: COUPON
   // =========================================================================
   Widget _buildCouponTab(List<dynamic> list) {
-    return list.isEmpty
-        ? const Center(child: Text('Không tìm thấy Coupon'))
-        : SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                columnSpacing: 28,
-                dataRowMaxHeight: 64,
-                columns: const [
-                  DataColumn(label: Text('Mã Code', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Loại', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Giá Trị', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Đơn Tối Thiểu', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Hạn Dùng', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Đã Dùng', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
+    return _buildCardList(list, 'Coupon', (p) {
+      final code = p['maApDung'] ?? p['MaApDung'] ?? p['tenKM'] ?? 'COUPON';
+      final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'SoTien';
+      final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
+      final donToiThieu = p['donHangToiThieu'] ?? p['DonHangToiThieu'] ?? 0;
+      final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
+      final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
+      final daDung = p['soLuongDaDung'] ?? p['SoLuongDaDung'] ?? 0;
+      final toiDa = p['soLuongToiDa'] ?? p['SoLuongToiDa'] ?? 20;
+      final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+      String loaiStr = loaiGiam == 'PhanTram' ? 'Giảm %' : 'Giảm Tiền';
+
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.teal.shade50, border: Border.all(color: Colors.teal.shade300, style: BorderStyle.solid, width: 2), borderRadius: BorderRadius.circular(8)),
+                    child: Text(code.toString(), style: TextStyle(color: Colors.teal.shade700, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 2)),
+                  ),
+                  Chip(
+                    label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 10, fontWeight: FontWeight.bold)),
+                    backgroundColor: trangThai ? Colors.green.shade50 : Colors.red.shade50,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ],
-                rows: list.map((p) {
-                  final code = p['maApDung'] ?? p['MaApDung'] ?? p['tenKM'] ?? 'COUPON';
-                  final loaiGiam = p['loaiGiamGia'] ?? p['LoaiGiamGia'] ?? 'SoTien';
-                  final giaTri = p['giaTriGiam'] ?? p['GiaTriGiam'] ?? 0;
-                  final donToiThieu = p['donHangToiThieu'] ?? p['DonHangToiThieu'] ?? 0;
-                  final startDt = p['thoiGianBatDau'] != null ? DateTime.parse(p['thoiGianBatDau'].toString()) : DateTime.now();
-                  final endDt = p['thoiGianKetThuc'] != null ? DateTime.parse(p['thoiGianKetThuc'].toString()) : DateTime.now().add(const Duration(days: 30));
-                  final daDung = p['soLuongDaDung'] ?? p['SoLuongDaDung'] ?? 0;
-                  final toiDa = p['soLuongToiDa'] ?? p['SoLuongToiDa'] ?? 20;
-                  final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
-
-                  String loaiStr = loaiGiam == 'PhanTram' ? 'Giảm %' : 'Giảm Tiền';
-
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(code.toString(), style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold, fontSize: 16))),
-                      DataCell(Chip(label: Text(loaiStr, style: const TextStyle(color: Colors.blue, fontSize: 12)), backgroundColor: Colors.white, side: const BorderSide(color: Colors.blue))),
-                      DataCell(Text(loaiGiam == 'PhanTram' ? '$giaTri%' : _currencyFormat.format(giaTri), style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Text(donToiThieu > 0 ? _currencyFormat.format(donToiThieu) : '—')),
-                      DataCell(Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}')),
-                      DataCell(Text('$daDung / $toiDa', style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Chip(
-                        label: Text(trangThai ? 'Hiệu lực' : 'Hết hạn', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
-                        backgroundColor: trangThai ? Colors.green.shade100 : Colors.red.shade100,
-                      )),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (PermissionHelper.canEdit('PROMOTIONS'))
-                            TextButton(child: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditDialog('Coupon', p as Map<String, dynamic>)),
-                          if (PermissionHelper.canDelete('PROMOTIONS'))
-                            TextButton(child: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
               ),
-            ),
-          );
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.discount, size: 16, color: Colors.blue), const SizedBox(width: 4), Text('$loaiStr: ', style: const TextStyle(fontSize: 13)),
+                  Text(loaiGiam == 'PhanTram' ? '$giaTri%' : _currencyFormat.format(giaTri), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red)),
+                  const Spacer(),
+                  const Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.grey), const SizedBox(width: 4), Text(donToiThieu > 0 ? 'Từ ${_currencyFormat.format(donToiThieu)}' : 'Mọi đơn hàng', style: const TextStyle(fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.date_range, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${DateFormat('dd/MM/yyyy').format(startDt)} - ${DateFormat('dd/MM/yyyy').format(endDt)}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  const Spacer(),
+                  Text('$daDung / $toiDa lượt', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (PermissionHelper.canEdit('PROMOTIONS')) TextButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Sửa'), onPressed: () => _showAddEditDialog('Coupon', p as Map<String, dynamic>)),
+                  if (PermissionHelper.canDelete('PROMOTIONS')) TextButton(child: const Text('Xóa', style: TextStyle(color: Colors.red)), onPressed: () => _deletePromotion(p)),
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
+

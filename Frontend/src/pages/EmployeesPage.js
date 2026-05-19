@@ -22,7 +22,7 @@ import { usePermissions } from '../contexts/PermissionContext';
 // ─── Cấu trúc phân quyền theo Danh mục → Tab → Thao tác ──────
 const ALL_MODULE_KEYS = [
   'products','categories','inventory','orders','customers',
-  'suppliers','flashsales','promotions','deliveries','reports','employees'
+  'suppliers','flashsales','promotions','deliveries','reports','employees','debts','price_history'
 ];
 
 const PERMISSION_CATEGORIES = [
@@ -40,6 +40,12 @@ const PERMISSION_CATEGORIES = [
         { field: 'coTheTao', label: 'Thêm danh mục mới' },
         { field: 'coTheSua', label: 'Sửa tên danh mục' },
         { field: 'coTheXoa', label: 'Xóa danh mục' },
+      ]},
+      { moduleKey: 'price_history', label: 'Lịch Sử Giá', ops: [
+        { field: 'coTheXem', label: 'Xem lịch sử thay đổi giá' },
+        { field: 'coTheTao', label: 'Ghi nhận thay đổi giá' },
+        { field: 'coTheSua', label: 'Cập nhật lý do đổi giá' },
+        { field: 'coTheXoa', label: 'Xóa lịch sử giá' },
       ]},
     ]
   },
@@ -68,6 +74,17 @@ const PERMISSION_CATEGORIES = [
         { field: 'coTheTao', label: 'Thêm khách hàng mới' },
         { field: 'coTheSua', label: 'Sửa thông tin khách hàng' },
         { field: 'coTheXoa', label: 'Xóa tài khoản khách hàng' },
+      ]},
+    ]
+  },
+  {
+    key: 'debts', label: '💳 Công Nợ', color: '#9c27b0',
+    tabs: [
+      { moduleKey: 'debts', label: 'Công Nợ', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách công nợ' },
+        { field: 'coTheTao', label: 'Thanh toán / Thu nợ' },
+        { field: 'coTheSua', label: 'Cập nhật gia hạn nợ' },
+        { field: 'coTheXoa', label: 'Xóa khoản nợ' },
       ]},
     ]
   },
@@ -161,9 +178,11 @@ const autoMapGeneralToModule = (generalPerms) => {
     map['categories'] = createMod(true, true, true, true);
     map['promotions'] = createMod(true, true, true, true);
     map['flashsales'] = createMod(true, true, true, true);
+    map['price_history'] = createMod(true, true, true, true);
   } else if (hasQ('Q10')) {
     map['products'] = createMod(true, false, false, false);
     map['categories'] = createMod(true, false, false, false);
+    map['price_history'] = createMod(true, false, false, false);
   }
   if (hasQ('Q03')) map['orders'] = createMod(true, true, true, true);
   else if (hasQ('Q11')) map['orders'] = createMod(true, true, false, false);
@@ -178,12 +197,18 @@ const autoMapGeneralToModule = (generalPerms) => {
 };
 
 function PermissionDialog({ open, onClose, employee, onSaved }) {
+  const { user: currentUser } = usePermissions();
   const [moduleQuyens, setModuleQuyens] = useState({});
   const [generalQuyens, setGeneralQuyens] = useState([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [selectedCat, setSelectedCat] = useState(0);
   const [selectedTab, setSelectedTab] = useState(0);
+
+  const isSelf = currentUser && employee && (
+    Number(currentUser.maNhanVien) === Number(employee.maNhanVien) ||
+    String(currentUser.taiKhoan || currentUser.username || '').toLowerCase() === String(employee.taiKhoan || '').toLowerCase()
+  );
 
   useEffect(() => {
     if (open && employee) {
@@ -207,8 +232,14 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
           const role = String(employee?.tenVaiTro || '').toLowerCase();
           const defaultMap = {};
           
-          if (role.includes('admin') || role.includes('quản trị') || role.includes('giám đốc') || role.includes('quản lý')) {
-            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees'];
+          if (role.includes('admin') || role.includes('quản trị')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history'];
+            allModules.forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
+            });
+            defaultMap['debts'] = { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+          } else if (role.includes('giám đốc') || role.includes('quản lý') || role.includes('kế toán') || role.includes('accountant')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'debts', 'reports', 'settings', 'employees', 'price_history'];
             allModules.forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });
@@ -243,6 +274,10 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
     [...new Set(cat.tabs.map(t => t.moduleKey))].forEach(k => setAllForModule(k, val));
 
   const handleSave = async () => {
+    if (isSelf) {
+      setErr('Bạn không thể tự thay đổi quyền hạn của chính mình.');
+      return;
+    }
     setSaving(true); setErr('');
     try {
       const payload = ALL_MODULE_KEYS.map(k => {
@@ -383,8 +418,8 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
 
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={onClose} disabled={saving}>Hủy</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving}
-          sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
+        <Button variant="contained" onClick={handleSave} disabled={saving || isSelf}
+          sx={{ background: isSelf ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
           {saving ? 'Đang lưu...' : '💾 Lưu Phân Quyền'}
         </Button>
       </DialogActions>
@@ -621,29 +656,36 @@ export default function EmployeesPage() {
       }
     },
     {
-      field: 'actions', headerName: 'Thao Tác', width: 180, sortable: false, renderCell: (p) => (
-        <Box>
-          <IconButton size="small" color="primary" onClick={() => { setEditing(p.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
-          
-          <Tooltip title={isAdmin ? "Thay đổi vai trò" : "Chỉ Admin mới có quyền đổi vai trò"}>
-            <span>
-              <IconButton size="small" sx={{ color: '#f5a623' }} onClick={() => setRoleDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin}>
-                <AdminPanelSettingsIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
+      field: 'actions', headerName: 'Thao Tác', width: 180, sortable: false, renderCell: (p) => {
+        const isSelf = user && (
+          Number(user.maNhanVien) === Number(p.row.maNhanVien) ||
+          String(user.taiKhoan || user.username || '').toLowerCase() === String(p.row.taiKhoan || '').toLowerCase()
+        );
 
-          <Tooltip title={isAdmin ? "Phân quyền" : "Chỉ Admin mới có quyền phân quyền"}>
-            <span>
-              <IconButton size="small" sx={{ color: '#43b89c' }} onClick={() => setPermDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin}>
-                <SecurityIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
+        return (
+          <Box>
+            <IconButton size="small" color="primary" onClick={() => { setEditing(p.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
+            
+            <Tooltip title={isSelf ? "Bạn không thể tự thay đổi vai trò của chính mình" : (isAdmin ? "Thay đổi vai trò" : "Chỉ Admin mới có quyền đổi vai trò")}>
+              <span>
+                <IconButton size="small" sx={{ color: '#f5a623' }} onClick={() => setRoleDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin || isSelf}>
+                  <AdminPanelSettingsIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
 
-          <IconButton size="small" color="error" onClick={() => setDeleteConfirm(p.row)} disabled={!isAdmin}><DeleteIcon fontSize="small" /></IconButton>
-        </Box>
-      )
+            <Tooltip title={isSelf ? "Bạn không thể tự phân quyền cho chính mình" : (isAdmin ? "Phân quyền" : "Chỉ Admin mới có quyền phân quyền")}>
+              <span>
+                <IconButton size="small" sx={{ color: '#43b89c' }} onClick={() => setPermDialog(p.row)} disabled={!p.row.maTaiKhoan || !isAdmin || isSelf}>
+                  <SecurityIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            <IconButton size="small" color="error" onClick={() => setDeleteConfirm(p.row)} disabled={!isAdmin || isSelf}><DeleteIcon fontSize="small" /></IconButton>
+          </Box>
+        );
+      }
     }
   ];
 

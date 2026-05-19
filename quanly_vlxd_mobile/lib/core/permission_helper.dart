@@ -39,6 +39,9 @@ class PermissionHelper {
       final modUpper = module.toUpperCase();
       bool isManagerOrAdmin = role.contains('quản lý') || role.contains('manager') || role.contains('admin') || role.contains('quản trị') || role.contains('giám đốc');
       if (isManagerOrAdmin) {
+        if ((role.contains('admin') || role.contains('quản trị')) && modUpper == 'DEBTS') {
+          return {'coTheXem': false, 'coTheTao': false, 'coTheSua': false, 'coTheXoa': false};
+        }
         return {'coTheXem': true, 'coTheTao': true, 'coTheSua': true, 'coTheXoa': true};
       }
       

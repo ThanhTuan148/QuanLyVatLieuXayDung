@@ -43,6 +43,26 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     return false;
   }
 
+  bool _isSelf(Map<String, dynamic> emp) {
+    try {
+      final userStr = SharedPreferencesService.getUser();
+      if (userStr != null && userStr.isNotEmpty) {
+        final userObj = jsonDecode(userStr);
+        final myId = userObj['maNhanVien'] ?? userObj['id'] ?? userObj['maNV'] ?? userObj['employeeId'];
+        final empId = emp['maNhanVien'] ?? emp['id'] ?? emp['maNV'];
+        if (myId != null && empId != null && myId.toString() == empId.toString()) {
+          return true;
+        }
+        final myUsername = (userObj['username'] ?? userObj['tenTK'] ?? '').toString().toLowerCase();
+        final empUsername = (emp['taiKhoan'] ?? emp['tenTK'] ?? emp['username'] ?? '').toString().toLowerCase();
+        if (myUsername.isNotEmpty && empUsername.isNotEmpty && myUsername == empUsername) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -300,7 +320,16 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   }
 
   void _showChangeRoleDialog(Map<String, dynamic> emp) async {
-    int? selectedRoleId = emp['maVaiTro'] > 0 ? emp['maVaiTro'] : (_roles.isNotEmpty ? _roles[0]['maVaiTro'] : null);
+    if (_isSelf(emp)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn không thể tự thay đổi vai trò của chính mình để tránh khóa tài khoản.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    final empRoleId = emp['maVaiTro'];
+    int? selectedRoleId = (empRoleId != null && empRoleId is int && empRoleId > 0)
+        ? empRoleId
+        : (_roles.isNotEmpty ? _roles[0]['maVaiTro'] as int? : null);
 
     await showDialog(
       context: context,
@@ -371,11 +400,13 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
       resultMap['categories'] = createMod(true, true, true, true);
       resultMap['promotions'] = createMod(true, true, true, true);
       resultMap['flashsales'] = createMod(true, true, true, true);
+      resultMap['price_history'] = createMod(true, true, true, true);
     } else if (hasQ('Q10')) {
       resultMap['products'] = createMod(true, false, false, false);
       resultMap['categories'] = createMod(true, false, false, false);
       resultMap['promotions'] = createMod(true, false, false, false);
       resultMap['flashsales'] = createMod(true, false, false, false);
+      resultMap['price_history'] = createMod(true, false, false, false);
     }
     
     if (hasQ('Q03')) {
@@ -397,6 +428,12 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   }
 
   void _showDetailedPermissionsDialog(Map<String, dynamic> emp) async {
+    if (_isSelf(emp)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn không thể tự phân quyền cho chính mình để tránh khóa tài khoản.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
     final id = emp['maNhanVien'] ?? emp['id'] ?? emp['maNV'];
     setState(() => _isLoading = true);
     try {
@@ -466,6 +503,16 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheXoa', 'label': 'Xóa danh mục'},
             ]
           },
+          {
+            'moduleKey': 'price_history',
+            'label': 'Lịch Sử Giá',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem lịch sử thay đổi giá'},
+              {'field': 'coTheTao', 'label': 'Ghi nhận thay đổi giá'},
+              {'field': 'coTheSua', 'label': 'Cập nhật lý do đổi giá'},
+              {'field': 'coTheXoa', 'label': 'Xóa lịch sử giá'},
+            ]
+          },
         ]
       },
       {
@@ -506,6 +553,22 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm khách hàng mới'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin khách hàng'},
               {'field': 'coTheXoa', 'label': 'Xóa tài khoản khách hàng'},
+            ]
+          },
+        ]
+      },
+      {
+        'key': 'debts',
+        'label': '💳 Công Nợ',
+        'tabs': [
+          {
+            'moduleKey': 'debts',
+            'label': 'Công Nợ',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem danh sách công nợ'},
+              {'field': 'coTheTao', 'label': 'Thanh toán / Thu nợ'},
+              {'field': 'coTheSua', 'label': 'Cập nhật gia hạn nợ'},
+              {'field': 'coTheXoa', 'label': 'Xóa khoản nợ'},
             ]
           },
         ]
@@ -826,7 +889,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     final payload = [
                       'products', 'categories', 'orders', 'deliveries', 
                       'customers', 'inventory', 'suppliers', 'promotions', 
-                      'flashsales', 'reports', 'employees'
+                      'flashsales', 'reports', 'employees', 'debts', 'price_history'
                     ].map((k) {
                       final q = initialModuleMap[k] ?? {
                         'coTheXem': false,
@@ -874,6 +937,12 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   }
 
   void _deleteEmployee(Map<String, dynamic> emp) async {
+    if (_isSelf(emp)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn không thể tự xóa tài khoản của chính mình.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     final id = emp['maNhanVien'] ?? emp['id'];
     final ten = emp['tenNV'] ?? '';
 
@@ -1117,7 +1186,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (PermissionHelper.canEdit('EMPLOYEES'))
+                        if (_isAdmin() || PermissionHelper.canEdit('EMPLOYEES'))
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue), 
                             tooltip: 'Sửa thông tin', 
@@ -1125,21 +1194,21 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                           ),
                         if (_isAdmin() && hasAccount) ...[
                           IconButton(
-                            icon: const Icon(Icons.admin_panel_settings, color: Colors.orange),
-                            tooltip: 'Thay đổi vai trò',
-                            onPressed: () => _showChangeRoleDialog(emp),
+                            icon: Icon(Icons.admin_panel_settings, color: _isSelf(emp) ? Colors.grey : Colors.orange),
+                            tooltip: _isSelf(emp) ? 'Không thể tự đổi vai trò' : 'Thay đổi vai trò',
+                            onPressed: _isSelf(emp) ? null : () => _showChangeRoleDialog(emp),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.security, color: Colors.teal),
-                            tooltip: 'Phân quyền chi tiết',
-                            onPressed: () => _showDetailedPermissionsDialog(emp),
+                            icon: Icon(Icons.security, color: _isSelf(emp) ? Colors.grey : Colors.teal),
+                            tooltip: _isSelf(emp) ? 'Không thể tự phân quyền' : 'Phân quyền chi tiết',
+                            onPressed: _isSelf(emp) ? null : () => _showDetailedPermissionsDialog(emp),
                           ),
                         ],
-                        if (PermissionHelper.canDelete('EMPLOYEES'))
+                        if (_isAdmin() || PermissionHelper.canDelete('EMPLOYEES'))
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red), 
-                            tooltip: 'Xóa nhân viên', 
-                            onPressed: () => _deleteEmployee(emp),
+                            icon: Icon(Icons.delete, color: _isSelf(emp) ? Colors.grey : Colors.red), 
+                            tooltip: _isSelf(emp) ? 'Không thể tự xóa' : 'Xóa nhân viên', 
+                            onPressed: _isSelf(emp) ? null : () => _deleteEmployee(emp),
                           ),
                       ],
                     ),
@@ -1234,28 +1303,28 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                         )
                       else ...[
                         IconButton(
-                          icon: const Icon(Icons.admin_panel_settings, color: Colors.orange),
-                          tooltip: 'Thay đổi vai trò',
-                          onPressed: () => _showChangeRoleDialog(emp),
+                          icon: Icon(Icons.admin_panel_settings, color: _isSelf(emp) ? Colors.grey : Colors.orange),
+                          tooltip: _isSelf(emp) ? 'Không thể tự đổi vai trò' : 'Thay đổi vai trò',
+                          onPressed: _isSelf(emp) ? null : () => _showChangeRoleDialog(emp),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.security, color: Colors.teal),
-                          tooltip: 'Phân quyền chi tiết',
-                          onPressed: () => _showDetailedPermissionsDialog(emp),
+                          icon: Icon(Icons.security, color: _isSelf(emp) ? Colors.grey : Colors.teal),
+                          tooltip: _isSelf(emp) ? 'Không thể tự phân quyền' : 'Phân quyền chi tiết',
+                          onPressed: _isSelf(emp) ? null : () => _showDetailedPermissionsDialog(emp),
                         ),
                       ],
                     ],
-                    if (PermissionHelper.canEdit('EMPLOYEES'))
+                    if (_isAdmin() || PermissionHelper.canEdit('EMPLOYEES'))
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue),
                         tooltip: 'Sửa thông tin',
                         onPressed: () => _showAddEditDialog(emp),
                       ),
-                    if (PermissionHelper.canDelete('EMPLOYEES'))
+                    if (_isAdmin() || PermissionHelper.canDelete('EMPLOYEES'))
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'Xóa nhân viên',
-                        onPressed: () => _deleteEmployee(emp),
+                        icon: Icon(Icons.delete, color: _isSelf(emp) ? Colors.grey : Colors.red),
+                        tooltip: _isSelf(emp) ? 'Không thể tự xóa' : 'Xóa nhân viên',
+                        onPressed: _isSelf(emp) ? null : () => _deleteEmployee(emp),
                       ),
                   ],
                 ),

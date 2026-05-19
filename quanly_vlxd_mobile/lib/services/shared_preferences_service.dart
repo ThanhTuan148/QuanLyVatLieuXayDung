@@ -48,4 +48,14 @@ class SharedPreferencesService {
     _prefs.remove('token');
     _prefs.remove('user');
   }
+
+  /// Chuyển đổi relative path ảnh thành URL đầy đủ.
+  /// VD: '/images/products/abc.jpg' → 'http://192.168.1.51:5000/images/products/abc.jpg'
+  static String getImageUrl(String? relativePath) {
+    if (relativePath == null || relativePath.isEmpty) return '';
+    if (relativePath.startsWith('http')) return relativePath;
+    // Lấy base URL server (bỏ phần '/api/')
+    final serverUrl = getServerUrl().replaceAll(RegExp(r'/api/?$'), '');
+    return '${serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl}$relativePath';
+  }
 }

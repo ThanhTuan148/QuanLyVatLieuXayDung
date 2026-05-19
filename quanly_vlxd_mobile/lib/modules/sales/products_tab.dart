@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../core/permission_helper.dart';
+import '../../core/app_image.dart';
 
 
 class ProductsTab extends StatefulWidget {
@@ -646,7 +647,7 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                           cells: [
                             DataCell(Text(maSP.toString(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
                             DataCell(SizedBox(width: 180, child: Text(tenSP.toString(), style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis))),
-                            DataCell(Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)), child: const Icon(Icons.image, color: Colors.grey))),
+                            DataCell(AppImage(imagePath: p['hinhAnh'] ?? p['HinhAnh'], width: 48, height: 48)),
                             DataCell(Chip(label: Text(tenNCC, style: const TextStyle(fontSize: 12, color: Colors.blue)), backgroundColor: Colors.blue.shade50)),
                             DataCell(Text(thuongHieu.toString())),
                             DataCell(Text(xuatXu.toString())),
@@ -709,7 +710,7 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                     cells: [
                       DataCell(Text(maLoai.toString(), style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold))),
                       DataCell(Text(tenLoai.toString(), style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)), child: const Icon(Icons.category, color: Colors.teal))),
+                      DataCell(AppImage(imagePath: c['hinhAnh'] ?? c['HinhAnh'], width: 48, height: 48, fallbackIcon: Icons.category_outlined)),
                       DataCell(SizedBox(width: 250, child: Text(moTa.toString(), maxLines: 2, overflow: TextOverflow.ellipsis))),
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
@@ -751,4 +752,6 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       ),
     );
   }
+
 }
+

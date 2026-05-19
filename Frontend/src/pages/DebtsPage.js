@@ -12,11 +12,18 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import GroupsIcon from '@mui/icons-material/Groups';
 import BusinessIcon from '@mui/icons-material/Business';
 import debtService from '../services/debtService';
+import { usePermissions } from '../contexts/PermissionContext';
 import DebtDetailModal from '../components/DebtDetailModal';
 import PaymentModal from '../components/PaymentModal';
 import DataTable from '../components/DataTable';
 
 export default function DebtsPage() {
+  const { permissions, loading: permsLoading } = usePermissions();
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
+  const isAdminRole = roleStr.includes('admin') || roleStr.includes('quản trị');
+
   const [tab, setTab] = useState(0); // 0: Customers, 1: Suppliers
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +170,29 @@ export default function DebtsPage() {
     { label: 'Khoản Quá Hạn', value: stats.soKhoanQuaHan, icon: <RefreshIcon />, color: '#d32f2f', subtitle: 'Cần xử lý ngay' },
     { label: 'Dự kiến trả sắp tới', value: formatCurrency(stats.tienSapToiPhaiTra), icon: <PaymentIcon />, color: '#fb8c00', subtitle: 'Theo lịch hẹn' }
   ];
+
+  if (permsLoading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body1">Đang kiểm tra quyền truy cập...</Typography>
+      </Box>
+    );
+  }
+
+  const hasAccess = isAdminRole ? false : (permissions && permissions['debts']?.coTheXem);
+
+  if (!hasAccess) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h5" color="error" fontWeight="bold" gutterBottom>
+          Truy cập bị từ chối
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          Bạn không có quyền truy cập vào chức năng Quản lý Công nợ.
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>

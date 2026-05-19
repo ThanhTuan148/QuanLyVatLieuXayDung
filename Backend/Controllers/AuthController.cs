@@ -62,7 +62,13 @@ namespace BuildingMaterialAPI.Controllers
                 var roleName = taiKhoan.VaiTro?.TenVT ?? "Unknown";
 
                 // 1. Gán các module mặc định theo vai trò gốc
-                if (roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager" || roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị"))
+                bool isAdminRole = roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị");
+                if (isAdminRole)
+                {
+                    // Admin chỉ được phép truy cập: Khách hàng, Nhân viên, Cài đặt
+                    allowedModules.AddRange(new[] { "CUSTOMERS", "EMPLOYEES", "SETTINGS", "BACKUP_RESTORE" });
+                }
+                else if (roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager")
                 {
                     allowedModules.AddRange(new[] { "DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT" });
                 }
@@ -92,6 +98,13 @@ namespace BuildingMaterialAPI.Controllers
                 {
                     bool canView = isManagerOrAdmin || allowedModules.Contains(m);
                     bool canCrud = isManagerOrAdmin;
+
+                    // Admin không được xem/thao tác các module nghiệp vụ ngoài danh sách cho phép
+                    if (isAdminRole && m != "CUSTOMERS" && m != "EMPLOYEES")
+                    {
+                        canView = false;
+                        canCrud = false;
+                    }
 
                     if (roleName.ToLower().Contains("bán hàng") || roleName.ToLower() == "sales")
                     {

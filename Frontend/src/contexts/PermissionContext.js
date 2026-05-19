@@ -16,11 +16,13 @@ const autoMapGeneralToModule = (generalPerms) => {
     map['categories'] = createMod(true, true, true, true);
     map['promotions'] = createMod(true, true, true, true);
     map['flashsales'] = createMod(true, true, true, true);
+    map['price_history'] = createMod(true, true, true, true);
   } else if (hasQ('Q10')) {
     map['products'] = createMod(true, false, false, false);
     map['categories'] = createMod(true, false, false, false);
     map['promotions'] = createMod(true, false, false, false);
     map['flashsales'] = createMod(true, false, false, false);
+    map['price_history'] = createMod(true, false, false, false);
   }
   if (hasQ('Q03')) map['orders'] = createMod(true, true, true, true);
   else if (hasQ('Q11')) map['orders'] = createMod(true, true, false, false);
@@ -99,8 +101,14 @@ export const PermissionProvider = ({ children }) => {
           const role = String(currentUser?.roleName || currentUser?.role || '').toLowerCase();
           const defaultMap = {};
           
-          if (role.includes('admin') || role.includes('quản trị') || role.includes('giám đốc') || role.includes('quản lý')) {
-            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees'];
+          if (role.includes('admin') || role.includes('quản trị')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history'];
+            allModules.forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
+            });
+            defaultMap['debts'] = { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+          } else if (role.includes('giám đốc') || role.includes('quản lý') || role.includes('kế toán') || role.includes('accountant')) {
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'debts', 'reports', 'settings', 'employees', 'price_history'];
             allModules.forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });

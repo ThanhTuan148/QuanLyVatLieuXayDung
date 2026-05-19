@@ -295,5 +295,15 @@ class ApiService {
   Future<Response> getEmployeeModulePermissions(int id) async => _dio.get('employees/$id/module-permissions');
   Future<Response> getRolePermissions(int id) async => _dio.get('employees/$id/permissions');
   Future<Response> setEmployeeModulePermissions(int id, List<dynamic> permissions) async => _dio.put('employees/$id/module-permissions', data: permissions);
+
+  // Backup & Restore (Sao Lưu & Phục Hồi)
+  Future<Response> getBackupsList() async => _dio.get('backup');
+  Future<Response> createServerBackup() async => _dio.post('backup');
+  Future<Response> restoreServerBackup(String fileName) async => _dio.post('backup/$fileName/restore');
+  Future<Response> deleteServerBackup(String fileName) async => _dio.delete('backup/$fileName');
+
+  // Auth: Đổi mật khẩu
+  Future<Response> changePassword(int accountId, String oldPassword, String newPassword) async =>
+      _dio.put('auth/$accountId/change-password', data: {'oldPassword': oldPassword, 'newPassword': newPassword});
 }
 
