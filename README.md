@@ -142,8 +142,8 @@ Frontend/
 
 ### 📧 Liên Hệ
 
-Dự án thiết kế và phát triển bởi: Trương Thanh Tuấn
-Giáo viên hướng dẫn: Đinh Thị Mận - HUIT
+Dự án thiết kế và phát triển bởi: Trương Thanh Tuấn 
+Giáo viên hướng dẫn: ThS.Đinh Thị Mận - HUIT
 
 ---
 **Năm Học**: 02/02/2025-24/05/2026

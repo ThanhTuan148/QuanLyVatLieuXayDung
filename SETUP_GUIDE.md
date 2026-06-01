@@ -29,7 +29,7 @@ npm start
 
 ### 4. Mobile Setup (Optional)
 ```bash
-cd Mobile
+cd quanly_vlxd_mobile
 flutter pub get
 flutter run
 ```

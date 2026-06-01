@@ -5,9 +5,9 @@ import {
   CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
   Link, Checkbox, FormControlLabel, InputAdornment, IconButton, Divider, LinearProgress, Stack, Chip, Avatar
 } from '@mui/material';
-import { 
-  Visibility, VisibilityOff, Google, GitHub, Facebook, 
-  CheckCircleOutline, LockReset, EmailOutlined, PersonOutline, 
+import {
+  Visibility, VisibilityOff, GitHub, Facebook,
+  CheckCircleOutline, LockReset, EmailOutlined, PersonOutline,
   PhoneOutlined, ArrowBack, VerifiedUserOutlined, ShieldOutlined,
   SpeedOutlined, AutoGraphOutlined
 } from '@mui/icons-material';
@@ -57,22 +57,12 @@ const CustomerAuthPage = () => {
   const handleSocialLogin = async (email, name, provider) => {
     setSocialLoading(true);
     setSocialError('');
-    const username = email.split('@')[0] + '_' + provider;
-    const password = 'SocialLoginSecret123!';
     try {
-      try {
-        await api.post('/auth/register', {
-          username: username,
-          fullName: name,
-          email: email,
-          phoneNumber: '0987654321',
-          password: password,
-          confirmPassword: password
-        });
-      } catch (regErr) {
-        console.log("Social registration note:", regErr);
-      }
-      const response = await authService.login(username, password);
+      const response = await api.post('/auth/social-login', {
+        email: email,
+        fullName: name,
+        provider: provider
+      });
       const userData = response.data;
       authService.setUser(userData);
       authService.setToken(`token_${userData.id}_${Date.now()}`);
@@ -87,7 +77,12 @@ const CustomerAuthPage = () => {
         const roleStr = (userData.role || userData.Role || userData.roleName || '').toLowerCase();
         const adminWords = ['admin', 'manager', 'staff', 'nhanvien', 'quanly', 'quản trị', 'quản lý', 'nhân viên', 'kế toán'];
         if (userData.employeeId || adminWords.some(w => roleStr.includes(w))) {
-          window.location.href = '/dashboard';
+          let target = '/products';
+          if (roleStr.includes('tài xế')) target = '/deliveries';
+          else if (roleStr.includes('thủ kho')) target = '/inventory';
+          else if (roleStr.includes('admin') || roleStr.includes('quản trị')) target = '/customers';
+          else if (roleStr.includes('quản lý') || roleStr.includes('giám đốc')) target = '/dashboard';
+          window.location.href = target;
         } else {
           window.location.href = location.state?.returnUrl || '/shopping';
         }
@@ -117,12 +112,12 @@ const CustomerAuthPage = () => {
     try {
       /* global google */
       if (typeof google === 'undefined') {
-        setCustomEmail(''); 
-        setCustomName(''); 
+        setCustomEmail('');
+        setCustomName('');
         setGoogleOpen(true);
         return;
       }
-      
+
       const client = google.accounts.oauth2.initTokenClient({
         client_id: "1031613449541-k5bdtg5l55h6dmibgcp7v6ac6najcfuo.apps.googleusercontent.com",
         scope: "email profile openid",
@@ -135,14 +130,14 @@ const CustomerAuthPage = () => {
               if (profile && profile.email) {
                 await handleSocialLogin(profile.email, profile.name || 'Google User', 'google');
               } else {
-                setCustomEmail(''); 
-                setCustomName(''); 
+                setCustomEmail('');
+                setCustomName('');
                 setGoogleOpen(true);
               }
             } catch (err) {
               console.error("Fetch Google profile error:", err);
-              setCustomEmail(''); 
-              setCustomName(''); 
+              setCustomEmail('');
+              setCustomName('');
               setGoogleOpen(true);
             }
           }
@@ -151,8 +146,8 @@ const CustomerAuthPage = () => {
       client.requestAccessToken();
     } catch (e) {
       console.error("Google Client Initialization error:", e);
-      setCustomEmail(''); 
-      setCustomName(''); 
+      setCustomEmail('');
+      setCustomName('');
       setGoogleOpen(true);
     }
   };
@@ -177,8 +172,8 @@ const CustomerAuthPage = () => {
       window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email`;
     } catch (e) {
       console.error("GitHub Login Redirect error:", e);
-      setCustomEmail(''); 
-      setCustomName(''); 
+      setCustomEmail('');
+      setCustomName('');
       setGithubOpen(true);
     }
   };
@@ -191,7 +186,7 @@ const CustomerAuthPage = () => {
     if (pass.match(/[a-z]+/)) score += 25;
     if (pass.match(/[A-Z]+/)) score += 25;
     if (pass.match(/[0-9]+/) || pass.match(/[$@#&!]+/)) score += 25;
-    
+
     if (score <= 25) return { score, label: 'Yếu', color: '#ef4444' };
     if (score <= 50) return { score, label: 'Trung bình', color: '#f59e0b' };
     if (score <= 75) return { score, label: 'Mạnh', color: '#3b82f6' };
@@ -208,18 +203,18 @@ const CustomerAuthPage = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!loginData.username || !loginData.password) { 
-      setLoginError('Vui lòng nhập đầy đủ thông tin.'); 
-      return; 
+    if (!loginData.username || !loginData.password) {
+      setLoginError('Vui lòng nhập đầy đủ thông tin.');
+      return;
     }
-    setLoginLoading(true); 
+    setLoginLoading(true);
     setLoginError('');
     try {
       const response = await authService.login(loginData.username, loginData.password);
       const userData = response.data;
       authService.setUser(userData);
       authService.setToken(`token_${userData.id}_${Date.now()}`);
-      
+
       const realId = userData.maKhachHang || userData.MaKhachHang || userData.id;
       if (realId) {
         storageHelper.mergeGuestData(realId);
@@ -230,7 +225,12 @@ const CustomerAuthPage = () => {
         const roleStr = (userData.role || userData.Role || userData.roleName || '').toLowerCase();
         const adminWords = ['admin', 'manager', 'staff', 'nhanvien', 'quanly', 'quản trị', 'quản lý', 'nhân viên', 'kế toán'];
         if (userData.employeeId || adminWords.some(w => roleStr.includes(w))) {
-          window.location.href = '/dashboard';
+          let target = '/products';
+          if (roleStr.includes('tài xế')) target = '/deliveries';
+          else if (roleStr.includes('thủ kho')) target = '/inventory';
+          else if (roleStr.includes('admin') || roleStr.includes('quản trị')) target = '/customers';
+          else if (roleStr.includes('quản lý') || roleStr.includes('giám đốc')) target = '/dashboard';
+          window.location.href = target;
         } else {
           window.location.href = location.state?.returnUrl || '/shopping';
         }
@@ -245,23 +245,23 @@ const CustomerAuthPage = () => {
     e.preventDefault();
     const { username, fullName, email, phoneNumber, password, confirmPassword } = registerData;
     if (!username || !fullName || !email || !phoneNumber || !password || !confirmPassword) {
-      setRegisterMsg({ type: 'error', text: 'Vui lòng nhập đầy đủ thông tin.' }); 
+      setRegisterMsg({ type: 'error', text: 'Vui lòng nhập đầy đủ thông tin.' });
       return;
     }
-    if (password !== confirmPassword) { 
-      setRegisterMsg({ type: 'error', text: 'Mật khẩu không khớp.' }); 
-      return; 
+    if (password !== confirmPassword) {
+      setRegisterMsg({ type: 'error', text: 'Mật khẩu không khớp.' });
+      return;
     }
-    setRegisterLoading(true); 
+    setRegisterLoading(true);
     setRegisterMsg({ type: '', text: '' });
     try {
       const response = await api.post('/auth/register', registerData);
       setRegisterSuccess(true);
       setRegisterMsg({ type: 'success', text: response.data?.message || 'Đăng ký thành công!' });
-      setTimeout(() => { 
+      setTimeout(() => {
         setRegisterSuccess(false);
         setRegisterData({ username: '', fullName: '', email: '', phoneNumber: '', password: '', confirmPassword: '' });
-        switchView('login'); 
+        switchView('login');
       }, 2000);
     } catch (err) {
       setRegisterMsg({ type: 'error', text: err.response?.data?.message || 'Đăng ký thất bại. Tên đăng nhập hoặc email đã tồn tại.' });
@@ -303,7 +303,7 @@ const CustomerAuthPage = () => {
       borderRadius: '16px',
       color: '#222',
       transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      '& fieldset': { 
+      '& fieldset': {
         borderColor: '#e0ddd8',
         borderWidth: '1px',
         transition: 'all 0.3s'
@@ -357,8 +357,8 @@ const CustomerAuthPage = () => {
     fontWeight: 600,
     textTransform: 'none',
     transition: 'all 0.3s',
-    '&:hover': { 
-      bgcolor: '#f8f7f4', 
+    '&:hover': {
+      bgcolor: '#f8f7f4',
       borderColor: '#b4c4b8',
       transform: 'translateY(-1px)',
       boxShadow: '0 5px 15px rgba(0,0,0,0.06)'
@@ -366,11 +366,11 @@ const CustomerAuthPage = () => {
   };
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
-      bgcolor: '#f8f7f4', 
+    <Box sx={{
+      minHeight: '100vh',
+      bgcolor: '#f8f7f4',
       color: '#222',
-      position: 'relative', 
+      position: 'relative',
       overflow: 'hidden',
       display: 'flex',
       alignItems: 'center',
@@ -461,14 +461,14 @@ const CustomerAuthPage = () => {
       {/* MAIN CONTENT CONTAINER */}
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
         <Grid container spacing={8} alignItems="center">
-          
+
           {/* LEFT SIDE: FUTURISTIC ILLUSTRATION (DESKTOP ONLY) */}
           <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
             <Box sx={{ pr: 4 }}>
-              <Button 
-                startIcon={<ArrowBack />} 
+              <Button
+                startIcon={<ArrowBack />}
                 onClick={() => navigate('/shopping')}
-                sx={{ 
+                sx={{
                   color: '#666', mb: 6, textTransform: 'none', fontSize: '1rem',
                   '&:hover': { color: '#222', bgcolor: 'rgba(0,0,0,0.04)' }
                 }}
@@ -476,13 +476,13 @@ const CustomerAuthPage = () => {
                 Quay lại Trang chủ
               </Button>
 
-              <Typography variant="h1" sx={{ 
+              <Typography variant="h1" sx={{
                 fontWeight: 900, fontSize: '3.5rem', lineHeight: 1.1, mb: 3,
                 color: '#222',
                 letterSpacing: '-1px'
               }}>
                 Nền tảng Vật liệu <br />
-                <Typography component="span" sx={{ 
+                <Typography component="span" sx={{
                   fontWeight: 900, fontSize: '3.5rem',
                   background: 'linear-gradient(135deg, #f29b46, #e68a35, #b4c4b8)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -498,7 +498,7 @@ const CustomerAuthPage = () => {
               {/* FLOATING PARALLAX WIDGETS */}
               <Box sx={{ position: 'relative', height: '320px', width: '100%' }}>
                 {/* Main Dashboard Mock */}
-                <Box sx={{ 
+                <Box sx={{
                   position: 'absolute', top: 0, left: 0, width: '85%', height: '240px',
                   bgcolor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)',
                   border: '1px solid rgba(224, 221, 216, 0.8)', borderRadius: '24px',
@@ -526,7 +526,7 @@ const CustomerAuthPage = () => {
                 </Box>
 
                 {/* Floating Widget 1 */}
-                <Box sx={{ 
+                <Box sx={{
                   position: 'absolute', top: 160, right: 0, width: '50%',
                   bgcolor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(25px)',
                   border: '1px solid rgba(180, 196, 184, 0.8)', borderRadius: '20px',
@@ -545,7 +545,7 @@ const CustomerAuthPage = () => {
                 </Box>
 
                 {/* Floating Widget 2 */}
-                <Box sx={{ 
+                <Box sx={{
                   position: 'absolute', bottom: -20, left: 30, width: '55%',
                   bgcolor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(25px)',
                   border: '1px solid rgba(242, 155, 70, 0.4)', borderRadius: '20px',
@@ -574,8 +574,8 @@ const CustomerAuthPage = () => {
                 backdropFilter: 'blur(25px)',
                 border: '1px solid rgba(224, 221, 216, 0.9)',
                 borderRadius: '28px',
-                boxShadow: loginSuccess || registerSuccess 
-                  ? '0 20px 50px rgba(34, 197, 94, 0.25), 0 0 60px rgba(34, 197, 94, 0.4)' 
+                boxShadow: loginSuccess || registerSuccess
+                  ? '0 20px 50px rgba(34, 197, 94, 0.25), 0 0 60px rgba(34, 197, 94, 0.4)'
                   : '0 20px 50px rgba(0, 0, 0, 0.08), 0 0 40px rgba(242, 155, 70, 0.15)',
                 p: { xs: 3, sm: 5 },
                 maxWidth: '480px',
@@ -596,8 +596,8 @@ const CustomerAuthPage = () => {
                     <Box sx={{ mb: 3 }}>
                       <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="48" cy="48" r="40" stroke="#22c55e" strokeWidth="6" strokeLinecap="round" />
-                        <path d="M32 48L44 60L66 36" stroke="#22c55e" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" 
-                          style={{ strokeDasharray: 100, strokeDashoffset: 100, animation: 'checkmarkDraw 0.6s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards' }} 
+                        <path d="M32 48L44 60L66 36" stroke="#22c55e" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
+                          style={{ strokeDasharray: 100, strokeDashoffset: 100, animation: 'checkmarkDraw 0.6s 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
                         />
                       </svg>
                     </Box>
@@ -656,8 +656,16 @@ const CustomerAuthPage = () => {
                 </Box>
 
                 {/* FORM SLIDING CONTAINER */}
-                <Box sx={{ position: 'relative', overflow: 'hidden', minHeight: view === 'login' ? '450px' : '820px', pb: 3, transition: 'min-height 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  
+                <Box sx={{
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minHeight: view === 'login'
+                    ? (loginError ? '570px' : '490px')
+                    : (registerMsg.text ? '880px' : '820px'),
+                  pb: 3,
+                  transition: 'min-height 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}>
+
                   {/* ========== LOGIN FORM ========== */}
                   <Box sx={{
                     position: 'absolute', top: 0, left: 0, width: '100%',
@@ -680,7 +688,7 @@ const CustomerAuthPage = () => {
                           </Typography>
                           <TextField fullWidth placeholder="Nhập tên đăng nhập hoặc email..." variant="outlined" sx={inputSx}
                             value={loginData.username} onChange={e => setLoginData({ ...loginData, username: e.target.value })}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: '#888' }} /></InputAdornment> }} 
+                            InputProps={{ startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: '#888' }} /></InputAdornment> }}
                           />
                         </Box>
 
@@ -699,7 +707,7 @@ const CustomerAuthPage = () => {
                                   </IconButton>
                                 </InputAdornment>
                               )
-                            }} 
+                            }}
                           />
                         </Box>
                       </Stack>
@@ -715,7 +723,7 @@ const CustomerAuthPage = () => {
                       </Box>
 
                       <Button fullWidth type="submit" disabled={loginLoading} sx={{ ...primaryBtnSx, mb: 2.5 }}>
-                        {loginLoading ? <CircularProgress size={26} sx={{ color: '#fff' }} /> : 'Đăng nhập vào Hệ thống'}
+                        {loginLoading ? <CircularProgress size={26} sx={{ color: '#fff' }} /> : 'Đăng nhập'}
                       </Button>
 
                       {/* SOCIAL LOGIN */}
@@ -725,17 +733,22 @@ const CustomerAuthPage = () => {
 
                       <Grid container spacing={2}>
                         <Grid item xs={6}>
-                          <Button 
-                            fullWidth 
+                          <Button
+                            fullWidth
                             sx={socialBtnSx}
                             onClick={handleGoogleRealLogin}
                           >
-                            <Google sx={{ color: '#ea4335' }} />
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.1-.31-.19-.63-.19-.63z" fill="#FBBC05" />
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                            </svg>
                           </Button>
                         </Grid>
                         <Grid item xs={6}>
-                          <Button 
-                            fullWidth 
+                          <Button
+                            fullWidth
                             sx={socialBtnSx}
                             onClick={handleGithubRealLogin}
                           >
@@ -769,7 +782,7 @@ const CustomerAuthPage = () => {
                             </Typography>
                             <TextField fullWidth placeholder="Nhập tên đăng nhập..." variant="outlined" sx={inputSx}
                               value={registerData.username} onChange={e => setRegisterData({ ...registerData, username: e.target.value })}
-                              InputProps={{ startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: '#888' }} /></InputAdornment> }} 
+                              InputProps={{ startAdornment: <InputAdornment position="start"><PersonOutline sx={{ color: '#888' }} /></InputAdornment> }}
                             />
                           </Box>
                         </Grid>
@@ -780,7 +793,7 @@ const CustomerAuthPage = () => {
                             </Typography>
                             <TextField fullWidth placeholder="Nhập họ và tên..." variant="outlined" sx={inputSx}
                               value={registerData.fullName} onChange={e => setRegisterData({ ...registerData, fullName: e.target.value })}
-                              InputProps={{ startAdornment: <InputAdornment position="start"><VerifiedUserOutlined sx={{ color: '#888' }} /></InputAdornment> }} 
+                              InputProps={{ startAdornment: <InputAdornment position="start"><VerifiedUserOutlined sx={{ color: '#888' }} /></InputAdornment> }}
                             />
                           </Box>
                         </Grid>
@@ -791,7 +804,7 @@ const CustomerAuthPage = () => {
                             </Typography>
                             <TextField fullWidth placeholder="Nhập email..." variant="outlined" sx={inputSx}
                               value={registerData.email} onChange={e => setRegisterData({ ...registerData, email: e.target.value })}
-                              InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlined sx={{ color: '#888' }} /></InputAdornment> }} 
+                              InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlined sx={{ color: '#888' }} /></InputAdornment> }}
                             />
                           </Box>
                         </Grid>
@@ -802,7 +815,7 @@ const CustomerAuthPage = () => {
                             </Typography>
                             <TextField fullWidth placeholder="Nhập số điện thoại..." variant="outlined" sx={inputSx}
                               value={registerData.phoneNumber} onChange={e => setRegisterData({ ...registerData, phoneNumber: e.target.value })}
-                              InputProps={{ startAdornment: <InputAdornment position="start"><PhoneOutlined sx={{ color: '#888' }} /></InputAdornment> }} 
+                              InputProps={{ startAdornment: <InputAdornment position="start"><PhoneOutlined sx={{ color: '#888' }} /></InputAdornment> }}
                             />
                           </Box>
                         </Grid>
@@ -822,7 +835,7 @@ const CustomerAuthPage = () => {
                                     </IconButton>
                                   </InputAdornment>
                                 )
-                              }} 
+                              }}
                             />
                           </Box>
                         </Grid>
@@ -842,7 +855,7 @@ const CustomerAuthPage = () => {
                                     </IconButton>
                                   </InputAdornment>
                                 )
-                              }} 
+                              }}
                             />
                           </Box>
                         </Grid>
@@ -936,10 +949,10 @@ const CustomerAuthPage = () => {
       <Dialog open={googleOpen} onClose={() => !socialLoading && setGoogleOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '16px', p: 3, bgcolor: '#fff' } }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: 12 }}>
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.1-.31-.19-.63-.19-.63z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.1-.31-.19-.63-.19-.63z" fill="#FBBC05" />
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
           </svg>
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#202124', fontFamily: '"Google Sans",Roboto,Arial,sans-serif' }}>
             Đăng nhập bằng Google / Gmail
@@ -987,18 +1000,18 @@ const CustomerAuthPage = () => {
 
               {/* Custom Input */}
               <Divider sx={{ my: 1 }}>hoặc sử dụng Gmail khác</Divider>
-              <TextField 
-                size="small" fullWidth placeholder="Địa chỉ Gmail (ví dụ: user@gmail.com)..." 
+              <TextField
+                size="small" fullWidth placeholder="Địa chỉ Gmail (ví dụ: user@gmail.com)..."
                 value={customEmail} onChange={e => setCustomEmail(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
               />
-              <TextField 
-                size="small" fullWidth placeholder="Họ và tên của bạn..." 
+              <TextField
+                size="small" fullWidth placeholder="Họ và tên của bạn..."
                 value={customName} onChange={e => setCustomName(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
               />
-              <Button 
-                variant="contained" 
+              <Button
+                variant="contained"
                 onClick={() => {
                   if (!customEmail || !customEmail.includes('@')) {
                     alert('Vui lòng nhập địa chỉ Gmail hợp lệ!');
@@ -1068,18 +1081,18 @@ const CustomerAuthPage = () => {
 
               {/* Custom Input */}
               <Divider sx={{ my: 1 }}>or enter GitHub email</Divider>
-              <TextField 
-                size="small" fullWidth placeholder="GitHub email address..." 
+              <TextField
+                size="small" fullWidth placeholder="GitHub email address..."
                 value={customEmail} onChange={e => setCustomEmail(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
               />
-              <TextField 
-                size="small" fullWidth placeholder="Your Full Name..." 
+              <TextField
+                size="small" fullWidth placeholder="Your Full Name..."
                 value={customName} onChange={e => setCustomName(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
               />
-              <Button 
-                variant="contained" 
+              <Button
+                variant="contained"
                 onClick={() => {
                   if (!customEmail || !customEmail.includes('@')) {
                     alert('Please enter a valid GitHub email!');

@@ -22,6 +22,53 @@ namespace BuildingMaterialAPI.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("BuildingMaterialAPI.Models.Banner", b =>
+                {
+                    b.Property<int>("MaBanner")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("MaBanner");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaBanner"));
+
+                    b.Property<string>("Bg")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Bg");
+
+                    b.Property<string>("Desc")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Desc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int")
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<string>("Panel")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Panel");
+
+                    b.Property<string>("Src")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Src");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Title");
+
+                    b.HasKey("MaBanner");
+
+                    b.ToTable("BANNER");
+                });
+
             modelBuilder.Entity("BuildingMaterialAPI.Models.CTHD", b =>
                 {
                     b.Property<int>("MaCTHD")
@@ -62,6 +109,10 @@ namespace BuildingMaterialAPI.Migrations
                     b.Property<int>("SoLuong")
                         .HasColumnType("int")
                         .HasColumnName("SoLuong");
+
+                    b.Property<int>("SoLuongDaGiao")
+                        .HasColumnType("int")
+                        .HasColumnName("SoLuongDaGiao");
 
                     b.Property<string>("TenNguoiNhan")
                         .HasColumnType("nvarchar(max)")
@@ -374,6 +425,41 @@ namespace BuildingMaterialAPI.Migrations
                     b.ToTable("CTPHIEUXUATKHO");
                 });
 
+            modelBuilder.Entity("BuildingMaterialAPI.Models.ChatMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CustomerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SenderRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("StaffId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ChatMessages");
+                });
+
             modelBuilder.Entity("BuildingMaterialAPI.Models.ChiTietTraNo", b =>
                 {
                     b.Property<int>("MaChiTietTN")
@@ -536,6 +622,59 @@ namespace BuildingMaterialAPI.Migrations
                     b.HasIndex("MaPhieuNhap");
 
                     b.ToTable("CONGNO");
+                });
+
+            modelBuilder.Entity("BuildingMaterialAPI.Models.ContactMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("Id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Email");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsRead");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Message");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Name");
+
+                    b.Property<DateTime?>("RepliedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RepliedAt");
+
+                    b.Property<string>("ReplyMessage")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ReplyMessage");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Subject");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ContactMessages");
                 });
 
             modelBuilder.Entity("BuildingMaterialAPI.Models.DanhGia", b =>
@@ -2221,6 +2360,49 @@ namespace BuildingMaterialAPI.Migrations
                     b.ToTable("TAIKHOAN");
                 });
 
+            modelBuilder.Entity("BuildingMaterialAPI.Models.TeamMember", b =>
+                {
+                    b.Property<int>("MaThanhVien")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("MaThanhVien");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MaThanhVien"));
+
+                    b.Property<string>("Avatar")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Avatar");
+
+                    b.Property<string>("Bg")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Bg");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Name");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int")
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Role");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("StudentId");
+
+                    b.HasKey("MaThanhVien");
+
+                    b.ToTable("TEAM_MEMBER");
+                });
+
             modelBuilder.Entity("BuildingMaterialAPI.Models.ThongBao", b =>
                 {
                     b.Property<int>("MaThongBao")
@@ -2292,6 +2474,56 @@ namespace BuildingMaterialAPI.Migrations
                     b.HasKey("MaVaiTro");
 
                     b.ToTable("VAITRO");
+                });
+
+            modelBuilder.Entity("BuildingMaterialAPI.Models.VaiTroModuleQuyen", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("Id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("CoTheSua")
+                        .HasColumnType("bit")
+                        .HasColumnName("CoTheSua");
+
+                    b.Property<bool>("CoTheTao")
+                        .HasColumnType("bit")
+                        .HasColumnName("CoTheTao");
+
+                    b.Property<bool>("CoTheXem")
+                        .HasColumnType("bit")
+                        .HasColumnName("CoTheXem");
+
+                    b.Property<bool>("CoTheXoa")
+                        .HasColumnType("bit")
+                        .HasColumnName("CoTheXoa");
+
+                    b.Property<int>("MaVaiTro")
+                        .HasColumnType("int")
+                        .HasColumnName("MaVaiTro");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Module");
+
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("NgayCapNhat");
+
+                    b.Property<string>("TenModule")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("TenModule");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaVaiTro");
+
+                    b.ToTable("VAITRO_MODULE_QUYEN");
                 });
 
             modelBuilder.Entity("BuildingMaterialAPI.Models.VoucherUuDai", b =>
@@ -2970,6 +3202,17 @@ namespace BuildingMaterialAPI.Migrations
                     b.Navigation("VaiTro");
                 });
 
+            modelBuilder.Entity("BuildingMaterialAPI.Models.VaiTroModuleQuyen", b =>
+                {
+                    b.HasOne("BuildingMaterialAPI.Models.VaiTro", "VaiTro")
+                        .WithMany()
+                        .HasForeignKey("MaVaiTro")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("VaiTro");
+                });
+
             modelBuilder.Entity("BuildingMaterialAPI.Models.HoaDon", b =>
                 {
                     b.Navigation("CTHDs");
@@ -3080,11 +3323,9 @@ namespace BuildingMaterialAPI.Migrations
 
             modelBuilder.Entity("BuildingMaterialAPI.Models.TaiKhoan", b =>
                 {
-                    b.Navigation("KhachHang")
-                        .IsRequired();
+                    b.Navigation("KhachHang");
 
-                    b.Navigation("NhanVien")
-                        .IsRequired();
+                    b.Navigation("NhanVien");
 
                     b.Navigation("NhatKys");
                 });

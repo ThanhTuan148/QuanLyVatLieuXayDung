@@ -27,5 +27,6 @@ namespace BuildingMaterialAPI.Models
         public DateTime? NgayCapNhat { get; set; }
 
         public virtual ICollection<CTKhoHang> CTKhoHangs { get; set; } = new List<CTKhoHang>();
+        public virtual ICollection<PhieuXuatKho> PhieuXuatKhos { get; set; } = new List<PhieuXuatKho>();
     }
 }

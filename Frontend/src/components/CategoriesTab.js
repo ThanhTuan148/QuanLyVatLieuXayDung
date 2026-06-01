@@ -20,9 +20,9 @@ function CategoriesTab() {
   const fileInputRef = useRef(null);
 
   const { permissions } = usePermissions();
-  const canCreate = permissions?.products?.coTheTao ?? true;
-  const canEdit = permissions?.products?.coTheSua ?? true;
-  const canDelete = permissions?.products?.coTheXoa ?? true;
+  const canCreate = permissions?.categories?.coTheTao ?? false;
+  const canEdit = permissions?.categories?.coTheSua ?? false;
+  const canDelete = permissions?.categories?.coTheXoa ?? false;
 
   useEffect(() => { fetchCategories(); }, []);
 

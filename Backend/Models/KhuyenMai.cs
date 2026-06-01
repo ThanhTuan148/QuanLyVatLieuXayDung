@@ -32,6 +32,7 @@ namespace BuildingMaterialAPI.Models
         [Column("NgayCapNhat")] public DateTime NgayCapNhat { get; set; } = DateTime.Now;
 
         public virtual ICollection<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; } = new List<KhuyenMaiDoiTuong>();
+        public virtual ICollection<ChiTietKhuyenMai> ChiTietKhuyenMais { get; set; } = new List<ChiTietKhuyenMai>();
     }
 
     [Table("KHUYENMAI_DOITUONG")]

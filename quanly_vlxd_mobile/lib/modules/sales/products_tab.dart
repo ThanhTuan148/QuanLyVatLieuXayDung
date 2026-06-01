@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../core/permission_helper.dart';
 import '../../core/app_image.dart';
-
 
 class ProductsTab extends StatefulWidget {
   const ProductsTab({super.key});
@@ -12,7 +12,8 @@ class ProductsTab extends StatefulWidget {
   State<ProductsTab> createState() => _ProductsTabState();
 }
 
-class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStateMixin {
+class _ProductsTabState extends State<ProductsTab>
+    with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   late TabController _tabController;
 
@@ -21,8 +22,12 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
   bool _isLoading = true;
   String? _error;
   String _searchQuery = '';
+  bool _isTableView = false;
 
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+  final NumberFormat _currencyFormat = NumberFormat.currency(
+    locale: 'vi_VN',
+    symbol: 'đ',
+  );
 
   @override
   void initState() {
@@ -51,10 +56,14 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           if (resProducts.statusCode == 200 && resProducts.data != null) {
-            _products = resProducts.data is List ? resProducts.data : [resProducts.data];
+            _products = resProducts.data is List
+                ? resProducts.data
+                : [resProducts.data];
           }
           if (resCategories.statusCode == 200 && resCategories.data != null) {
-            _categories = resCategories.data is List ? resCategories.data : [resCategories.data];
+            _categories = resCategories.data is List
+                ? resCategories.data
+                : [resCategories.data];
           }
           _isLoading = false;
           _error = null;
@@ -74,37 +83,168 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
 
   List<dynamic> _getMockProducts() {
     return [
-      {"maSanPham": 1, "maSP": "SP001", "tenSP": "Xi măng Insee Đa Dụng", "hinhAnh": "", "thuongHieu": "Insee", "xuatXu": "Việt Nam", "donViTinh": "Bao", "giaNhap": 80000, "giaBan": 90000, "mucTonToiThieu": 100, "soLuongTon": 500, "trangThai": true, "isGift": false, "tenLoai": "Xi măng"},
-      {"maSanPham": 2, "maSP": "SP002", "tenSP": "Xi măng Hà Tiên PCB40", "hinhAnh": "", "thuongHieu": "Hà Tiên", "xuatXu": "Việt Nam", "donViTinh": "Bao", "giaNhap": 78000, "giaBan": 85000, "mucTonToiThieu": 100, "soLuongTon": 450, "trangThai": true, "isGift": false, "tenLoai": "Xi măng"},
-      {"maSanPham": 3, "maSP": "SP003", "tenSP": "Thép Hòa Phát D10", "hinhAnh": "", "thuongHieu": "Hòa Phát", "xuatXu": "Việt Nam", "donViTinh": "Cây", "giaNhap": 140000, "giaBan": 155000, "mucTonToiThieu": 50, "soLuongTon": 120, "trangThai": true, "isGift": false, "tenLoai": "Sắt thép"},
-      {"maSanPham": 21, "maSP": "SP021", "tenSP": "Bút thử điện thông minh", "hinhAnh": "", "thuongHieu": "OEM", "xuatXu": "Việt Nam", "donViTinh": "Cái", "giaNhap": 0, "giaBan": 0, "mucTonToiThieu": 50, "soLuongTon": 80, "trangThai": true, "isGift": true, "tenLoai": "Quà tặng"},
-      {"maSanPham": 22, "maSP": "SP022", "tenSP": "Đèn pin siêu sáng", "hinhAnh": "", "thuongHieu": "OEM", "xuatXu": "Việt Nam", "donViTinh": "Cái", "giaNhap": 0, "giaBan": 0, "mucTonToiThieu": 30, "soLuongTon": 5, "trangThai": true, "isGift": true, "tenLoai": "Quà tặng"},
+      {
+        "maSanPham": 1,
+        "maSP": "SP001",
+        "tenSP": "Xi măng Insee Đa Dụng",
+        "hinhAnh": "",
+        "thuongHieu": "Insee",
+        "xuatXu": "Việt Nam",
+        "donViTinh": "Bao",
+        "giaNhap": 80000,
+        "giaBan": 90000,
+        "mucTonToiThieu": 100,
+        "soLuongTon": 500,
+        "trangThai": true,
+        "isGift": false,
+        "tenLoai": "Xi măng",
+      },
+      {
+        "maSanPham": 2,
+        "maSP": "SP002",
+        "tenSP": "Xi măng Hà Tiên PCB40",
+        "hinhAnh": "",
+        "thuongHieu": "Hà Tiên",
+        "xuatXu": "Việt Nam",
+        "donViTinh": "Bao",
+        "giaNhap": 78000,
+        "giaBan": 85000,
+        "mucTonToiThieu": 100,
+        "soLuongTon": 450,
+        "trangThai": true,
+        "isGift": false,
+        "tenLoai": "Xi măng",
+      },
+      {
+        "maSanPham": 3,
+        "maSP": "SP003",
+        "tenSP": "Thép Hòa Phát D10",
+        "hinhAnh": "",
+        "thuongHieu": "Hòa Phát",
+        "xuatXu": "Việt Nam",
+        "donViTinh": "Cây",
+        "giaNhap": 140000,
+        "giaBan": 155000,
+        "mucTonToiThieu": 50,
+        "soLuongTon": 120,
+        "trangThai": true,
+        "isGift": false,
+        "tenLoai": "Sắt thép",
+      },
+      {
+        "maSanPham": 21,
+        "maSP": "SP021",
+        "tenSP": "Bút thử điện thông minh",
+        "hinhAnh": "",
+        "thuongHieu": "OEM",
+        "xuatXu": "Việt Nam",
+        "donViTinh": "Cái",
+        "giaNhap": 0,
+        "giaBan": 0,
+        "mucTonToiThieu": 50,
+        "soLuongTon": 80,
+        "trangThai": true,
+        "isGift": true,
+        "tenLoai": "Quà tặng",
+      },
+      {
+        "maSanPham": 22,
+        "maSP": "SP022",
+        "tenSP": "Đèn pin siêu sáng",
+        "hinhAnh": "",
+        "thuongHieu": "OEM",
+        "xuatXu": "Việt Nam",
+        "donViTinh": "Cái",
+        "giaNhap": 0,
+        "giaBan": 0,
+        "mucTonToiThieu": 30,
+        "soLuongTon": 5,
+        "trangThai": true,
+        "isGift": true,
+        "tenLoai": "Quà tặng",
+      },
     ];
   }
 
   List<dynamic> _getMockCategories() {
     return [
-      {"maLoaiSanPham": 1, "maLoai": "LSP01", "tenLoai": "Xi măng", "moTa": "Các loại xi măng xây dựng", "hinhAnh": ""},
-      {"maLoaiSanPham": 2, "maLoai": "LSP02", "tenLoai": "Sắt thép", "moTa": "Thép cây, thép cuộn các loại", "hinhAnh": ""},
-      {"maLoaiSanPham": 3, "maLoai": "LSP03", "tenLoai": "Gạch xây dựng", "moTa": "Gạch ống, gạch đinh, gạch men", "hinhAnh": ""},
+      {
+        "maLoaiSanPham": 1,
+        "maLoai": "LSP01",
+        "tenLoai": "Xi măng",
+        "moTa": "Các loại xi măng xây dựng",
+        "hinhAnh": "",
+      },
+      {
+        "maLoaiSanPham": 2,
+        "maLoai": "LSP02",
+        "tenLoai": "Sắt thép",
+        "moTa": "Thép cây, thép cuộn các loại",
+        "hinhAnh": "",
+      },
+      {
+        "maLoaiSanPham": 3,
+        "maLoai": "LSP03",
+        "tenLoai": "Gạch xây dựng",
+        "moTa": "Gạch ống, gạch đinh, gạch men",
+        "hinhAnh": "",
+      },
     ];
   }
 
   // =========================================================================
   // DIALOG THÊM / SỬA SẢN PHẨM & QUÀ TẶNG
   // =========================================================================
-  Future<void> _showAddEditProductDialog([Map<String, dynamic>? product, bool isGiftDefault = false]) async {
+  Future<void> _showAddEditProductDialog([
+    Map<String, dynamic>? product,
+    bool isGiftDefault = false,
+  ]) async {
     final isEdit = product != null;
-    final tenCtrl = TextEditingController(text: isEdit ? (product['tenSP'] ?? product['TenSP'] ?? '').toString() : '');
-    final maSPCtrl = TextEditingController(text: isEdit ? (product['maSP'] ?? product['MaSP'] ?? '').toString() : '');
-    final thuongHieuCtrl = TextEditingController(text: isEdit ? (product['thuongHieu'] ?? product['ThuongHieu'] ?? 'OEM').toString() : 'OEM');
-    final xuatXuCtrl = TextEditingController(text: isEdit ? (product['xuatXu'] ?? product['XuatXu'] ?? 'Việt Nam').toString() : 'Việt Nam');
-    final dvtCtrl = TextEditingController(text: isEdit ? (product['donViTinh'] ?? product['DonViTinh'] ?? 'Bao').toString() : 'Bao');
-    final giaNhapCtrl = TextEditingController(text: isEdit ? (product['giaNhap'] ?? product['GiaNhap'] ?? 0).toString() : '0');
-    final giaBanCtrl = TextEditingController(text: isEdit ? (product['giaBan'] ?? product['GiaBan'] ?? 0).toString() : '0');
-    final tonThieuCtrl = TextEditingController(text: isEdit ? (product['mucTonToiThieu'] ?? product['MucTonToiThieu'] ?? 10).toString() : '10');
-    bool isGift = isEdit ? (product['isGift'] ?? product['IsGift'] ?? false) : isGiftDefault;
-    bool trangThai = isEdit ? (product['trangThai'] ?? product['TrangThai'] ?? true) : true;
+    final tenCtrl = TextEditingController(
+      text: isEdit
+          ? (product['tenSP'] ?? product['TenSP'] ?? '').toString()
+          : '',
+    );
+    final maSPCtrl = TextEditingController(
+      text: isEdit ? (product['maSP'] ?? product['MaSP'] ?? '').toString() : '',
+    );
+    final thuongHieuCtrl = TextEditingController(
+      text: isEdit
+          ? (product['thuongHieu'] ?? product['ThuongHieu'] ?? 'OEM').toString()
+          : 'OEM',
+    );
+    final xuatXuCtrl = TextEditingController(
+      text: isEdit
+          ? (product['xuatXu'] ?? product['XuatXu'] ?? 'Việt Nam').toString()
+          : 'Việt Nam',
+    );
+    final dvtCtrl = TextEditingController(
+      text: isEdit
+          ? (product['donViTinh'] ?? product['DonViTinh'] ?? 'Bao').toString()
+          : 'Bao',
+    );
+    final giaNhapCtrl = TextEditingController(
+      text: isEdit
+          ? (product['giaNhap'] ?? product['GiaNhap'] ?? 0).toString()
+          : '0',
+    );
+    final giaBanCtrl = TextEditingController(
+      text: isEdit
+          ? (product['giaBan'] ?? product['GiaBan'] ?? 0).toString()
+          : '0',
+    );
+    final tonThieuCtrl = TextEditingController(
+      text: isEdit
+          ? (product['mucTonToiThieu'] ?? product['MucTonToiThieu'] ?? 10)
+                .toString()
+          : '10',
+    );
+    bool isGift = isEdit
+        ? (product['isGift'] ?? product['IsGift'] ?? false)
+        : isGiftDefault;
+    bool trangThai = isEdit
+        ? (product['trangThai'] ?? product['TrangThai'] ?? true)
+        : true;
 
     final formKey = GlobalKey<FormState>();
 
@@ -114,7 +254,12 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(isEdit ? (isGift ? 'Sửa Quà Tặng' : 'Sửa Sản Phẩm') : (isGift ? 'Thêm Quà Tặng' : 'Thêm Sản Phẩm'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(
+                isEdit
+                    ? (isGift ? 'Sửa Quà Tặng' : 'Sửa Sản Phẩm')
+                    : (isGift ? 'Thêm Quà Tặng' : 'Thêm Sản Phẩm'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -122,7 +267,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SwitchListTile(
-                        title: const Text('Là sản phẩm quà tặng', style: TextStyle(fontWeight: FontWeight.bold)),
+                        title: const Text(
+                          'Là sản phẩm quà tặng',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         value: isGift,
                         onChanged: (val) {
                           setDialogState(() {
@@ -137,13 +285,21 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: maSPCtrl,
-                        decoration: const InputDecoration(labelText: 'Mã SP (SP001...)', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Mã SP (SP001...)',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: tenCtrl,
-                        decoration: const InputDecoration(labelText: 'Tên sản phẩm', border: OutlineInputBorder()),
-                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Tên sản phẩm',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Vui lòng nhập tên'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -151,14 +307,20 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                           Expanded(
                             child: TextFormField(
                               controller: thuongHieuCtrl,
-                              decoration: const InputDecoration(labelText: 'Thương hiệu', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: 'Thương hiệu',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
                               controller: xuatXuCtrl,
-                              decoration: const InputDecoration(labelText: 'Xuất xứ', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: 'Xuất xứ',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                         ],
@@ -169,7 +331,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                           Expanded(
                             child: TextFormField(
                               controller: dvtCtrl,
-                              decoration: const InputDecoration(labelText: 'Đơn vị tính', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: 'Đơn vị tính',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -177,7 +342,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                             child: TextFormField(
                               controller: tonThieuCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: 'Tồn tối thiểu', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: 'Tồn tối thiểu',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                         ],
@@ -190,7 +358,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                               child: TextFormField(
                                 controller: giaNhapCtrl,
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: 'Giá nhập (đ)', border: OutlineInputBorder()),
+                                decoration: const InputDecoration(
+                                  labelText: 'Giá nhập (đ)',
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -198,7 +369,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                               child: TextFormField(
                                 controller: giaBanCtrl,
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: 'Giá bán (đ)', border: OutlineInputBorder()),
+                                decoration: const InputDecoration(
+                                  labelText: 'Giá bán (đ)',
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                             ),
                           ],
@@ -208,14 +382,18 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                       SwitchListTile(
                         title: const Text('Trạng thái hoạt động'),
                         value: trangThai,
-                        onChanged: (val) => setDialogState(() => trangThai = val),
+                        onChanged: (val) =>
+                            setDialogState(() => trangThai = val),
                       ),
                     ],
                   ),
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Hủy'),
+                ),
                 ElevatedButton(
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
@@ -237,17 +415,32 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
 
                       try {
                         if (isEdit) {
-                          final id = product['maSanPham'] ?? product['MaSanPham'] ?? product['id'];
+                          final id =
+                              product['maSanPham'] ??
+                              product['MaSanPham'] ??
+                              product['id'];
                           await _apiService.updateProduct(id, data);
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cập nhật thành công!')));
+                          if (mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cập nhật thành công!'),
+                              ),
+                            );
                         } else {
                           await _apiService.createProduct(data);
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thêm mới thành công!')));
+                          if (mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Thêm mới thành công!'),
+                              ),
+                            );
                         }
                         _fetchAllData();
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
                           _fetchAllData();
                         }
                       }
@@ -273,7 +466,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
         title: const Text('Xác nhận xóa'),
         content: Text('Bạn có chắc chắn muốn xóa "$ten"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -287,11 +483,16 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       setState(() => _isLoading = true);
       try {
         await _apiService.deleteProduct(id);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
         _fetchAllData();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e')));
           _fetchAllData();
         }
       }
@@ -301,11 +502,25 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
   // =========================================================================
   // DIALOG THÊM / SỬA DANH MỤC (LOẠI SẢN PHẨM)
   // =========================================================================
-  Future<void> _showAddEditCategoryDialog([Map<String, dynamic>? category]) async {
+  Future<void> _showAddEditCategoryDialog([
+    Map<String, dynamic>? category,
+  ]) async {
     final isEdit = category != null;
-    final tenCtrl = TextEditingController(text: isEdit ? (category['tenLoai'] ?? category['TenLoai'] ?? '').toString() : '');
-    final maLoaiCtrl = TextEditingController(text: isEdit ? (category['maLoai'] ?? category['MaLoai'] ?? '').toString() : '');
-    final moTaCtrl = TextEditingController(text: isEdit ? (category['moTa'] ?? category['MoTa'] ?? '').toString() : '');
+    final tenCtrl = TextEditingController(
+      text: isEdit
+          ? (category['tenLoai'] ?? category['TenLoai'] ?? '').toString()
+          : '',
+    );
+    final maLoaiCtrl = TextEditingController(
+      text: isEdit
+          ? (category['maLoai'] ?? category['MaLoai'] ?? '').toString()
+          : '',
+    );
+    final moTaCtrl = TextEditingController(
+      text: isEdit
+          ? (category['moTa'] ?? category['MoTa'] ?? '').toString()
+          : '',
+    );
 
     final formKey = GlobalKey<FormState>();
 
@@ -313,7 +528,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(isEdit ? 'Sửa Danh Mục' : 'Thêm Danh Mục', style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(
+            isEdit ? 'Sửa Danh Mục' : 'Thêm Danh Mục',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -322,25 +540,39 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                 children: [
                   TextFormField(
                     controller: maLoaiCtrl,
-                    decoration: const InputDecoration(labelText: 'Mã loại (LSP01...)', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Mã loại (LSP01...)',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: tenCtrl,
-                    decoration: const InputDecoration(labelText: 'Tên danh mục', border: OutlineInputBorder()),
-                    validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên danh mục' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên danh mục',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (val) => val == null || val.isEmpty
+                        ? 'Vui lòng nhập tên danh mục'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: moTaCtrl,
-                    decoration: const InputDecoration(labelText: 'Mô tả chi tiết', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Mô tả chi tiết',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
             ElevatedButton(
               onPressed: () async {
                 if (formKey.currentState!.validate()) {
@@ -355,17 +587,28 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
 
                   try {
                     if (isEdit) {
-                      final id = category['maLoaiSanPham'] ?? category['MaLoaiSP'] ?? category['id'];
+                      final id =
+                          category['maLoaiSanPham'] ??
+                          category['MaLoaiSP'] ??
+                          category['id'];
                       await _apiService.updateCategory(id, data);
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cập nhật thành công!')));
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Cập nhật thành công!')),
+                        );
                     } else {
                       await _apiService.createCategory(data);
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thêm mới thành công!')));
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Thêm mới thành công!')),
+                        );
                     }
                     _fetchAllData();
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
                       _fetchAllData();
                     }
                   }
@@ -380,7 +623,8 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
   }
 
   Future<void> _deleteCategory(dynamic category) async {
-    final id = category['maLoaiSanPham'] ?? category['MaLoaiSP'] ?? category['id'];
+    final id =
+        category['maLoaiSanPham'] ?? category['MaLoaiSP'] ?? category['id'];
     final ten = category['tenLoai'] ?? category['TenLoai'] ?? '';
 
     final confirm = await showDialog<bool>(
@@ -389,7 +633,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
         title: const Text('Xác nhận xóa'),
         content: Text('Bạn có chắc chắn muốn xóa danh mục "$ten"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -403,11 +650,16 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       setState(() => _isLoading = true);
       try {
         await _apiService.deleteCategory(id);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
         _fetchAllData();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e')));
           _fetchAllData();
         }
       }
@@ -429,7 +681,10 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
         children: [
           Icon(Icons.lock, size: 64, color: Colors.grey),
           SizedBox(height: 16),
-          Text('Bạn không có quyền xem dữ liệu này', style: TextStyle(color: Colors.grey, fontSize: 16)),
+          Text(
+            'Bạn không có quyền xem dữ liệu này',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
         ],
       ),
     );
@@ -443,7 +698,8 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       if (isGift) return false;
       final name = (p['tenSP'] ?? p['TenSP'] ?? '').toString().toLowerCase();
       final code = (p['maSP'] ?? p['MaSP'] ?? '').toString().toLowerCase();
-      return name.contains(_searchQuery.toLowerCase()) || code.contains(_searchQuery.toLowerCase());
+      return name.contains(_searchQuery.toLowerCase()) ||
+          code.contains(_searchQuery.toLowerCase());
     }).toList();
 
     final filteredGifts = _products.where((p) {
@@ -451,17 +707,22 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
       if (!isGift) return false;
       final name = (p['tenSP'] ?? p['TenSP'] ?? '').toString().toLowerCase();
       final code = (p['maSP'] ?? p['MaSP'] ?? '').toString().toLowerCase();
-      return name.contains(_searchQuery.toLowerCase()) || code.contains(_searchQuery.toLowerCase());
+      return name.contains(_searchQuery.toLowerCase()) ||
+          code.contains(_searchQuery.toLowerCase());
     }).toList();
 
     final filteredCategories = _categories.where((c) {
-      final name = (c['tenLoai'] ?? c['TenLoai'] ?? '').toString().toLowerCase();
+      final name = (c['tenLoai'] ?? c['TenLoai'] ?? '')
+          .toString()
+          .toLowerCase();
       return name.contains(_searchQuery.toLowerCase());
     }).toList();
 
     // Thống kê Tab 1
     final totalProd = filteredProducts.length;
-    final activeProd = filteredProducts.where((p) => (p['trangThai'] ?? p['TrangThai'] ?? true) == true).length;
+    final activeProd = filteredProducts
+        .where((p) => (p['trangThai'] ?? p['TrangThai'] ?? true) == true)
+        .length;
     final inactiveProd = totalProd - activeProd;
     final lowStockProd = filteredProducts.where((p) {
       final ton = p['soLuongTon'] ?? p['SoLuongTon'] ?? 0;
@@ -471,17 +732,28 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
 
     // Thống kê Tab 2
     final totalGift = filteredGifts.length;
-    final activeGift = filteredGifts.where((p) => (p['trangThai'] ?? p['TrangThai'] ?? true) == true).length;
+    final activeGift = filteredGifts
+        .where((p) => (p['trangThai'] ?? p['TrangThai'] ?? true) == true)
+        .length;
     final inactiveGift = totalGift - activeGift;
-    final outOfStockGift = filteredGifts.where((p) => (p['soLuongTon'] ?? p['SoLuongTon'] ?? 0) == 0).length;
+    final outOfStockGift = filteredGifts
+        .where((p) => (p['soLuongTon'] ?? p['SoLuongTon'] ?? 0) == 0)
+        .length;
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 0,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Kho Sản Phẩm & Danh Mục', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text('Quản lý toàn bộ danh sách sản phẩm và phân loại', style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
+            Text(
+              'Kho Sản Phẩm & Danh Mục',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            Text(
+              'Quản lý toàn bộ danh sách sản phẩm và phân loại',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+            ),
           ],
         ),
         backgroundColor: Colors.purple.shade800,
@@ -493,6 +765,7 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
           indicatorColor: Colors.amber,
           indicatorWeight: 4,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(icon: Icon(Icons.inventory_2), text: 'Sản Phẩm'),
             Tab(icon: Icon(Icons.card_giftcard), text: 'Sản Phẩm Quà Tặng'),
@@ -511,8 +784,16 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                   _showAddEditCategoryDialog();
                 }
               },
-              icon: Icon(_tabController.index == 2 ? Icons.add_chart : Icons.add),
-              label: Text(_tabController.index == 0 ? 'Thêm Sản Phẩm' : (_tabController.index == 1 ? 'Thêm Quà Tặng' : 'Thêm Phân Loại')),
+              icon: Icon(
+                _tabController.index == 2 ? Icons.add_chart : Icons.add,
+              ),
+              label: Text(
+                _tabController.index == 0
+                    ? 'Thêm Sản Phẩm'
+                    : (_tabController.index == 1
+                          ? 'Thêm Quà Tặng'
+                          : 'Thêm Phân Loại'),
+              ),
               backgroundColor: Colors.purple.shade800,
             )
           : null,
@@ -524,30 +805,77 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                 if (_error != null)
                   Container(
                     padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16, top: 12),
-                    decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8)),
+                    margin: const EdgeInsets.only(
+                      bottom: 8,
+                      left: 8,
+                      right: 8,
+                      top: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Row(
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.orange,
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(_error!, style: TextStyle(color: Colors.orange.shade800, fontSize: 13, fontWeight: FontWeight.bold))),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
-                // Thanh tìm kiếm nhanh
+                // Thanh tìm kiếm nhanh & Đổi view
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextField(
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    decoration: InputDecoration(
-                      hintText: 'Tìm kiếm nhanh (Mã, Tên)...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 20),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                    ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 8.0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          onChanged: (val) =>
+                              setState(() => _searchQuery = val),
+                          decoration: InputDecoration(
+                            hintText: 'Tìm kiếm nhanh (Mã, Tên)...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                              horizontal: 20,
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey.shade100,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(
+                          _isTableView ? Icons.grid_view : Icons.table_chart,
+                          color: AppColors.primaryStart,
+                        ),
+                        tooltip: _isTableView
+                            ? 'Chuyển sang dạng Thẻ'
+                            : 'Chuyển sang dạng Bảng',
+                        onPressed: () =>
+                            setState(() => _isTableView = !_isTableView),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -557,13 +885,33 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
                     controller: _tabController,
                     children: [
                       // TAB 1: SẢN PHẨM
-                      PermissionHelper.canView('PRODUCTS') ? _buildProductTabView(filteredProducts, totalProd, activeProd, inactiveProd, lowStockProd, false) : _buildPermissionDenied(),
+                      PermissionHelper.canView('PRODUCTS')
+                          ? _buildProductTabView(
+                              filteredProducts,
+                              totalProd,
+                              activeProd,
+                              inactiveProd,
+                              lowStockProd,
+                              false,
+                            )
+                          : _buildPermissionDenied(),
 
                       // TAB 2: QUÀ TẶNG
-                      PermissionHelper.canView('PRODUCTS') ? _buildProductTabView(filteredGifts, totalGift, activeGift, inactiveGift, outOfStockGift, true) : _buildPermissionDenied(),
+                      PermissionHelper.canView('PRODUCTS')
+                          ? _buildProductTabView(
+                              filteredGifts,
+                              totalGift,
+                              activeGift,
+                              inactiveGift,
+                              outOfStockGift,
+                              true,
+                            )
+                          : _buildPermissionDenied(),
 
                       // TAB 3: DANH MỤC
-                      PermissionHelper.canView('CATEGORIES') ? _buildCategoryTabView(filteredCategories) : _buildPermissionDenied(),
+                      PermissionHelper.canView('CATEGORIES')
+                          ? _buildCategoryTabView(filteredCategories)
+                          : _buildPermissionDenied(),
                     ],
                   ),
                 ),
@@ -575,108 +923,464 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
   // =========================================================================
   // GIAO DIỆN TAB 1 & TAB 2 (BẢNG SẢN PHẨM / QUÀ TẶNG CUỘN NGANG)
   // =========================================================================
-  Widget _buildProductTabView(List<dynamic> list, int total, int active, int inactive, int alertCount, bool isGift) {
+  Widget _buildProductTabView(
+    List<dynamic> list,
+    int total,
+    int active,
+    int inactive,
+    int alertCount,
+    bool isGift,
+  ) {
     return Column(
       children: [
         // 4 Thẻ thống kê
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Column(
             children: [
-              _buildStatCard(isGift ? 'Tổng quà tặng' : 'Tổng sản phẩm', total.toString(), Colors.blue),
-              const SizedBox(width: 12),
-              _buildStatCard('Đang hoạt động', active.toString(), Colors.green),
-              const SizedBox(width: 12),
-              _buildStatCard('Ngừng hoạt động', inactive.toString(), Colors.red),
-              const SizedBox(width: 12),
-              _buildStatCard(isGift ? 'Quà tặng hết hàng' : 'Cần nhập hàng', alertCount.toString(), Colors.orange),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      isGift ? 'Tổng quà tặng' : 'Tổng sản phẩm',
+                      total.toString(),
+                      Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Đang hoạt động',
+                      active.toString(),
+                      Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Ngừng hoạt động',
+                      inactive.toString(),
+                      Colors.red,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildStatCard(
+                      isGift ? 'Quà tặng hết hàng' : 'Cần nhập hàng',
+                      alertCount.toString(),
+                      Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
-        // Bảng dữ liệu cuộn ngang đầy đủ cột y như Web
+        // Bảng dữ liệu hoặc Danh sách thẻ
         Expanded(
           child: list.isEmpty
               ? const Center(child: Text('Không tìm thấy dữ liệu'))
-              : SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                      columnSpacing: 24,
-                      dataRowMaxHeight: 64,
-                      columns: const [
-                        DataColumn(label: Text('Mã SP', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tên Sản Phẩm', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hình Ảnh', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Nhà Cung Cấp', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Thương Hiệu', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Xuất Xứ', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Loại SP', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('ĐVT', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Giá Nhập', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Giá Bán', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tồn Kho / Tồn Thiểu', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                      rows: list.map((p) {
-                        final maSP = p['maSP'] ?? p['MaSP'] ?? p['maSanPham'] ?? '';
-                        final tenSP = p['tenSP'] ?? p['TenSP'] ?? 'Chưa đặt tên';
-                        final thuongHieu = p['thuongHieu'] ?? p['ThuongHieu'] ?? 'OEM';
-                        final xuatXu = p['xuatXu'] ?? p['XuatXu'] ?? 'Việt Nam';
-                        final tenLoai = p['tenLoai'] ?? p['TenLoai'] ?? (isGift ? 'Quà tặng' : 'Vật tư');
-                        final dvt = p['donViTinh'] ?? p['DonViTinh'] ?? 'Bao';
-                        final giaNhap = p['giaNhap'] ?? p['GiaNhap'] ?? 0;
-                        final giaBan = p['giaBan'] ?? p['GiaBan'] ?? 0;
-                        final tonKho = p['soLuongTon'] ?? p['SoLuongTon'] ?? 0;
-                        final tonThieu = p['mucTonToiThieu'] ?? p['MucTonToiThieu'] ?? 10;
-                        final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+              : _isTableView
+              ? _buildProductTableView(list, isGift)
+              : _buildProductCardView(list, isGift),
+        ),
+      ],
+    );
+  }
 
-                        // Lấy tên nhà cung cấp đầu tiên
-                        String tenNCC = 'Chưa gán';
-                        final nccList = p['nhaCungCaps'] ?? p['NhaCungCaps'];
-                        if (nccList != null && nccList is List && nccList.isNotEmpty) {
-                          tenNCC = nccList[0]['tenNCC'] ?? nccList[0]['TenNCC'] ?? 'CT Xi Măng Hà Tiên';
-                        }
+  Widget _buildProductTableView(List<dynamic> list, bool isGift) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
+          columnSpacing: 24,
+          dataRowMaxHeight: 64,
+          columns: const [
+            DataColumn(
+              label: Text(
+                'Mã SP',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Tên Sản Phẩm',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Hình Ảnh',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Nhà Cung Cấp',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Thương Hiệu',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Xuất Xứ',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Loại SP',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text('ĐVT', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            DataColumn(
+              label: Text(
+                'Giá Nhập',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Giá Bán',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Tồn Kho / Tồn Thiểu',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Trạng Thái',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Thao Tác',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+          rows: list.map((p) {
+            final maSP = p['maSP'] ?? p['MaSP'] ?? p['maSanPham'] ?? '';
+            final tenSP = p['tenSP'] ?? p['TenSP'] ?? 'Chưa đặt tên';
+            final thuongHieu = p['thuongHieu'] ?? p['ThuongHieu'] ?? 'OEM';
+            final xuatXu = p['xuatXu'] ?? p['XuatXu'] ?? 'Việt Nam';
+            final tenLoai =
+                p['tenLoai'] ??
+                p['TenLoai'] ??
+                (isGift ? 'Quà tặng' : 'Vật tư');
+            final dvt = p['donViTinh'] ?? p['DonViTinh'] ?? 'Bao';
+            final giaNhap = p['giaNhap'] ?? p['GiaNhap'] ?? 0;
+            final giaBan = p['giaBan'] ?? p['GiaBan'] ?? 0;
+            final tonKho = p['soLuongTon'] ?? p['SoLuongTon'] ?? 0;
+            final tonThieu = p['mucTonToiThieu'] ?? p['MucTonToiThieu'] ?? 10;
+            final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(maSP.toString(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
-                            DataCell(SizedBox(width: 180, child: Text(tenSP.toString(), style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis))),
-                            DataCell(AppImage(imagePath: p['hinhAnh'] ?? p['HinhAnh'], width: 48, height: 48)),
-                            DataCell(Chip(label: Text(tenNCC, style: const TextStyle(fontSize: 12, color: Colors.blue)), backgroundColor: Colors.blue.shade50)),
-                            DataCell(Text(thuongHieu.toString())),
-                            DataCell(Text(xuatXu.toString())),
-                            DataCell(Text(tenLoai.toString())),
-                            DataCell(Text(dvt.toString())),
-                            DataCell(Text(isGift ? '—' : _currencyFormat.format(giaNhap))),
-                            DataCell(Text(isGift ? '—' : _currencyFormat.format(giaBan), style: const TextStyle(fontWeight: FontWeight.bold))),
-                            DataCell(Text('$tonKho / $tonThieu', style: TextStyle(color: tonKho <= tonThieu ? Colors.red : Colors.green, fontWeight: FontWeight.bold))),
-                            DataCell(Chip(
-                              label: Text(trangThai ? 'Hoạt động' : 'Ngừng', style: TextStyle(color: trangThai ? Colors.green.shade800 : Colors.red.shade800, fontSize: 12)),
-                              backgroundColor: trangThai ? Colors.green.shade100 : Colors.red.shade100,
-                            )),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (PermissionHelper.canEdit('PRODUCTS'))
-                                  IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _showAddEditProductDialog(p as Map<String, dynamic>, isGift)),
-                                if (PermissionHelper.canDelete('PRODUCTS'))
-                                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteProduct(p)),
-                              ],
-                            )),
-                          ],
-                        );
-                      }).toList(),
+            // Lấy tên nhà cung cấp đầu tiên
+            String tenNCC = 'Chưa gán';
+            final nccList = p['nhaCungCaps'] ?? p['NhaCungCaps'];
+            if (nccList != null && nccList is List && nccList.isNotEmpty) {
+              tenNCC =
+                  nccList[0]['tenNCC'] ??
+                  nccList[0]['TenNCC'] ??
+                  'CT Xi Măng Hà Tiên';
+            }
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    maSP.toString(),
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+                DataCell(
+                  SizedBox(
+                    width: 180,
+                    child: Text(
+                      tenSP.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  AppImage(
+                    imagePath: p['hinhAnh'] ?? p['HinhAnh'],
+                    width: 48,
+                    height: 48,
+                  ),
+                ),
+                DataCell(
+                  Chip(
+                    label: Text(
+                      tenNCC,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primaryStart,
+                      ),
+                    ),
+                    backgroundColor: AppColors.primaryStart.withValues(
+                      alpha: 0.1,
+                    ),
+                  ),
+                ),
+                DataCell(Text(thuongHieu.toString())),
+                DataCell(Text(xuatXu.toString())),
+                DataCell(Text(tenLoai.toString())),
+                DataCell(Text(dvt.toString())),
+                DataCell(Text(isGift ? '—' : _currencyFormat.format(giaNhap))),
+                DataCell(
+                  Text(
+                    isGift ? '—' : _currencyFormat.format(giaBan),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    '$tonKho / $tonThieu',
+                    style: TextStyle(
+                      color: tonKho <= tonThieu ? Colors.red : Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Chip(
+                    label: Text(
+                      trangThai ? 'Hoạt động' : 'Ngừng',
+                      style: TextStyle(
+                        color: trangThai
+                            ? Colors.green.shade800
+                            : Colors.red.shade800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    backgroundColor: trangThai
+                        ? Colors.green.shade100
+                        : Colors.red.shade100,
+                  ),
+                ),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (PermissionHelper.canEdit('PRODUCTS'))
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.orange),
+                          onPressed: () => _showAddEditProductDialog(
+                            p as Map<String, dynamic>,
+                            isGift,
+                          ),
+                        ),
+                      if (PermissionHelper.canDelete('PRODUCTS'))
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteProduct(p),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildProductCardView(List<dynamic> list, bool isGift) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final p = list[index];
+        final maSP = p['maSP'] ?? p['MaSP'] ?? p['maSanPham'] ?? '';
+        final tenSP = p['tenSP'] ?? p['TenSP'] ?? 'Chưa đặt tên';
+        final thuongHieu = p['thuongHieu'] ?? p['ThuongHieu'] ?? 'OEM';
+        final tenLoai =
+            p['tenLoai'] ?? p['TenLoai'] ?? (isGift ? 'Quà tặng' : 'Vật tư');
+        final dvt = p['donViTinh'] ?? p['DonViTinh'] ?? 'Bao';
+        final giaBan = p['giaBan'] ?? p['GiaBan'] ?? 0;
+        final tonKho = p['soLuongTon'] ?? p['SoLuongTon'] ?? 0;
+        final tonThieu = p['mucTonToiThieu'] ?? p['MucTonToiThieu'] ?? 10;
+        final trangThai = p['trangThai'] ?? p['TrangThai'] ?? true;
+
+        String tenNCC = 'Chưa gán';
+        final nccList = p['nhaCungCaps'] ?? p['NhaCungCaps'];
+        if (nccList != null && nccList is List && nccList.isNotEmpty) {
+          tenNCC =
+              nccList[0]['tenNCC'] ??
+              nccList[0]['TenNCC'] ??
+              'CT Xi Măng Hà Tiên';
+        }
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: AppImage(
+                    imagePath: p['hinhAnh'] ?? p['HinhAnh'],
+                    width: 80,
+                    height: 80,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              tenSP.toString(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: trangThai
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: trangThai ? Colors.green : Colors.red,
+                              ),
+                            ),
+                            child: Text(
+                              trangThai ? 'HĐ' : 'Ngừng',
+                              style: TextStyle(
+                                color: trangThai ? Colors.green : Colors.red,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Mã: $maSP | Hãng: $thuongHieu | Loại: $tenLoai',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Nhà cung cấp: $tenNCC',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tồn kho: $tonKho $dvt',
+                            style: TextStyle(
+                              color: tonKho <= tonThieu
+                                  ? Colors.red
+                                  : Colors.blue,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (!isGift)
+                            Text(
+                              _currencyFormat.format(giaBan),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    if (PermissionHelper.canEdit('PRODUCTS'))
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showAddEditProductDialog(
+                          p as Map<String, dynamic>,
+                          isGift,
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    if (PermissionHelper.canDelete('PRODUCTS'))
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _deleteProduct(p),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -686,72 +1390,271 @@ class _ProductsTabState extends State<ProductsTab> with SingleTickerProviderStat
   Widget _buildCategoryTabView(List<dynamic> list) {
     return list.isEmpty
         ? const Center(child: Text('Không tìm thấy danh mục'))
-        : SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                columnSpacing: 32,
-                dataRowMaxHeight: 64,
-                columns: const [
-                  DataColumn(label: Text('Hệ Thống ID', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Tên Loại / Danh Mục', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Hình Ảnh', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Mô Tả', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(label: Text('Thao Tác', style: TextStyle(fontWeight: FontWeight.bold))),
-                ],
-                rows: list.map((c) {
-                  final maLoai = c['maLoai'] ?? c['MaLoai'] ?? 'LSP01';
-                  final tenLoai = c['tenLoai'] ?? c['TenLoai'] ?? 'Tên danh mục';
-                  final moTa = c['moTa'] ?? c['MoTa'] ?? 'Không có mô tả';
+        : _isTableView
+        ? _buildCategoryTableView(list)
+        : _buildCategoryCardView(list);
+  }
 
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(maLoai.toString(), style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold))),
-                      DataCell(Text(tenLoai.toString(), style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(AppImage(imagePath: c['hinhAnh'] ?? c['HinhAnh'], width: 48, height: 48, fallbackIcon: Icons.category_outlined)),
-                      DataCell(SizedBox(width: 250, child: Text(moTa.toString(), maxLines: 2, overflow: TextOverflow.ellipsis))),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (PermissionHelper.canEdit('CATEGORIES')) ...[
-                            TextButton.icon(icon: const Icon(Icons.edit, size: 16, color: Colors.blue), label: const Text('SỬA', style: TextStyle(color: Colors.blue)), onPressed: () => _showAddEditCategoryDialog(c as Map<String, dynamic>)),
-                            const SizedBox(width: 8),
-                          ],
-                          if (PermissionHelper.canDelete('CATEGORIES'))
-                            TextButton.icon(icon: const Icon(Icons.delete, size: 16, color: Colors.red), label: const Text('XÓA', style: TextStyle(color: Colors.red)), onPressed: () => _deleteCategory(c)),
-                        ],
-                      )),
-                    ],
-                  );
-                }).toList(),
+  Widget _buildCategoryTableView(List<dynamic> list) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
+          columnSpacing: 32,
+          dataRowMaxHeight: 64,
+          columns: const [
+            DataColumn(
+              label: Text(
+                'Hệ Thống ID',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-          );
+            DataColumn(
+              label: Text(
+                'Tên Loại / Danh Mục',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Hình Ảnh',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Mô Tả',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Thao Tác',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+          rows: list.map((c) {
+            final maLoai = c['maLoai'] ?? c['MaLoai'] ?? 'LSP01';
+            final tenLoai = c['tenLoai'] ?? c['TenLoai'] ?? 'Tên danh mục';
+            final moTa = c['moTa'] ?? c['MoTa'] ?? 'Không có mô tả';
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    maLoai.toString(),
+                    style: const TextStyle(
+                      color: AppColors.primaryStart,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    tenLoai.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                DataCell(
+                  AppImage(
+                    imagePath: c['hinhAnh'] ?? c['HinhAnh'],
+                    width: 48,
+                    height: 48,
+                    fallbackIcon: Icons.category_outlined,
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: 250,
+                    child: Text(
+                      moTa.toString(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (PermissionHelper.canEdit('CATEGORIES')) ...[
+                        TextButton.icon(
+                          icon: const Icon(
+                            Icons.edit,
+                            size: 16,
+                            color: Colors.blue,
+                          ),
+                          label: const Text(
+                            'SỬA',
+                            style: TextStyle(color: Colors.blue),
+                          ),
+                          onPressed: () => _showAddEditCategoryDialog(
+                            c as Map<String, dynamic>,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (PermissionHelper.canDelete('CATEGORIES'))
+                        TextButton.icon(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 16,
+                            color: Colors.red,
+                          ),
+                          label: const Text(
+                            'XÓA',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          onPressed: () => _deleteCategory(c),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryCardView(List<dynamic> list) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final c = list[index];
+        final maLoai = c['maLoai'] ?? c['MaLoai'] ?? 'LSP01';
+        final tenLoai = c['tenLoai'] ?? c['TenLoai'] ?? 'Tên danh mục';
+        final moTa = c['moTa'] ?? c['MoTa'] ?? 'Không có mô tả';
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: AppImage(
+                    imagePath: c['hinhAnh'] ?? c['HinhAnh'],
+                    width: 80,
+                    height: 80,
+                    fallbackIcon: Icons.category_outlined,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tenLoai.toString(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Mã danh mục: $maLoai',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        moTa.toString(),
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    if (PermissionHelper.canEdit('CATEGORIES'))
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showAddEditCategoryDialog(
+                          c as Map<String, dynamic>,
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    if (PermissionHelper.canDelete('CATEGORIES'))
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _deleteCategory(c),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // Thẻ thống kê Header
   Widget _buildStatCard(String title, String value, Color color) {
     return Container(
-      width: 150,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
-        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
-
 }
-

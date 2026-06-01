@@ -53,6 +53,7 @@ namespace BuildingMaterialAPI.Models
         public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; } = new List<PhieuDoiTra>();
         public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; } = new List<PhieuGiaoHang>();
         public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; } = new List<ChiTietTraNo>();
+        public virtual ICollection<PhieuXuatKho> PhieuXuatKhos { get; set; } = new List<PhieuXuatKho>();
 
     }
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
@@ -16,7 +17,10 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
   final ApiService _apiService = ApiService();
   List<dynamic> _procurements = [];
   List<dynamic> _filteredProcurements = [];
+  List<dynamic> _outbounds = [];
+  List<dynamic> _filteredOutbounds = [];
   bool _isLoading = false;
+  int _activeSubTab = 0; // 0: Nhập kho, 1: Xuất kho
 
   // Bộ lọc y như Web
   String _searchQuery = '';
@@ -37,10 +41,42 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
     'Đang xử lý',
   ];
 
+  List<String> get _currentStatusList {
+    if (_activeSubTab == 0) {
+      return [
+        'Tất cả',
+        'Đề Xuất',
+        'Chờ Duyệt',
+        'Đã Duyệt',
+        'Hoàn Thành',
+        'Đã Tách',
+        'Từ Chối',
+        'Yêu Cầu Sửa',
+        'Đang xử lý',
+      ];
+    } else {
+      return [
+        'Tất cả',
+        'Chờ duyệt',
+        'Đã duyệt',
+        'Chờ nhận',
+        'Đã xuất',
+        'Đã nhận một phần',
+      ];
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _loadProcurements();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.wait([
+      _loadProcurements(),
+      _loadOutbounds(),
+    ]);
   }
 
   Future<void> _loadProcurements() async {
@@ -58,6 +94,29 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi tải danh sách phiếu nhập: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadOutbounds() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await _apiService.getOutboundHistory();
+      if (response.statusCode == 200 && response.data != null) {
+        if (!mounted) return;
+        setState(() {
+          _outbounds = response.data;
+          _applyFilters();
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi tải danh sách phiếu xuất: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
@@ -86,6 +145,37 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
         if (_startDate != null && _endDate != null) {
           try {
             final dateStr = item['ngayNhap'] ?? item['ngayTao'];
+            if (dateStr != null) {
+              final itemDate = DateTime.parse(dateStr.toString());
+              matchDate = itemDate.isAfter(_startDate!.subtract(const Duration(days: 1))) &&
+                  itemDate.isBefore(_endDate!.add(const Duration(days: 1)));
+            }
+          } catch (_) {}
+        }
+
+        return matchQuery && matchStatus && matchDate;
+      }).toList();
+
+      _filteredOutbounds = _outbounds.where((item) {
+        // Lọc tìm kiếm nhanh
+        final maXK = (item['maXK'] ?? item['maPhieuXK'] ?? '').toString().toLowerCase();
+        final maGH = (item['maGH'] ?? '').toString().toLowerCase();
+        final maHD = (item['maHD'] ?? '').toString().toLowerCase();
+        final nguoiXuat = (item['tenNhanVien'] ?? item['nguoiXuat'] ?? '').toString().toLowerCase();
+        final matchQuery = maXK.contains(_searchQuery.toLowerCase()) ||
+            maGH.contains(_searchQuery.toLowerCase()) ||
+            maHD.contains(_searchQuery.toLowerCase()) ||
+            nguoiXuat.contains(_searchQuery.toLowerCase());
+
+        // Lọc trạng thái
+        final trangThai = (item['trangThai'] ?? '').toString();
+        final matchStatus = _selectedStatus == 'Tất cả' || trangThai.toLowerCase() == _selectedStatus.toLowerCase();
+
+        // Lọc ngày
+        bool matchDate = true;
+        if (_startDate != null && _endDate != null) {
+          try {
+            final dateStr = item['ngayXuat'] ?? item['ngayTao'];
             if (dateStr != null) {
               final itemDate = DateTime.parse(dateStr.toString());
               matchDate = itemDate.isAfter(_startDate!.subtract(const Duration(days: 1))) &&
@@ -688,87 +778,529 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
     );
   }
 
+  void _showOutboundDetailDialog(Map<String, dynamic> outbound) {
+    _showOutboundDetailPopup(outbound);
+  }
+
+  void _showOutboundDetailPopup(Map<String, dynamic> detail) {
+    final chiTiet = (detail['chiTiet'] as List<dynamic>?) ?? [];
+    final currentStatus = detail['trangThai'] ?? 'Chờ duyệt';
+    final int maPhieuXK = detail['maPhieuXK'];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setPopupState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.output_outlined, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Phiếu Xuất: ${detail['maXK'] ?? 'PXK#$maPhieuXK'}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(currentStatus).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      currentStatus,
+                      style: TextStyle(
+                        color: _getStatusColor(currentStatus),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Card(
+                        color: Colors.grey.shade50,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Người lập: ${detail['nguoiXuat'] ?? 'Hệ thống'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              const SizedBox(height: 8),
+                              Text('Nhân viên thực hiện: ${detail['tenNhanVien'] ?? 'N/A'}'),
+                              const SizedBox(height: 8),
+                              Text('Ngày xuất: ${detail['ngayXuat'] != null ? DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(detail['ngayXuat'])) : 'N/A'}'),
+                              const SizedBox(height: 8),
+                              Text('Liên kết: GH: ${detail['maGH'] ?? 'N/A'} | HĐ: ${detail['maHD'] ?? 'N/A'}'),
+                              const SizedBox(height: 8),
+                              Text('Ghi chú: ${detail['ghiChu'] ?? 'Không có'}'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('DANH SÁCH MẶT HÀNG XUẤT KHO:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+                      const SizedBox(height: 12),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: chiTiet.length,
+                        itemBuilder: (context, index) {
+                          final item = chiTiet[index];
+                          return Card(
+                            color: Colors.white,
+                            margin: const EdgeInsets.only(bottom: 8),
+                            elevation: 1,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(color: Colors.grey.shade200),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item['tenSanPham'] ?? 'SP #${item['maSanPham']}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('Số lượng yêu cầu: ${item['soLuong']}'),
+                                      Text(
+                                        'Thực nhận: ${item['soLuongThucNhan'] ?? 0}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: (item['soLuongThucNhan'] ?? 0) >= item['soLuong']
+                                              ? Colors.green
+                                              : Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Kho xuất: ${item['tenKho'] ?? 'Kho chính'}',
+                                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey.shade700, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('ĐÓNG', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                ),
+                if (currentStatus == 'Chờ duyệt')
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(dialogCtx);
+                      await _handleApproveOutbound(maPhieuXK);
+                    },
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('DUYỆT & KÝ SỐ'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                  ),
+                if (currentStatus == 'Đã duyệt')
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(dialogCtx);
+                      await _handleConfirmExport(maPhieuXK);
+                    },
+                    icon: const Icon(Icons.inventory_2),
+                    label: const Text('XÁC NHẬN SOẠN HÀNG XONG'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                  ),
+                if (currentStatus == 'Chờ nhận' || currentStatus == 'Đã nhận một phần')
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      _showConfirmReceiptDialog(detail);
+                    },
+                    icon: const Icon(Icons.local_shipping),
+                    label: const Text('TÀI XẾ NHẬN HÀNG'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleApproveOutbound(int id) async {
+    setState(() => _isLoading = true);
+    try {
+      int userId = 1;
+      final userStr = SharedPreferencesService.getUser();
+      if (userStr != null && userStr.isNotEmpty) {
+        final userObj = jsonDecode(userStr);
+        userId = userObj['id'] ?? userObj['Id'] ?? 1;
+      }
+
+      final response = await _apiService.approveOutbound(id, {'managerId': userId});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.data['message'] ?? 'Phê duyệt phiếu xuất kho thành công!'), backgroundColor: Colors.green),
+      );
+      _loadOutbounds();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi phê duyệt: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleConfirmExport(int id) async {
+    setState(() => _isLoading = true);
+    try {
+      int userId = 1;
+      final userStr = SharedPreferencesService.getUser();
+      if (userStr != null && userStr.isNotEmpty) {
+        final userObj = jsonDecode(userStr);
+        userId = userObj['id'] ?? userObj['Id'] ?? 1;
+      }
+
+      final response = await _apiService.confirmExport(id, {'managerId': userId});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.data['message'] ?? 'Xác nhận soạn hàng xong thành công!'), backgroundColor: Colors.green),
+      );
+      _loadOutbounds();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi xác nhận: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showConfirmReceiptDialog(Map<String, dynamic> detail) {
+    final chiTiet = (detail['chiTiet'] as List<dynamic>?) ?? [];
+    final int maPhieuXK = detail['maPhieuXK'];
+
+    final List<Map<String, dynamic>> itemsPayload = chiTiet.map((item) {
+      final int soLuong = item['soLuong'];
+      final int soLuongThucNhan = item['soLuongThucNhan'] ?? 0;
+      final int remaining = soLuong - soLuongThucNhan;
+      final int initialNhan = remaining > 0 ? remaining : 0;
+
+      return {
+        'maSanPham': item['maSanPham'],
+        'tenSanPham': item['tenSanPham'],
+        'soLuong': soLuong,
+        'soLuongThucNhan': soLuongThucNhan,
+        'soLuongNhan': initialNhan,
+        'nhanDu': true, // Mặc định là Nhận đủ
+        'controller': TextEditingController(text: initialNhan.toString()),
+        'ghiChuController': TextEditingController(),
+      };
+    }).toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.assignment_turned_in_outlined, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  const Text('Xác nhận nhận hàng thực tế', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Alert Warning Box
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade100),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tài xế vui lòng kiểm tra kỹ số lượng hàng nhận từ kho trước khi xác nhận đi giao.',
+                                style: TextStyle(
+                                  color: Colors.blue.shade800,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // List of items
+                      ...itemsPayload.map((item) {
+                        final int soLuong = item['soLuong'];
+                        final int soLuongThucNhan = item['soLuongThucNhan'];
+                        final int remaining = soLuong - soLuongThucNhan;
+                        final bool isNhanDu = item['nhanDu'];
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['tenSanPham'],
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                                ),
+                                const SizedBox(height: 12),
+                                // Grid of columns: Tổng yêu cầu | Đã nhận | Còn lại
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    _buildInfoColumn('Tổng yêu cầu', soLuong.toString(), Colors.black87),
+                                    _buildInfoColumn('Đã nhận', soLuongThucNhan.toString(), Colors.green),
+                                    _buildInfoColumn('Còn lại', remaining.toString(), remaining > 0 ? Colors.red : Colors.grey),
+                                  ],
+                                ),
+                                const Divider(height: 24),
+                                Row(
+                                  children: [
+                                    // Nhận đủ checkbox
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Checkbox(
+                                          value: isNhanDu,
+                                          activeColor: Colors.green,
+                                          onChanged: (val) {
+                                            setDialogState(() {
+                                              item['nhanDu'] = val ?? false;
+                                              if (item['nhanDu']) {
+                                                item['soLuongNhan'] = remaining > 0 ? remaining : 0;
+                                                item['controller'].text = item['soLuongNhan'].toString();
+                                              }
+                                            });
+                                          },
+                                        ),
+                                        const Text('Nhận đủ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      ],
+                                    ),
+                                    const Spacer(),
+                                    // S.Lần này input field
+                                    SizedBox(
+                                      width: 110,
+                                      child: TextField(
+                                        controller: item['controller'],
+                                        keyboardType: TextInputType.number,
+                                        enabled: !isNhanDu,
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                        decoration: const InputDecoration(
+                                          labelText: 'S.Lần này',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                        ),
+                                        onChanged: (val) {
+                                          final parsed = int.tryParse(val) ?? 0;
+                                          item['soLuongNhan'] = parsed;
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Ghi chú input field
+                                TextField(
+                                  controller: item['ghiChuController'],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Ghi chú (nếu nhận thiếu)',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('HỦY BỎ', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    try {
+                      int userId = 1;
+                      final userStr = SharedPreferencesService.getUser();
+                      if (userStr != null && userStr.isNotEmpty) {
+                        final userObj = jsonDecode(userStr);
+                        userId = userObj['id'] ?? userObj['Id'] ?? 1;
+                      }
+
+                      final payload = {
+                        'ManagerId': userId,
+                        'Items': itemsPayload.map((item) => {
+                          'MaSanPham': item['maSanPham'],
+                          'SoLuongNhan': item['soLuongNhan'],
+                          'GhiChu': item['ghiChuController'].text.trim(),
+                        }).toList(),
+                      };
+
+                      final response = await _apiService.confirmReceipt(maPhieuXK, payload);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(response.data['message'] ?? 'Xác nhận nhận hàng thành công!'), backgroundColor: Colors.green),
+                      );
+                      _loadOutbounds();
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Lỗi xác nhận: $e'), backgroundColor: Colors.red),
+                      );
+                    } finally {
+                      if (mounted) {
+                        setState(() => _isLoading = false);
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.local_shipping),
+                  label: const Text('XÁC NHẬN NHẬN HÀNG & ĐI GIAO'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoColumn(String label, String value, Color valueColor) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       body: Column(
         children: [
-          // Toolbar y như Web
           Card(
             margin: const EdgeInsets.all(16),
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12.0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Hàng đầu tiên: Các nút chức năng & Bộ lọc
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          // Toggle Bảng / Thẻ
-                          IconButton(
-                            icon: Icon(_isTableView ? Icons.grid_view : Icons.table_chart, color: Theme.of(context).colorScheme.primary),
-                            tooltip: _isTableView ? 'Chuyển sang dạng Thẻ' : 'Chuyển sang dạng Bảng',
-                            onPressed: () => setState(() => _isTableView = !_isTableView),
-                          ),
-                          // Nút Bộ lọc Ngày
-                          OutlinedButton.icon(
-                            onPressed: _selectDateRange,
-                            icon: const Icon(Icons.calendar_month, size: 18),
-                            label: Text(
-                              _startDate != null && _endDate != null
-                                  ? '${DateFormat('dd/MM').format(_startDate!)} - ${DateFormat('dd/MM').format(_endDate!)}'
-                                  : 'Khoảng thời gian',
-                            ),
-                          ),
-                          // Dropdown Trạng thái
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-                            child: DropdownButton<String>(
-                              value: _selectedStatus,
-                              underline: const SizedBox(),
-                              icon: const Icon(Icons.filter_list, size: 18),
-                              items: _statusList.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 14)))).toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() {
-                                    _selectedStatus = val;
-                                    _applyFilters();
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Nút Xuất Excel
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đang xuất file Excel Đơn Nhập Hàng...'), backgroundColor: Colors.green));
-                        },
-                        icon: const Icon(Icons.download, size: 18),
-                        label: const Text('Xuất'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Hàng thứ hai: Tìm kiếm & Thêm mới
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           decoration: InputDecoration(
-                            hintText: 'Tìm kiếm nhanh mã phiếu, NCC, người lập...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            hintText: 'Tìm kiếm nhanh mã phiếu, NCC...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey.shade200),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            fillColor: Colors.grey.shade50,
+                            filled: true,
                           ),
                           onChanged: (val) {
                             setState(() {
@@ -778,37 +1310,106 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      if (PermissionHelper.canCreate('PROCUREMENT'))
+                      if (PermissionHelper.canCreate('PROCUREMENT')) ...[
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: _showCreateProposalPopup,
-                          icon: const Icon(Icons.add),
-                          label: const Text('THÊM ĐỀ XUẤT', style: TextStyle(fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('THÊM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _selectDateRange,
+                        icon: const Icon(Icons.calendar_month, size: 16),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade800,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                        label: Text(
+                          _startDate != null && _endDate != null
+                              ? '${DateFormat('dd/MM').format(_startDate!)} - ${DateFormat('dd/MM').format(_endDate!)}'
+                              : 'Khoảng thời gian',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedStatus,
+                            icon: const Icon(Icons.filter_list, size: 16),
+                            style: TextStyle(color: Colors.grey.shade800, fontSize: 12),
+                            items: _currentStatusList
+                                .map((s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s),
+                                    ))
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedStatus = val;
+                                  _applyFilters();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(_isTableView ? Icons.grid_view : Icons.table_chart, color: Theme.of(context).colorScheme.primary, size: 20),
+                        tooltip: _isTableView ? 'Dạng Thẻ' : 'Dạng Bảng',
+                        onPressed: () => setState(() => _isTableView = !_isTableView),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(8),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          // Bảng hoặc Danh sách dữ liệu
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredProcurements.isEmpty
-                    ? const Center(child: Text('Không tìm thấy phiếu nhập nào phù hợp', style: TextStyle(color: Colors.grey, fontSize: 16)))
-                    : _isTableView
-                        ? _buildTableView()
-                        : _buildCardView(),
+            child: _buildInboundTabContent(),
           ),
         ],
       ),
     );
   }
 
-  // Giao diện Bảng (Table View) y như Web
-  Widget _buildTableView() {
+  Widget _buildInboundTabContent() {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _filteredProcurements.isEmpty
+            ? const Center(child: Text('Không tìm thấy phiếu nhập nào phù hợp', style: TextStyle(color: Colors.grey, fontSize: 16)))
+            : _isTableView
+                ? _buildInboundTableView()
+                : _buildInboundCardView();
+  }
+
+
+  Widget _buildInboundTableView() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
@@ -864,8 +1465,7 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
     );
   }
 
-  // Giao diện Thẻ (Card View) tối ưu di động
-  Widget _buildCardView() {
+  Widget _buildInboundCardView() {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _filteredProcurements.length,
@@ -907,6 +1507,108 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
             ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () => _showProcurementDetailDialog(item),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOutboundTableView() {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
+            columns: const [
+              DataColumn(label: Text('Mã Phiếu', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Ngày Xuất', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Người Lập', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Liên Kết', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Tác Vụ', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: _filteredOutbounds.map((item) {
+              final status = item['trangThai'] ?? 'Chờ duyệt';
+              return DataRow(
+                cells: [
+                  DataCell(
+                    TextButton(
+                      onPressed: () => _showOutboundDetailDialog(item),
+                      child: Text(item['maXK'] ?? 'PXK#${item['maPhieuXK']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    ),
+                  ),
+                  DataCell(Text(item['ngayXuat'] != null ? DateFormat('dd/MM/yyyy').format(DateTime.parse(item['ngayXuat'])) : 'N/A')),
+                  DataCell(Text(item['tenNhanVien'] ?? item['nguoiXuat'] ?? 'N/A')),
+                  DataCell(Text('GH: ${item['maGH'] ?? 'N/A'} | HĐ: ${item['maHD'] ?? 'N/A'}')),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: _getStatusColor(status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                      child: Text(status, style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ),
+                  DataCell(
+                    IconButton(
+                      icon: const Icon(Icons.remove_red_eye, color: Colors.blue),
+                      tooltip: 'Xem chi tiết',
+                      onPressed: () => _showOutboundDetailDialog(item),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutboundCardView() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _filteredOutbounds.length,
+      itemBuilder: (context, index) {
+        final item = _filteredOutbounds[index];
+        final status = item['trangThai'] ?? 'Chờ duyệt';
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: CircleAvatar(
+              backgroundColor: _getStatusColor(status).withValues(alpha: 0.1),
+              child: Icon(Icons.logout, color: _getStatusColor(status)),
+            ),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(item['maXK'] ?? 'PXK#${item['maPhieuXK']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: _getStatusColor(status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Text(status, style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text('Người xuất: ${item['nguoiXuat'] ?? 'Hệ thống'} | Thực hiện: ${item['tenNhanVien'] ?? 'N/A'}'),
+                const SizedBox(height: 4),
+                Text('Ngày lập: ${item['ngayXuat'] != null ? DateFormat('dd/MM/yyyy').format(DateTime.parse(item['ngayXuat'])) : 'N/A'}'),
+                const SizedBox(height: 8),
+                Text('GH: ${item['maGH'] ?? 'N/A'} | HĐ: ${item['maHD'] ?? 'N/A'}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => _showOutboundDetailDialog(item),
           ),
         );
       },

@@ -88,8 +88,8 @@ export default function InventoryPage() {
 
   const allTabs = [
     { label: "Tồn Kho Chi Tiết", icon: <InventoryIcon />, moduleKey: 'inventory', type: 'inventory' },
-    { label: "Sản Phẩm Quà Tặng", icon: <CardGiftcardIcon />, moduleKey: 'inventory', type: 'gift' },
-    { label: "Lịch Sử Xuất Kho", icon: <LocalShippingIcon />, moduleKey: 'inventory', type: 'history' }
+    { label: "Sản Phẩm Quà Tặng", icon: <CardGiftcardIcon />, moduleKey: 'inventory_gift', type: 'gift' },
+    { label: "Lịch Sử Xuất Kho", icon: <LocalShippingIcon />, moduleKey: 'inventory_history', type: 'history' }
   ];
 
   const userStr = localStorage.getItem('user');
@@ -284,6 +284,7 @@ export default function InventoryPage() {
   const regularInventory = inventory.filter(i => !i.isGift);
   const currentTabType = visibleTabs[activeTab]?.type;
   const currentList = currentTabType === 'inventory' ? regularInventory : giftInventory;
+  const currentModuleKey = visibleTabs[activeTab]?.moduleKey || 'inventory';
 
   const columns = [
     { field: 'maCTKho', headerName: 'ID', width: 80, renderCell: (params) => <b>{params.value}</b> },
@@ -326,12 +327,16 @@ export default function InventoryPage() {
           <Tooltip title="Lịch Sử Nhập">
             <IconButton color="info" size="small" onClick={() => handleOpenHistory(params.row)}><HistoryIcon fontSize="small" /></IconButton>
           </Tooltip>
-          <Tooltip title="Chỉnh Sửa">
-            <IconButton color="primary" size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
-          </Tooltip>
-          <Tooltip title="Xóa">
-            <IconButton color="error" size="small" onClick={() => handleDelete(params.row.maCTKho)}><DeleteIcon fontSize="small" /></IconButton>
-          </Tooltip>
+          {permissions?.[currentModuleKey]?.coTheSua && (
+            <Tooltip title="Chỉnh Sửa">
+              <IconButton color="primary" size="small" onClick={() => { setEditing(params.row); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          )}
+          {permissions?.[currentModuleKey]?.coTheXoa && (
+            <Tooltip title="Xóa">
+              <IconButton color="error" size="small" onClick={() => handleDelete(params.row.maCTKho)}><DeleteIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          )}
         </Box>
       )
     }
@@ -467,12 +472,16 @@ export default function InventoryPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>📊 Quản Lý Kho Hàng</Typography>
           <Typography variant="body2" color="textSecondary">Chi tiết tồn kho hiện tại</Typography>
         </Box>
-        {permissions?.inventory?.coTheTao && (
+        {permissions?.[currentModuleKey]?.coTheTao && (
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button variant="contained" onClick={handleRunAiForecast} sx={{ background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,114,255,0.3)' }}>
-              🤖 AI Dự Báo Nhu Cầu Nhập Hàng
-            </Button>
-            <Button variant="outlined" onClick={() => setWarehouseDialogOpen(true)}>Quản Lý Danh Mục Kho</Button>
+            {currentTabType === 'inventory' && (
+              <>
+                <Button variant="contained" onClick={handleRunAiForecast} sx={{ background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', color: '#fff', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,114,255,0.3)' }}>
+                  🤖 AI Dự Báo Nhu Cầu Nhập Hàng
+                </Button>
+                <Button variant="outlined" onClick={() => setWarehouseDialogOpen(true)}>Quản Lý Danh Mục Kho</Button>
+              </>
+            )}
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
               sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
               Thêm Mục Kho
@@ -487,7 +496,7 @@ export default function InventoryPage() {
         ))}
       </Tabs>
 
-      {(permissions?.inventory?.coTheTao && currentTabType !== 'history') ? (
+      {currentTabType !== 'history' ? (
         <>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {stats.map((s, i) => (
@@ -511,7 +520,7 @@ export default function InventoryPage() {
         </>
       ) : (
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          {permissions?.inventory?.coTheTao && (
+          {permissions?.[currentModuleKey]?.coTheTao && (
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #eee' }}>
               <Button 
                 variant="outlined" 

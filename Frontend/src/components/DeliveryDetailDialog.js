@@ -280,10 +280,11 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
   const isQuanLy = roleStr === 'quản lý' || roleStr === 'giám đốc' || roleStr === 'admin' || roleStr === 'quanly';
   const currentUserId = currentUser?.maNhanVien || currentUser?.id || currentUser?.EmployeeId || 0;
 
+  const isCompletedStatus = delivery && ['Đã giao', 'Đã hủy', 'Hoàn thành'].includes(delivery.trangThai);
   const canUpdate = delivery && (
     currentUserId === delivery.maNhanVien ||
     isQuanLy
-  );
+  ) && !isCompletedStatus;
 
 
   return (
@@ -739,16 +740,18 @@ function DeliveryDetailDialog({ open, onClose, deliveryId, onContinueDelivery, o
         </Box>
 
         <Button onClick={onClose} variant="outlined" color="inherit">Đóng</Button>
-        <Button
-          variant="contained"
-          color={hasUnpickedShortageItems ? 'error' : 'primary'}
-          onClick={handleSaveStatus}
-          disabled={actionLoading || !delivery || !canUpdate || hasUnpickedShortageItems}
-          sx={{ px: 4, fontWeight: 'bold' }}
-          title={hasUnpickedShortageItems ? 'Cần xác nhận nhận hàng còn lại từ kho trước' : ''}
-        >
-          {actionLoading ? <CircularProgress size={24} /> : 'LƯU CẬP NHẬT'}
-        </Button>
+        {!isCompletedStatus && (
+          <Button
+            variant="contained"
+            color={hasUnpickedShortageItems ? 'error' : 'primary'}
+            onClick={handleSaveStatus}
+            disabled={actionLoading || !delivery || !canUpdate || hasUnpickedShortageItems}
+            sx={{ px: 4, fontWeight: 'bold' }}
+            title={hasUnpickedShortageItems ? 'Cần xác nhận nhận hàng còn lại từ kho trước' : ''}
+          >
+            {actionLoading ? <CircularProgress size={24} /> : 'LƯU CẬP NHẬT'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

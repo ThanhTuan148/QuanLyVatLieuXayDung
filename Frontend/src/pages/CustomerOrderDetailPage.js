@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container, Typography, Box, Paper, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Chip,
@@ -16,6 +16,7 @@ import {
   Email as EmailIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
+import { HubConnectionBuilder } from '@microsoft/signalr';
 import orderService from '../services/orderService';
 import reviewService from '../services/reviewService';
 import CustomerReturnDialog from '../components/CustomerReturnDialog';
@@ -48,6 +49,9 @@ const CustomerOrderDetailPage = () => {
   const [reviewsStatus, setReviewsStatus] = useState({}); // { productId: reviewData }
   const [editReviewData, setEditReviewData] = useState(null);
 
+  const [liveLocation, setLiveLocation] = useState(null);
+  const initialLocationRef = useRef(null);
+  const iframeRef = useRef(null);
   const user = JSON.parse(localStorage.getItem('user'));
 
   const fetchReviewStatus = async (orderData) => {
@@ -68,13 +72,13 @@ const CustomerOrderDetailPage = () => {
         console.error('Error checking review status:', err);
       }
     });
-
     await Promise.all(promises);
     setReviewsStatus(statusObj);
   };
 
   const fetchOrder = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await orderService.getOrderById(id);
       const orderData = res.data || res;
@@ -99,6 +103,59 @@ const CustomerOrderDetailPage = () => {
   useEffect(() => {
     if (id) fetchOrder();
   }, [id]);
+
+  useEffect(() => {
+    if (order?.latestDelivery) {
+      setLiveLocation(order.latestDelivery);
+      if (!initialLocationRef.current) {
+        initialLocationRef.current = order.latestDelivery;
+      }
+    }
+  }, [order?.latestDelivery]);
+
+  useEffect(() => {
+    if (order?.latestDelivery && (order.trangThai === 'Đang giao' || order.trangThai === 'Đang đổi trả' || order.trangThai === 'Đang giao hàng đổi/trả')) {
+      const maGH = order.latestDelivery.maPhieuGH || order.latestDelivery.maGH;
+      if (!maGH) return;
+
+      const connection = new HubConnectionBuilder()
+        .withUrl("http://localhost:5000/hubs/location")
+        .withAutomaticReconnect()
+        .build();
+
+      connection.start()
+        .then(() => {
+          console.log("Connected to LocationHub for realtime tracking");
+          connection.invoke("JoinTrackingGroup", maGH.toString());
+        })
+        .catch(err => console.error("SignalR Connection Error: ", err));
+
+      connection.on("ReceiveLocationUpdate", (data) => {
+        setLiveLocation(prev => ({
+          ...prev,
+          lat: data.lat,
+          lng: data.lng,
+          viTriHienTai: data.currentLocation,
+          ngayCapNhat: data.timestamp
+        }));
+        
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({
+                type: 'UPDATE_LOCATION',
+                lat: data.lat,
+                lng: data.lng
+            }, '*');
+        }
+      });
+
+      return () => {
+        if (connection.state === 'Connected') {
+          connection.invoke("LeaveTrackingGroup", maGH.toString()).catch(e => console.log(e));
+        }
+        connection.stop();
+      };
+    }
+  }, [order?.latestDelivery, order?.trangThai]);
 
   const handleOpenReview = (item, editData = null) => {
     setSelectedProduct({
@@ -637,7 +694,7 @@ const CustomerOrderDetailPage = () => {
             </Paper>
 
             {/* Live Tracking Section */}
-            {order.latestDelivery && (order.trangThai === 'Đang giao' || order.trangThai === 'Đang đổi trả' || order.trangThai === 'Đang giao hàng đổi/trả') && (
+            {liveLocation && (order.trangThai === 'Đang giao' || order.trangThai === 'Đang đổi trả' || order.trangThai === 'Đang giao hàng đổi/trả') && (
               <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #eaeaea', bgcolor: '#f0f7ff' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <ShippingIcon color="primary" />
@@ -648,30 +705,139 @@ const CustomerOrderDetailPage = () => {
                   <Box sx={{ mb: 2 }}>
                     <Typography variant="caption" color="text.secondary">Vị trí hiện tại của Shipper:</Typography>
                     <Typography variant="body2" fontWeight={700} color="primary.main">
-                      {order.latestDelivery.viTriHienTai || "Đang rời cửa hàng"}
+                      {liveLocation.viTriHienTai || "Đang rời cửa hàng"}
                     </Typography>
-                    {order.latestDelivery.lat && (
+                    {liveLocation.lat && (
                       <Box sx={{ mt: 1 }}>
                         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontStyle: 'italic', mb: 1 }}>
-                          Tọa độ: {order.latestDelivery.lat}, {order.latestDelivery.lng}
+                          Tọa độ: {liveLocation.lat}, {liveLocation.lng} (Trực tiếp)
                         </Typography>
 
                         {/* Nhúng Google Maps */}
                         <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: '12px', mb: 1 }}>
-                          <iframe
-                            title="Live Tracking Map"
-                            width="100%"
-                            height="200"
-                            frameBorder="0"
-                            style={{ border: 0 }}
-                            src={`https://maps.google.com/maps?q=${order.latestDelivery.lat},${order.latestDelivery.lng}&z=15&output=embed`}
+                          {initialLocationRef.current && (
+                            <iframe
+                              ref={iframeRef}
+                              id="live-tracking-map"
+                              title="Live Tracking Map"
+                              width="100%"
+                              height="250"
+                              frameBorder="0"
+                              style={{ border: 0 }}
+                              srcDoc={`
+                                <!DOCTYPE html>
+                                <html>
+                                  <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                                    <style>
+                                      body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #f5f5f5;}
+                                      #map { width: 100%; height: 100%; }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <div id="map"></div>
+                                    <script>
+                                      var map = L.map('map').setView([${initialLocationRef.current.lat}, ${initialLocationRef.current.lng}], 14);
+                                      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                                        attribution: '&copy; OpenStreetMap &copy; CARTO'
+                                      }).addTo(map);
+
+                                      var truckIcon = L.divIcon({
+                                        className: 'custom-icon',
+                                        html: '<div style="background-color:orange;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="font-size:16px;">🚚</span></div>',
+                                        iconSize: [30, 30],
+                                        iconAnchor: [15, 15]
+                                      });
+                                      var driverMarker = L.marker([${initialLocationRef.current.lat}, ${initialLocationRef.current.lng}], {icon: truckIcon}).addTo(map);
+                                      driverMarker.bindPopup("Tài xế đang ở đây").openPopup();
+
+                                    var destIcon = L.divIcon({
+                                      className: 'custom-icon',
+                                      html: '<div style="background-color:green;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="font-size:16px;">📍</span></div>',
+                                      iconSize: [30, 30],
+                                      iconAnchor: [15, 30]
+                                    });
+                                    
+                                    var destMarker = null;
+                                    var routeLine = null;
+
+                                    async function init() {
+                                        var destAddress = "${(order.diaChi || order.diaChiGiaoHang || '').replace(/"/g, '\\"')}";
+                                        if(!destAddress || destAddress === 'Giao hàng nhiều địa chỉ' || destAddress === 'Chưa rõ') return;
+                                        
+                                        try {
+                                            var queries = [destAddress];
+                                            var parts = destAddress.split(',').map(function(p) { return p.trim(); });
+                                            if (parts.length > 2 && /^\\d/.test(parts[0])) queries.push(parts.slice(1).join(', '));
+                                            if (parts.length > 3) queries.push(parts.slice(parts.length - 3).join(', '));
+                                            if (parts.length > 2) queries.push(parts.slice(parts.length - 2).join(', '));
+                                            
+                                            var destLat = null, destLng = null;
+                                            
+                                            for (var i=0; i<queries.length; i++) {
+                                                var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(queries[i]) + '&countrycodes=vn');
+                                                var data = await res.json();
+                                                if (data && data.length > 0) {
+                                                    destLat = parseFloat(data[0].lat);
+                                                    destLng = parseFloat(data[0].lon);
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (destLat !== null && destLng !== null) {
+                                                destMarker = L.marker([destLat, destLng], {icon: destIcon}).addTo(map).bindPopup("Điểm giao hàng");
+                                                
+                                                var url = 'https://router.project-osrm.org/route/v1/driving/' + driverMarker.getLatLng().lng + ',' + driverMarker.getLatLng().lat + ';' + destLng + ',' + destLat + '?overview=full&geometries=geojson';
+                                                var routeRes = await fetch(url);
+                                                var routeData = await routeRes.json();
+                                                if (routeData.routes && routeData.routes.length > 0) {
+                                                    var coords = routeData.routes[0].geometry.coordinates;
+                                                    var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+                                                    routeLine = L.polyline(latlngs, {color: 'orange', weight: 5, opacity: 0.8}).addTo(map);
+                                                    map.fitBounds(routeLine.getBounds(), {padding: [30, 30]});
+                                                }
+                                            }
+                                        } catch(e) { console.log(e); }
+                                    }
+                                    init();
+                                    
+                                    // Update location via postMessage
+                                    window.addEventListener('message', async function(event) {
+                                      if (event.data && event.data.type === 'UPDATE_LOCATION') {
+                                        var newLat = event.data.lat;
+                                        var newLng = event.data.lng;
+                                        driverMarker.setLatLng([newLat, newLng]);
+                                        
+                                        if (destMarker && routeLine) {
+                                           try {
+                                               var url = 'https://router.project-osrm.org/route/v1/driving/' + newLng + ',' + newLat + ';' + destMarker.getLatLng().lng + ',' + destMarker.getLatLng().lat + '?overview=full&geometries=geojson';
+                                               var routeRes = await fetch(url);
+                                               var routeData = await routeRes.json();
+                                               if (routeData.routes && routeData.routes.length > 0) {
+                                                   var coords = routeData.routes[0].geometry.coordinates;
+                                                   var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+                                                   routeLine.setLatLngs(latlngs);
+                                               }
+                                           } catch(e) {}
+                                        } else if (!destMarker) {
+                                            map.setView([newLat, newLng]);
+                                        }
+                                      }
+                                    });
+                                  </script>
+                                </body>
+                              </html>
+                            `}
                             allowFullScreen
                           ></iframe>
+                          )}
                         </Paper>
                         <Button
                           size="small"
                           startIcon={<OpenInNewIcon />}
-                          href={`https://www.google.com/maps/search/?api=1&query=${order.latestDelivery.lat},${order.latestDelivery.lng}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${liveLocation.lat},${liveLocation.lng}`}
                           target="_blank"
                           sx={{ fontSize: '0.7rem' }}
                         >
@@ -684,15 +850,15 @@ const CustomerOrderDetailPage = () => {
                   <Box>
                     <Typography variant="caption" color="text.secondary">Nhân viên giao hàng:</Typography>
                     <Typography variant="body2" fontWeight={600}>
-                      {order.latestDelivery.nguoiGiao || "Đang phân bổ"}
+                      {liveLocation.nguoiGiao || "Đang phân bổ"}
                     </Typography>
                   </Box>
 
-                  {order.latestDelivery.ngayGiaoDuKien && (
+                  {liveLocation.ngayGiaoDuKien && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="caption" color="text.secondary">Dự kiến giao:</Typography>
                       <Typography variant="body2">
-                        {new Date(order.latestDelivery.ngayGiaoDuKien).toLocaleString('vi-VN')}
+                        {new Date(liveLocation.ngayGiaoDuKien).toLocaleString('vi-VN')}
                       </Typography>
                     </Box>
                   )}
@@ -700,7 +866,7 @@ const CustomerOrderDetailPage = () => {
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">Cập nhật lúc:</Typography>
                     <Typography variant="body2" fontSize="0.75rem">
-                      {new Date(order.latestDelivery.ngayCapNhat || order.ngayCapNhat).toLocaleString('vi-VN')}
+                      {new Date(liveLocation.ngayCapNhat || order.ngayCapNhat).toLocaleString('vi-VN')}
                     </Typography>
                   </Box>
                 </Box>

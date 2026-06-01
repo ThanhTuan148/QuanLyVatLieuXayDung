@@ -9,11 +9,20 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import api from '../services/api';
 import supplierService from '../services/supplierService';
 import DataTable from '../components/DataTable';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const formatVND = (v) => v ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v) : '0 ₫';
 
 export default function ReturnsPage() {
-  const [tabValue, setTabValue] = useState(0);
+  const { permissions } = usePermissions();
+  const visibleTabs = [
+    { label: "📦 Đổi trả hàng - Nhà cung cấp", icon: null, moduleKey: 'returns', type: 'supplier', value: 0 },
+    { label: "👥 Đổi trả hàng - Khách hàng", icon: null, moduleKey: 'returns_customer', type: 'customer', value: 1 }
+  ].filter(t => !t.moduleKey || permissions?.[t.moduleKey]?.coTheXem);
+
+  const [activeTabIdx, setActiveTabIdx] = useState(0);
+  const currentTab = visibleTabs[activeTabIdx];
+
   const [loading, setLoading] = useState(false);
   const [supplierReturns, setSupplierReturns] = useState([]);
   const [customerReturns, setCustomerReturns] = useState([]);
@@ -48,12 +57,13 @@ export default function ReturnsPage() {
   const [viewingItems, setViewingItems] = useState(null);
   const [selectedCTDTs, setSelectedCTDTs] = useState(new Set());
 
-  useEffect(() => { loadData(); }, [tabValue]);
+  useEffect(() => { loadData(); }, [currentTab?.type]);
 
   const loadData = async () => {
+    if (!currentTab) return;
     setLoading(true);
     try {
-      if (tabValue === 0) {
+      if (currentTab.type === 'supplier') {
         const res = await api.get('/returns/supplier');
         setSupplierReturns(res.data || []);
       } else {
@@ -233,15 +243,19 @@ export default function ReturnsPage() {
         const p = params.row;
         return (
           <Box sx={{ display: 'flex', gap: 1 }}>
-             {isQuanLy && p.trangThai === 'Chờ Duyệt Trả' && (
+             {(permissions?.returns?.coTheSua || isQuanLy) && p.trangThai === 'Chờ Duyệt Trả' && (
                 <Button size="small" variant="contained" onClick={() => handleApproveSupp(p.maPhieuTra)}>Duyệt</Button>
               )}
-              {isNhanVien && p.trangThai === 'Đang Chờ Hàng Về' && (
+              {p.trangThai === 'Đang Chờ Hàng Về' && (
                 <>
-                  <Button size="small" variant="contained" color="success" onClick={() => handleReceiveSupp(p.maPhieuTra)}>Nhập Kho</Button>
-                  <Tooltip title="Chuyển sang NCC khác">
-                    <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => handleOpenPivotDialog(p)}>Chuyển</Button>
-                  </Tooltip>
+                  {(permissions?.returns?.coTheTao || isNhanVien) && (
+                    <Button size="small" variant="contained" color="success" onClick={() => handleReceiveSupp(p.maPhieuTra)}>Nhập Kho</Button>
+                  )}
+                  {(permissions?.returns?.coTheSua || isNhanVien) && (
+                    <Tooltip title="Chuyển sang NCC khác">
+                      <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => handleOpenPivotDialog(p)}>Chuyển</Button>
+                    </Tooltip>
+                  )}
                 </>
               )}
           </Box>
@@ -293,10 +307,10 @@ export default function ReturnsPage() {
         const p = params.row;
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-             {isQuanLy && (p.trangThai === 'Chờ Xử Lý' || p.trangThai.includes('Duyệt một phần')) && (
+             {(permissions?.returns_customer?.coTheSua || isQuanLy) && (p.trangThai === 'Chờ Xử Lý' || p.trangThai.includes('Duyệt một phần')) && (
                <Button size="small" variant="contained" onClick={() => handleApproveCust(p)}>Duyệt Hết</Button>
              )}
-             {isNhanVien && (p.trangThai.includes('Đã Duyệt') || p.trangThai.includes('một phần')) && p.trangThaiNhapKho !== 'Đã nhập kho' && (p.loai === 'Trả hàng' || p.loai === 'Hỗn hợp') && (
+             {(permissions?.returns_customer?.coTheTao || isNhanVien) && (p.trangThai.includes('Đã Duyệt') || p.trangThai.includes('một phần')) && p.trangThaiNhapKho !== 'Đã nhập kho' && (p.loai === 'Trả hàng' || p.loai === 'Hỗn hợp') && (
                <Button size="small" variant="contained" color="success" onClick={() => handleReceiveCust(p.maPhieuDT)}>Nhập Kho</Button>
              )}
           </Box>
@@ -313,23 +327,24 @@ export default function ReturnsPage() {
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} textColor="secondary" indicatorColor="secondary">
-          <Tab label="📦 Đổi trả hàng - Nhà cung cấp" />
-          <Tab label="👥 Đổi trả hàng - Khách hàng" />
+        <Tabs value={activeTabIdx} onChange={(e, v) => setActiveTabIdx(v)} textColor="secondary" indicatorColor="secondary">
+          {visibleTabs.map((tab, idx) => (
+            <Tab key={idx} label={tab.label} />
+          ))}
         </Tabs>
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        {tabValue === 0 ? (
-          isNhanVien && <Button variant="contained" color="warning" onClick={handleOpenSuppDialog}>+ Đăng Ký Đổi Trả NCC</Button>
+        {currentTab?.type === 'supplier' ? (
+          (permissions?.returns?.coTheTao || isNhanVien) && <Button variant="contained" color="warning" onClick={handleOpenSuppDialog}>+ Đăng Ký Đổi Trả NCC</Button>
         ) : (
-          isNhanVien && <Button variant="contained" color="secondary" onClick={handleOpenCustDialog}>+ Tiếp Nhận Khách Trả Lỗi</Button>
+          (permissions?.returns_customer?.coTheTao || isNhanVien) && <Button variant="contained" color="secondary" onClick={handleOpenCustDialog}>+ Tiếp Nhận Khách Trả Lỗi</Button>
         )}
       </Box>
 
       <DataTable 
-        rows={tabValue === 0 ? supplierReturns : customerReturns}
-        columns={tabValue === 0 ? supplierColumns : customerColumns}
+        rows={currentTab?.type === 'supplier' ? supplierReturns : customerReturns}
+        columns={currentTab?.type === 'supplier' ? supplierColumns : customerColumns}
         getRowId={(row) => row.maPhieuTra || row.maPhieuDT}
         loading={loading}
       />
@@ -434,7 +449,7 @@ export default function ReturnsPage() {
       <Dialog open={Boolean(viewingItems)} onClose={() => setViewingItems(null)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" fontWeight="bold">📦 Chi tiết mặt hàng trả: {viewingItems?.maDT}</Typography>
-            {isQuanLy && selectedCTDTs.size > 0 && (
+            {(permissions?.returns_customer?.coTheSua || isQuanLy) && selectedCTDTs.size > 0 && (
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button 
                         variant="contained" color="success" size="small"
@@ -503,7 +518,7 @@ export default function ReturnsPage() {
                                 />
                             </TableCell>
                             <TableCell align="right">
-                                {isQuanLy && it.trangThai === 'Chờ duyệt' && (
+                                {(permissions?.returns_customer?.coTheSua || isQuanLy) && it.trangThai === 'Chờ duyệt' && (
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                                         <Button 
                                             size="small" variant="text" color="primary" sx={{ fontWeight: 'bold' }}

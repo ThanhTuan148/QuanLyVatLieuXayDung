@@ -33,11 +33,17 @@ class SalesOrder {
       customerId: json['customerId'],
       customerName: json['customerName'],
       orderDate: DateTime.parse(json['orderDate']),
-      deliveryDate: json['deliveryDate'] != null ? DateTime.parse(json['deliveryDate']) : null,
+      deliveryDate: json['deliveryDate'] != null
+          ? DateTime.parse(json['deliveryDate'])
+          : null,
       status: json['status'],
-      totalAmount: json['totalAmount'] != null ? (json['totalAmount'] as num).toDouble() : null,
+      totalAmount: json['totalAmount'] != null
+          ? (json['totalAmount'] as num).toDouble()
+          : null,
       discount: (json['discount'] as num).toDouble(),
-      finalAmount: json['finalAmount'] != null ? (json['finalAmount'] as num).toDouble() : null,
+      finalAmount: json['finalAmount'] != null
+          ? (json['finalAmount'] as num).toDouble()
+          : null,
       notes: json['notes'],
     );
   }

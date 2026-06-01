@@ -33,9 +33,45 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> Create([FromBody] NhaCungCapDto dto)
         {
             if (dto == null) return BadRequest();
+
+            if (string.IsNullOrWhiteSpace(dto.TenNCC))
+            {
+                return BadRequest(new { message = "Tên nhà cung cấp không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.NguoiLienHe))
+            {
+                return BadRequest(new { message = "Người liên hệ không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.SDT))
+            {
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.SDT.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
+            }
+
             var ncc = new NhaCungCap
             {
-                TenNCC = dto.TenNCC ?? "",
+                TenNCC = dto.TenNCC,
                 NguoiLienHe = dto.NguoiLienHe, Sdt = dto.SDT, Email = dto.Email,
                 DiaChi = dto.DiaChi, ThanhPho = dto.ThanhPho, MaSoThue = dto.MaSoThue,
                 TrangThai = dto.TrangThai, NgayTao = DateTime.UtcNow, NgayCapNhat = DateTime.UtcNow,
@@ -50,7 +86,43 @@ namespace BuildingMaterialAPI.Controllers
         {
             var ncc = await _ctx.NhaCungCaps.FindAsync(id);
             if (ncc == null) return NotFound();
-            ncc.TenNCC = dto.TenNCC ?? ncc.TenNCC;
+
+            if (string.IsNullOrWhiteSpace(dto.TenNCC))
+            {
+                return BadRequest(new { message = "Tên nhà cung cấp không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.NguoiLienHe))
+            {
+                return BadRequest(new { message = "Người liên hệ không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.SDT))
+            {
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.SDT.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
+            }
+
+            ncc.TenNCC = dto.TenNCC;
             ncc.NguoiLienHe = dto.NguoiLienHe; ncc.Sdt = dto.SDT; ncc.Email = dto.Email;
             ncc.DiaChi = dto.DiaChi; ncc.ThanhPho = dto.ThanhPho; ncc.MaSoThue = dto.MaSoThue;
             ncc.TrangThai = dto.TrangThai; ncc.NgayCapNhat = DateTime.UtcNow;

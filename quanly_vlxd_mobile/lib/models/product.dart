@@ -36,7 +36,9 @@ class Product {
       description: json['description'],
       unit: json['unit'],
       unitPrice: (json['unitPrice'] as num).toDouble(),
-      costPrice: json['costPrice'] != null ? (json['costPrice'] as num).toDouble() : null,
+      costPrice: json['costPrice'] != null
+          ? (json['costPrice'] as num).toDouble()
+          : null,
       reorderLevel: json['reorderLevel'],
       isActive: json['isActive'],
     );

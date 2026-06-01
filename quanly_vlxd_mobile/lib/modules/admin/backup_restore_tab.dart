@@ -14,7 +14,7 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
   bool _isBackingUp = false;
   bool _isRestoring = false;
   bool _isLoading = false;
-  
+
   List<dynamic> _backups = [];
 
   @override
@@ -37,7 +37,10 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi tải danh sách sao lưu: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Lỗi tải danh sách sao lưu: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -56,7 +59,10 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(res.data['message'] ?? 'Tạo bản sao lưu dữ liệu mới thành công!'),
+                Text(
+                  res.data['message'] ??
+                      'Tạo bản sao lưu dữ liệu mới thành công!',
+                ),
               ],
             ),
             backgroundColor: Colors.green,
@@ -67,7 +73,10 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi khi tạo sao lưu: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Lỗi khi tạo sao lưu: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isBackingUp = false);
@@ -84,7 +93,10 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
           children: [
             Icon(Icons.warning, color: Colors.orange),
             SizedBox(width: 8),
-            Text('Xác nhận Phục hồi', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Xác nhận Phục hồi',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Text(
@@ -92,11 +104,19 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
           'Cảnh báo: Toàn bộ dữ liệu hiện tại sau thời điểm này sẽ bị ghi đè và thay thế hoàn toàn trên cả Web và App!',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade800,
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('PHỤC HỒI NGAY', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'PHỤC HỒI NGAY',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -111,17 +131,27 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               title: const Row(
                 children: [
                   Icon(Icons.check_circle, color: Colors.green),
                   SizedBox(width: 8),
-                  Text('Khôi Phục Thành Công', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Khôi Phục Thành Công',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
-              content: const Text('Hệ thống đã phục hồi dữ liệu hoàn tất trên Server. Các thay đổi và cấu hình mới đã được áp dụng.'),
+              content: const Text(
+                'Hệ thống đã phục hồi dữ liệu hoàn tất trên Server. Các thay đổi và cấu hình mới đã được áp dụng.',
+              ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
               ],
             ),
           );
@@ -130,7 +160,10 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi phục hồi dữ liệu: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Lỗi phục hồi dữ liệu: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       } finally {
         if (mounted) setState(() => _isRestoring = false);
@@ -144,9 +177,14 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc chắn muốn xóa bản sao lưu "$fileName" không?'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa bản sao lưu "$fileName" không?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('HỦY')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('HỦY'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('XÓA', style: TextStyle(color: Colors.red)),
@@ -162,14 +200,20 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
         if (!mounted) return;
         if (res.statusCode == 200) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa bản sao lưu thành công!'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Đã xóa bản sao lưu thành công!'),
+              backgroundColor: Colors.green,
+            ),
           );
           _fetchBackups();
         }
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi xóa bản sao lưu: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Lỗi khi xóa bản sao lưu: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       } finally {
         if (mounted) setState(() => _isLoading = false);
@@ -195,13 +239,20 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.blueGrey.shade800, Colors.blueGrey.shade900],
+                      colors: [
+                        Colors.blueGrey.shade800,
+                        Colors.blueGrey.shade900,
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
                   ),
                   child: Column(
@@ -215,7 +266,11 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                               color: Colors.white24,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.backup_outlined, color: Colors.white, size: 28),
+                            child: const Icon(
+                              Icons.backup_outlined,
+                              color: Colors.white,
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           const Expanded(
@@ -224,12 +279,19 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                               children: [
                                 Text(
                                   'Sao lưu & Phục hồi',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
                                   'Bảo mật và an toàn dữ liệu hệ thống trực tiếp trên Server',
-                                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -244,7 +306,9 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                 // Create Backup Section
                 Card(
                   elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -252,7 +316,11 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                       children: [
                         const Text(
                           'Tạo Bản Sao Lưu Mới',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.black87,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
@@ -268,18 +336,27 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.cloud_upload_outlined),
                             label: Text(
-                              _isBackingUp ? 'ĐANG SAO LƯU DỮ LIỆU...' : 'TIẾN HÀNH SAO LƯU NGAY',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              _isBackingUp
+                                  ? 'ĐANG SAO LƯU DỮ LIỆU...'
+                                  : 'TIẾN HÀNH SAO LƯU NGAY',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blueGrey.shade700,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -292,7 +369,11 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                 // Backup List Section
                 const Text(
                   'Lịch Sử Bản Sao Lưu Gần Đây',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
                 ),
                 const SizedBox(height: 10),
 
@@ -304,67 +385,105 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                         ),
                       )
                     : _backups.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 32),
-                              child: Text('Chưa có bản sao lưu nào được tạo trên server.', style: TextStyle(color: Colors.grey)),
-                            ),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _backups.length,
-                            itemBuilder: (context, index) {
-                              final backup = _backups[index];
-                              final fName = backup['fileName'] ?? backup['FileName'] ?? '';
-                              final fSize = backup['fileSize'] ?? backup['FileSize'] ?? '—';
-                              final rawCreated = backup['createdAt'] ?? backup['CreatedAt'];
-                              final DateTime dt = rawCreated != null
-                                  ? (rawCreated is DateTime ? rawCreated : DateTime.tryParse(rawCreated.toString()) ?? DateTime.now())
-                                  : DateTime.now();
-                              final dateStr = DateFormat('dd/MM/yyyy HH:mm:ss').format(dt);
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  leading: CircleAvatar(
-                                    backgroundColor: Colors.blue.withValues(alpha: 0.1),
-                                    child: const Icon(Icons.dns, color: Colors.blue),
-                                  ),
-                                  title: Text(
-                                    fName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      Text('Dung lượng: $fSize'),
-                                      const SizedBox(height: 2),
-                                      Text('Ngày tạo: $dateStr', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                    ],
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.settings_backup_restore, color: Colors.green),
-                                        tooltip: 'Phục hồi dữ liệu',
-                                        onPressed: () => _restoreBackup(backup),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                        tooltip: 'Xóa bản sao lưu',
-                                        onPressed: () => _deleteBackup(backup),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Text(
+                            'Chưa có bản sao lưu nào được tạo trên server.',
+                            style: TextStyle(color: Colors.grey),
                           ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _backups.length,
+                        itemBuilder: (context, index) {
+                          final backup = _backups[index];
+                          final fName =
+                              backup['fileName'] ?? backup['FileName'] ?? '';
+                          final fSize =
+                              backup['fileSize'] ?? backup['FileSize'] ?? '—';
+                          final rawCreated =
+                              backup['createdAt'] ?? backup['CreatedAt'];
+                          final DateTime dt = rawCreated != null
+                              ? (rawCreated is DateTime
+                                    ? rawCreated
+                                    : DateTime.tryParse(
+                                            rawCreated.toString(),
+                                          ) ??
+                                          DateTime.now())
+                              : DateTime.now();
+                          final dateStr = DateFormat(
+                            'dd/MM/yyyy HH:mm:ss',
+                          ).format(dt);
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.withValues(
+                                  alpha: 0.1,
+                                ),
+                                child: const Icon(
+                                  Icons.dns,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              title: Text(
+                                fName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text('Dung lượng: $fSize'),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Ngày tạo: $dateStr',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.settings_backup_restore,
+                                      color: Colors.green,
+                                    ),
+                                    tooltip: 'Phục hồi dữ liệu',
+                                    onPressed: () => _restoreBackup(backup),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                    ),
+                                    tooltip: 'Xóa bản sao lưu',
+                                    onPressed: () => _deleteBackup(backup),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ],
             ),
           ),
@@ -386,7 +505,11 @@ class _BackupRestoreTabState extends State<BackupRestoreTab> {
                       SizedBox(height: 24),
                       Text(
                         'ĐANG KHÔI PHỤC HỆ THỐNG...',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                       SizedBox(height: 8),
                       Text(

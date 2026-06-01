@@ -2,15 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Typography, Paper, List, ListItem, ListItemAvatar, 
   Avatar, ListItemText, Divider, TextField, IconButton, Badge,
-  Grid
+  Grid, Tooltip
 } from '@mui/material';
 import { 
   Send as SendIcon, 
   Chat as ChatIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const AdminChatPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -19,6 +21,9 @@ const AdminChatPage = () => {
   const [input, setInput] = useState('');
   const [connection, setConnection] = useState(null);
   const scrollRef = useRef(null);
+
+  const { permissions } = usePermissions();
+  const canDelete = permissions?.chat?.coTheXoa ?? false;
 
   useEffect(() => {
     fetchCustomers();
@@ -102,6 +107,20 @@ const AdminChatPage = () => {
     }
   };
 
+  const handleDeleteConversation = async () => {
+    if (!selectedCustomer) return;
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại với khách hàng này? Không thể hoàn tác!')) {
+      try {
+        await api.delete(`/Chat/${selectedCustomer.maKhachHang}`);
+        setSelectedCustomer(null);
+        setMessages([]);
+        fetchCustomers();
+      } catch (err) {
+        alert('Xóa cuộc hội thoại thất bại');
+      }
+    }
+  };
+
   return (
     <Box sx={{ height: 'calc(100vh - 120px)' }}>
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: '#333' }}>
@@ -157,7 +176,14 @@ const AdminChatPage = () => {
               <>
                 <Box sx={{ p: 2, bgcolor: '#f8f9fa', display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar src={selectedCustomer.anhDaiDien} />
-                  <Typography variant="h6" fontWeight="bold">{selectedCustomer.tenKH}</Typography>
+                  <Typography variant="h6" fontWeight="bold" sx={{ flexGrow: 1 }}>{selectedCustomer.tenKH}</Typography>
+                  {canDelete && (
+                    <Tooltip title="Xóa toàn bộ cuộc hội thoại">
+                      <IconButton color="error" onClick={handleDeleteConversation}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </Box>
                 <Divider />
                 <Box 

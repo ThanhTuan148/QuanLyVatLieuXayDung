@@ -21,11 +21,19 @@ import { usePermissions } from '../contexts/PermissionContext';
 
 // ─── Cấu trúc phân quyền theo Danh mục → Tab → Thao tác ──────
 const ALL_MODULE_KEYS = [
-  'products','categories','inventory','orders','customers',
-  'suppliers','flashsales','promotions','deliveries','reports','employees','debts','price_history'
+  'dashboard', 'products','categories','inventory','inventory_gift','inventory_history','procurement','returns','returns_customer','orders','customers',
+  'suppliers','flashsales','promotions','deliveries','reports','employees','debts','price_history', 'contact', 'chat'
 ];
 
 const PERMISSION_CATEGORIES = [
+  {
+    key: 'dashboard', label: '📊 Tổng Quan', color: '#38f9d7',
+    tabs: [
+      { moduleKey: 'dashboard', label: 'Tổng Quan Hệ Thống', ops: [
+        { field: 'coTheXem', label: 'Xem số liệu & biểu đồ tổng quan' }
+      ]}
+    ]
+  },
   {
     key: 'products', label: '📦 Sản Phẩm', color: '#667eea',
     tabs: [
@@ -75,6 +83,15 @@ const PERMISSION_CATEGORIES = [
         { field: 'coTheSua', label: 'Sửa thông tin khách hàng' },
         { field: 'coTheXoa', label: 'Xóa tài khoản khách hàng' },
       ]},
+      { moduleKey: 'contact', label: 'Tư Vấn', ops: [
+        { field: 'coTheXem', label: 'Xem phản hồi liên hệ của khách' },
+        { field: 'coTheTao', label: 'Phản hồi / Gửi Email' },
+        { field: 'coTheXoa', label: 'Xóa tin nhắn liên hệ' },
+      ]},
+      { moduleKey: 'chat', label: 'Chat Trực Tuyến', ops: [
+        { field: 'coTheXem', label: 'Xem / Quản lý chat trực tuyến' },
+        { field: 'coTheXoa', label: 'Xóa cuộc hội thoại' },
+      ]}
     ]
   },
   {
@@ -89,26 +106,59 @@ const PERMISSION_CATEGORIES = [
     ]
   },
   {
-    key: 'inventory', label: '🏭 Kho & Nhập Hàng', color: '#f5576c',
+    key: 'inventory', label: '🏭 Kho Hàng', color: '#f5576c',
     tabs: [
-      { moduleKey: 'inventory', label: 'Kho Hàng', ops: [
+      { moduleKey: 'inventory', label: 'Tồn Kho Chi Tiết', ops: [
         { field: 'coTheXem', label: 'Xem tồn kho & phiếu kho' },
         { field: 'coTheTao', label: 'Tạo phiếu xuất / nhập kho' },
         { field: 'coTheSua', label: 'Điều chỉnh số lượng tồn' },
         { field: 'coTheXoa', label: 'Xóa phiếu kho' },
       ]},
-      { moduleKey: 'inventory', label: 'Nhập Hàng', ops: [
+      { moduleKey: 'inventory_gift', label: 'Sản Phẩm Quà Tặng', ops: [
+        { field: 'coTheXem', label: 'Xem danh sách quà tặng' },
+        { field: 'coTheTao', label: 'Thêm sản phẩm quà tặng' },
+        { field: 'coTheSua', label: 'Sửa thông tin quà tặng' },
+        { field: 'coTheXoa', label: 'Xóa quà tặng' },
+      ]},
+      { moduleKey: 'inventory_history', label: 'Lịch Sử Xuất Kho', ops: [
+        { field: 'coTheXem', label: 'Xem lịch sử xuất kho' },
+        { field: 'coTheTao', label: 'Xác nhận soạn hàng/giao nhận' },
+        { field: 'coTheSua', label: 'Phê duyệt phiếu xuất kho' },
+        { field: 'coTheXoa', label: 'Xóa lịch sử xuất kho' },
+      ]},
+    ]
+  },
+  {
+    key: 'procurement', label: '📥 Nhập Hàng', color: '#00c6ff',
+    tabs: [
+      { moduleKey: 'procurement', label: 'Nhập Hàng', ops: [
         { field: 'coTheXem', label: 'Xem đơn đặt hàng nhà cung cấp' },
         { field: 'coTheTao', label: 'Tạo đơn nhập hàng mới' },
         { field: 'coTheSua', label: 'Duyệt & cập nhật đơn nhập' },
         { field: 'coTheXoa', label: 'Hủy đơn nhập hàng' },
       ]},
-      { moduleKey: 'inventory', label: 'Đổi / Trả', ops: [
-        { field: 'coTheXem', label: 'Xem yêu cầu đổi trả' },
-        { field: 'coTheTao', label: 'Tạo phiếu đổi trả' },
-        { field: 'coTheSua', label: 'Duyệt / Từ chối yêu cầu' },
-        { field: 'coTheXoa', label: 'Xóa yêu cầu đổi trả' },
+    ]
+  },
+  {
+    key: 'returns', label: '🔄 Đổi / Trả', color: '#38ef7d',
+    tabs: [
+      { moduleKey: 'returns', label: 'Đổi Trả NCC', ops: [
+        { field: 'coTheXem', label: 'Xem yêu cầu đổi trả NCC' },
+        { field: 'coTheTao', label: 'Tạo phiếu đổi trả NCC' },
+        { field: 'coTheSua', label: 'Duyệt / Từ chối yêu cầu NCC' },
+        { field: 'coTheXoa', label: 'Xóa yêu cầu đổi trả NCC' },
       ]},
+      { moduleKey: 'returns_customer', label: 'Đổi Trả KH', ops: [
+        { field: 'coTheXem', label: 'Xem yêu cầu đổi trả KH' },
+        { field: 'coTheTao', label: 'Tạo phiếu đổi trả KH' },
+        { field: 'coTheSua', label: 'Duyệt / Từ chối yêu cầu KH' },
+        { field: 'coTheXoa', label: 'Xóa yêu cầu đổi trả KH' },
+      ]},
+    ]
+  },
+  {
+    key: 'suppliers', label: '🏪 Nhà Cung Cấp', color: '#ff9a9e',
+    tabs: [
       { moduleKey: 'suppliers', label: 'Nhà Cung Cấp', ops: [
         { field: 'coTheXem', label: 'Xem danh sách nhà cung cấp' },
         { field: 'coTheTao', label: 'Thêm nhà cung cấp mới' },
@@ -172,6 +222,14 @@ const autoMapGeneralToModule = (generalPerms) => {
   const map = {};
   const hasQ = (code) => generalPerms.some(p => p.maQ === code);
   const createMod = (view, create, update, del) => ({ coTheXem: view, coTheTao: create, coTheSua: update, coTheXoa: del });
+  
+  // Dashboard, Contact, Chat are enabled by default for all staff
+  if (generalPerms.length > 0) {
+    map['dashboard'] = createMod(true, true, true, true);
+    map['contact'] = createMod(true, true, true, true);
+    map['chat'] = createMod(true, true, true, true);
+  }
+
   if (hasQ('Q01')) map['employees'] = createMod(true, true, true, true);
   if (hasQ('Q02')) {
     map['products'] = createMod(true, true, true, true);
@@ -188,6 +246,11 @@ const autoMapGeneralToModule = (generalPerms) => {
   else if (hasQ('Q11')) map['orders'] = createMod(true, true, false, false);
   if (hasQ('Q04')) {
     map['inventory'] = createMod(true, true, true, true);
+    map['inventory_gift'] = createMod(true, true, true, true);
+    map['inventory_history'] = createMod(true, true, true, true);
+    map['procurement'] = createMod(true, true, true, true);
+    map['returns'] = createMod(true, true, true, true);
+    map['returns_customer'] = createMod(true, true, true, true);
     map['suppliers'] = createMod(true, true, true, true);
   }
   if (hasQ('Q05')) map['deliveries'] = createMod(true, true, true, true);
@@ -233,7 +296,7 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
           const defaultMap = {};
           
           if (role.includes('admin') || role.includes('quản trị')) {
-            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history'];
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history', 'contact', 'chat'];
             allModules.forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });
@@ -252,6 +315,12 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
           } else if (role.includes('thủ kho') || role.includes('warehouse')) {
             ['inventory','products'].forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
+            });
+          }
+          
+          if (role.includes('nhân viên') || role.includes('quản lý') || role.includes('bán hàng') || role.includes('kho') || role.includes('tài xế') || role.includes('sales') || role.includes('driver')) {
+             ['contact', 'chat'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });
           }
           setModuleQuyens(defaultMap);
@@ -289,6 +358,22 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
       onSaved(); onClose();
     } catch (e) { setErr(e.response?.data?.message || 'Lưu thất bại'); }
     finally { setSaving(false); }
+  };
+
+  const handleResetToRole = async () => {
+    if (isSelf) {
+      setErr('Bạn không thể tự thay đổi quyền hạn của chính mình.');
+      return;
+    }
+    if (window.confirm("Bạn có chắc chắn muốn xóa phân quyền chi tiết và đồng bộ hoàn toàn theo Vai Trò của nhân viên này?")) {
+      setSaving(true); setErr('');
+      try {
+        await api.put(`/employees/${employee.maNhanVien}/module-permissions`, []);
+        window.dispatchEvent(new Event('permissionsUpdated'));
+        onSaved(); onClose();
+      } catch (e) { setErr(e.response?.data?.message || 'Khôi phục thất bại'); }
+      finally { setSaving(false); }
+    }
   };
 
   if (!employee) return null;
@@ -416,12 +501,17 @@ function PermissionDialog({ open, onClose, employee, onSaved }) {
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={saving}>Hủy</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving || isSelf}
-          sx={{ background: isSelf ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
-          {saving ? 'Đang lưu...' : '💾 Lưu Phân Quyền'}
+      <DialogActions sx={{ px: 3, py: 2, justifyContent: 'space-between' }}>
+        <Button variant="outlined" color="warning" onClick={handleResetToRole} disabled={saving || isSelf} sx={{ fontWeight: 'bold' }}>
+          🔄 Reset theo Vai Trò
         </Button>
+        <Box>
+          <Button onClick={onClose} disabled={saving} sx={{ mr: 1 }}>Hủy</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving || isSelf}
+            sx={{ background: isSelf ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
+            {saving ? 'Đang lưu...' : '💾 Lưu Phân Quyền'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );
@@ -495,17 +585,58 @@ function CreateAccountDialog({ open, onClose, employee, roles, onSaved }) {
 function EmployeeFormDialog({ open, onClose, editing, roles, onSaved }) {
   const { user } = usePermissions();
   const [form, setForm] = useState({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '', maVaiTro: '' });
+  const [errors, setErrors] = useState({ tenNV: '', sdt: '', email: '', diaChi: '' });
   const [saving, setSaving] = useState(false);
   const isSelf = editing && (editing.maNhanVien === user?.employeeId || editing.maNhanVien === user?.EmployeeId);
 
   useEffect(() => {
     if (open) {
+      setErrors({ tenNV: '', sdt: '', email: '', diaChi: '' });
       if (editing) setForm({ maNV: editing.maNV || '', tenNV: editing.tenNV || '', sdt: editing.sdt || '', email: editing.email || '', diaChi: editing.diaChi || '', trangThai: editing.trangThai ?? true, sucChuaToiDa: editing.sucChuaToiDa || '', maVaiTro: editing.maVaiTro || '' });
       else setForm({ maNV: '', tenNV: '', sdt: '', email: '', diaChi: '', trangThai: true, sucChuaToiDa: '', maVaiTro: '' });
     }
   }, [open, editing]);
+
   const handleSave = async () => {
-    if (!form.tenNV) return alert('Tên nhân viên không được trống');
+    const newErrors = { tenNV: '', sdt: '', email: '', diaChi: '' };
+    let hasError = false;
+
+    if (!form.tenNV || !form.tenNV.trim()) {
+      newErrors.tenNV = 'Tên nhân viên không được để trống!';
+      hasError = true;
+    }
+
+    if (!form.sdt || !form.sdt.trim()) {
+      newErrors.sdt = 'Số điện thoại không được để trống!';
+      hasError = true;
+    } else {
+      const sdtRegex = /^[0-9]{10}$/;
+      if (!sdtRegex.test(form.sdt.trim())) {
+        newErrors.sdt = 'Số điện thoại phải có đúng 10 chữ số!';
+        hasError = true;
+      }
+    }
+
+    if (!form.email || !form.email.trim()) {
+      newErrors.email = 'Email không được để trống!';
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim()) || !form.email.includes('@')) {
+        newErrors.email = 'Email không đúng định dạng (phải chứa ký tự @ và tên miền)!';
+        hasError = true;
+      }
+    }
+
+    if (!form.diaChi || !form.diaChi.trim()) {
+      newErrors.diaChi = 'Địa chỉ không được để trống!';
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasError) return;
+    
     setSaving(true);
     try {
       const payload = { 
@@ -526,10 +657,38 @@ function EmployeeFormDialog({ open, onClose, editing, roles, onSaved }) {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 'bold' }}>{editing ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}</DialogTitle>
       <DialogContent dividers>
-        <TextField fullWidth margin="dense" label="Tên Nhân Viên" value={form.tenNV} onChange={e => setForm({ ...form, tenNV: e.target.value })} />
-        <TextField fullWidth margin="dense" label="Số Điện Thoại" value={form.sdt} onChange={e => setForm({ ...form, sdt: e.target.value })} />
-        <TextField fullWidth margin="dense" label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-        <TextField fullWidth margin="dense" label="Địa Chỉ" value={form.diaChi} onChange={e => setForm({ ...form, diaChi: e.target.value })} />
+        <TextField 
+          fullWidth margin="dense" label="Tên Nhân Viên *" value={form.tenNV} 
+          error={Boolean(errors.tenNV)} helperText={errors.tenNV}
+          onChange={e => {
+            setForm({ ...form, tenNV: e.target.value });
+            if (errors.tenNV) setErrors(prev => ({ ...prev, tenNV: '' }));
+          }} 
+        />
+        <TextField 
+          fullWidth margin="dense" label="Số Điện Thoại *" value={form.sdt} 
+          error={Boolean(errors.sdt)} helperText={errors.sdt}
+          onChange={e => {
+            setForm({ ...form, sdt: e.target.value });
+            if (errors.sdt) setErrors(prev => ({ ...prev, sdt: '' }));
+          }} 
+        />
+        <TextField 
+          fullWidth margin="dense" label="Email *" value={form.email} 
+          error={Boolean(errors.email)} helperText={errors.email}
+          onChange={e => {
+            setForm({ ...form, email: e.target.value });
+            if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+          }} 
+        />
+        <TextField 
+          fullWidth margin="dense" label="Địa Chỉ *" value={form.diaChi} 
+          error={Boolean(errors.diaChi)} helperText={errors.diaChi}
+          onChange={e => {
+            setForm({ ...form, diaChi: e.target.value });
+            if (errors.diaChi) setErrors(prev => ({ ...prev, diaChi: '' }));
+          }} 
+        />
         <TextField fullWidth margin="dense" label="Sức chứa xe" value={form.sucChuaToiDa} onChange={e => setForm({ ...form, sucChuaToiDa: e.target.value })} />
         <FormControlLabel control={<Switch checked={form.trangThai} disabled={isSelf} onChange={e => setForm({ ...form, trangThai: e.target.checked })} />} label={isSelf ? "Đang làm việc (Không thể tự chỉnh sửa bản thân)" : "Đang làm việc"} />
         
@@ -558,17 +717,288 @@ function EmployeeFormDialog({ open, onClose, editing, roles, onSaved }) {
   );
 }
 
+// ─── Dialog Thêm/Sửa Vai Trò & Phân Quyền ─────────────────────
+function RoleFormDialog({ open, onClose, editing, onSaved }) {
+  const [tenVT, setTenVT] = useState('');
+  const [moTa, setMoTa] = useState('');
+  const [moduleQuyens, setModuleQuyens] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [selectedCat, setSelectedCat] = useState(0);
+  const [selectedTab, setSelectedTab] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setErr('');
+      setSelectedCat(0);
+      setSelectedTab(0);
+      if (editing) {
+        setTenVT(editing.tenVT || '');
+        setMoTa(editing.moTa || '');
+        api.get(`/employees/roles/${editing.maVaiTro}/module-permissions`)
+          .then(res => {
+            const modPerms = res.data || [];
+            const map = {};
+            modPerms.forEach(mq => {
+              map[mq.module] = {
+                coTheXem: mq.coTheXem,
+                coTheTao: mq.coTheTao,
+                coTheSua: mq.coTheSua,
+                coTheXoa: mq.coTheXoa
+              };
+            });
+            setModuleQuyens(map);
+          })
+          .catch(() => setModuleQuyens({}));
+      } else {
+        setTenVT('');
+        setMoTa('');
+        setModuleQuyens({});
+      }
+    }
+  }, [open, editing]);
+
+  const cat = PERMISSION_CATEGORIES[selectedCat];
+  const currentTab = cat?.tabs[selectedTab] || cat?.tabs[0];
+
+  const handleToggle = (modKey, field) => {
+    setModuleQuyens(prev => {
+      const cur = prev[modKey] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+      return { ...prev, [modKey]: { ...cur, [field]: !cur[field] } };
+    });
+  };
+
+  const setAllForModule = (modKey, val) => {
+    setModuleQuyens(prev => ({
+      ...prev,
+      [modKey]: { coTheXem: val, coTheTao: val, coTheSua: val, coTheXoa: val }
+    }));
+  };
+
+  const setAllForCategory = (c, val) => {
+    setModuleQuyens(prev => {
+      const next = { ...prev };
+      c.tabs.forEach(tab => {
+        next[tab.moduleKey] = { coTheXem: val, coTheTao: val, coTheSua: val, coTheXoa: val };
+      });
+      return next;
+    });
+  };
+
+  const countGranted = (c) => {
+    let granted = 0, total = 0;
+    c.tabs.forEach(tab => tab.ops.forEach(op => {
+      total++;
+      if (moduleQuyens[tab.moduleKey]?.[op.field]) granted++;
+    }));
+    return { granted, total };
+  };
+
+  const handleSave = async () => {
+    if (!tenVT) return setErr('Tên vai trò không được để trống');
+    setSaving(true);
+    setErr('');
+    try {
+      let roleId = editing?.maVaiTro;
+      const rolePayload = { TenVT: tenVT, MoTa: moTa };
+      if (editing) {
+        await api.put(`/employees/roles/${editing.maVaiTro}`, rolePayload);
+      } else {
+        const res = await api.post('/employees/roles', rolePayload);
+        roleId = res.data?.maVaiTro;
+      }
+
+      if (roleId) {
+        const payload = ALL_MODULE_KEYS.map(k => {
+          const q = moduleQuyens[k] || { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
+          return {
+            module: k,
+            tenModule: k,
+            coTheXem: q.coTheXem,
+            coTheTao: q.coTheTao,
+            coTheSua: q.coTheSua,
+            coTheXoa: q.coTheXoa
+          };
+        });
+        await api.put(`/employees/roles/${roleId}/module-permissions`, payload);
+      }
+
+      window.dispatchEvent(new Event('permissionsUpdated'));
+      onSaved();
+      onClose();
+    } catch (e) {
+      setErr(e.response?.data?.message || 'Lưu vai trò thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg"
+      PaperProps={{ sx: { height: '85vh', display: 'flex', flexDirection: 'column' } }}>
+      <DialogTitle sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', py: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <AdminPanelSettingsIcon sx={{ fontSize: 28 }} />
+          <Typography variant="h6" fontWeight="bold">
+            {editing ? '👑 Thiết lập Vai Trò & Phân Quyền' : '👑 Thêm Vai Trò Mới'}
+          </Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent dividers sx={{ p: 0, flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
+        {err && <Alert severity="error" sx={{ position: 'absolute', top: 8, left: 8, right: 8, zIndex: 10 }}>{err}</Alert>}
+
+        {/* LEFT PANEL: Role details & Categories */}
+        <Box sx={{ width: 320, flexShrink: 0, borderRight: '1px solid #ebedf2', overflowY: 'auto', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Role details form */}
+          <Box sx={{ p: 2, borderBottom: '1px solid #ebedf2', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography variant="subtitle2" fontWeight="bold" color="primary">Thông Tin Vai Trò</Typography>
+            <TextField
+              fullWidth
+              label="Tên vai trò"
+              size="small"
+              placeholder="Ví dụ: Nhân viên kinh doanh"
+              value={tenVT}
+              onChange={e => setTenVT(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Mô tả"
+              size="small"
+              placeholder="Mô tả công việc hoặc quyền hạn..."
+              value={moTa}
+              onChange={e => setMoTa(e.target.value)}
+            />
+          </Box>
+
+          {/* Categories List */}
+          <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+            <Typography variant="caption" color="textSecondary" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>Danh Mục Quyền Hạn</Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1, overflowY: 'auto', pb: 2 }}>
+            {PERMISSION_CATEGORIES.map((c, ci) => {
+              const { granted, total } = countGranted(c);
+              const sel = selectedCat === ci;
+              return (
+                <Box key={c.key} onClick={() => { setSelectedCat(ci); setSelectedTab(0); }}
+                  sx={{ mx: 1.5, mb: 0.5, p: 1.2, borderRadius: 2, cursor: 'pointer',
+                    background: sel ? `${c.color}18` : 'transparent',
+                    border: `2px solid ${sel ? c.color : 'transparent'}`,
+                    transition: 'all 0.2s', '&:hover': { background: `${c.color}12` } }}>
+                  <Typography variant="body2" sx={{ fontWeight: sel ? 'bold' : 500, color: sel ? c.color : 'inherit', fontSize: '0.82rem' }}>{c.label}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                    <Box sx={{ flexGrow: 1, height: 4, borderRadius: 2, bgcolor: '#e0e0e0', overflow: 'hidden' }}>
+                      <Box sx={{ height: '100%', width: `${total ? (granted / total) * 100 : 0}%`, bgcolor: c.color, borderRadius: 2, transition: 'width 0.3s' }} />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: c.color, fontWeight: 'bold', fontSize: '0.65rem', minWidth: 30 }}>{granted}/{total}</Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* RIGHT PANEL: Tab + Switches */}
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {cat && (
+            <>
+              <Box sx={{ px: 3, pt: 2, pb: 1, borderBottom: '1px solid #ebedf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ color: cat.color }}>{cat.label}</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button size="small" variant="outlined" sx={{ borderColor: cat.color, color: cat.color, fontSize: '0.75rem' }}
+                    onClick={() => setAllForCategory(cat, true)}>✅ Cấp Tất Cả</Button>
+                  <Button size="small" variant="outlined" color="error" sx={{ fontSize: '0.75rem' }}
+                    onClick={() => setAllForCategory(cat, false)}>❌ Thu Hồi Tất Cả</Button>
+                </Box>
+              </Box>
+              <Box sx={{ borderBottom: '1px solid #ebedf2', flexShrink: 0 }}>
+                <Tabs value={selectedTab} onChange={(_, v) => setSelectedTab(v)} sx={{ px: 2, minHeight: 44 }}
+                  TabIndicatorProps={{ style: { background: cat.color } }}>
+                  {cat.tabs.map((tab, ti) => {
+                    const q = moduleQuyens[tab.moduleKey] || {};
+                    const cnt = tab.ops.filter(op => q[op.field]).length;
+                    return (
+                      <Tab key={ti} sx={{ minHeight: 44, textTransform: 'none', fontSize: '0.85rem', fontWeight: selectedTab === ti ? 'bold' : 400, color: selectedTab === ti ? cat.color : 'text.secondary' }}
+                        label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><span>{tab.label}</span>
+                          <Chip label={`${cnt}/${tab.ops.length}`} size="small"
+                            sx={{ height: 17, fontSize: '0.6rem', bgcolor: cnt > 0 ? `${cat.color}22` : '#f0f0f0', color: cnt > 0 ? cat.color : '#aaa' }} />
+                        </Box>}
+                      />
+                    );
+                  })}
+                </Tabs>
+              </Box>
+              <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2.5 }}>
+                {currentTab && (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary">Thao tác cho tab <strong>{currentTab.label}</strong>:</Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button size="small" sx={{ fontSize: '0.72rem', color: cat.color }} onClick={() => setAllForModule(currentTab.moduleKey, true)}>Cấp hết</Button>
+                        <Button size="small" color="error" sx={{ fontSize: '0.72rem' }} onClick={() => setAllForModule(currentTab.moduleKey, false)}>Thu hồi</Button>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {currentTab.ops.map((op) => {
+                        const checked = !!moduleQuyens[currentTab.moduleKey]?.[op.field];
+                        return (
+                          <Box key={op.field} onClick={() => handleToggle(currentTab.moduleKey, op.field)}
+                            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderRadius: 2, cursor: 'pointer',
+                              border: `1.5px solid ${checked ? cat.color : '#e0e0e0'}`,
+                              background: checked ? `${cat.color}0d` : '#fafafa',
+                              transition: 'all 0.2s', '&:hover': { borderColor: cat.color, background: `${cat.color}10` } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: checked ? cat.color : '#ccc', flexShrink: 0 }} />
+                              <Typography variant="body2" sx={{ fontWeight: checked ? 600 : 400, color: checked ? cat.color : 'text.primary' }}>{op.label}</Typography>
+                            </Box>
+                            <Switch checked={checked} size="small"
+                              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: cat.color }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: cat.color } }}
+                              onClick={e => e.stopPropagation()} onChange={() => handleToggle(currentTab.moduleKey, op.field)} />
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </>
+                )}
+              </Box>
+            </>
+          )}
+        </Box>
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={onClose} disabled={saving} sx={{ mr: 1 }}>Hủy</Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}
+          sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', px: 4 }}>
+          {saving ? 'Đang lưu...' : '💾 Lưu Vai Trò'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ─── Main EmployeesPage ───────────────────────────────────────
 export default function EmployeesPage() {
+  const [activeTab, setActiveTab] = useState(0);
   const [employees, setEmployees] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // States for Employee Actions
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [permDialog, setPermDialog] = useState(null);
   const [roleDialog, setRoleDialog] = useState(null);
   const [createAccDialog, setCreateAccDialog] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  // States for Role Actions
+  const [roleFormOpen, setRoleFormOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState(null);
+  const [roleDeleteConfirm, setRoleDeleteConfirm] = useState(null);
+  
   const fileInputRef = React.useRef(null);
 
   const { user } = usePermissions();
@@ -590,6 +1020,17 @@ export default function EmployeesPage() {
   const handleDelete = async (id) => {
     try { await api.delete(`/employees/${id}`); load(); setDeleteConfirm(null); }
     catch { alert('Lỗi xóa. Có thể nhân viên đang gắn với dữ liệu khác.'); }
+  };
+
+  const handleDeleteRole = async (id) => {
+    try { 
+      await api.delete(`/employees/roles/${id}`); 
+      load(); 
+      setRoleDeleteConfirm(null); 
+    }
+    catch (e) { 
+      alert(e.response?.data?.message || 'Không thể xóa vai trò đang có tài khoản sử dụng.'); 
+    }
   };
 
   const handleToggleStatus = async (id) => {
@@ -689,6 +1130,29 @@ export default function EmployeesPage() {
     }
   ];
 
+  const roleColumns = [
+    {
+      field: 'tenVT', headerName: 'Vai Trò', flex: 1.5, minWidth: 200, renderCell: (p) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Avatar sx={{ width: 32, height: 32, background: 'linear-gradient(135deg, #f5a623, #fee140)', fontSize: '0.8rem' }}>👑</Avatar>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{p.value}</Typography>
+            <Typography variant="caption" color="textSecondary">{p.row.maVT}</Typography>
+          </Box>
+        </Box>
+      )
+    },
+    { field: 'moTa', headerName: 'Mô Tả', flex: 2.5, minWidth: 350, renderCell: (p) => p.value || '—' },
+    {
+      field: 'actions', headerName: 'Thao Tác', width: 150, sortable: false, renderCell: (p) => (
+        <Box>
+          <IconButton size="small" color="primary" onClick={() => { setEditingRole(p.row); setRoleFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
+          <IconButton size="small" color="error" onClick={() => setRoleDeleteConfirm(p.row)}><DeleteIcon fontSize="small" /></IconButton>
+        </Box>
+      )
+    }
+  ];
+
   const stats = [
     { label: 'Tổng Nhân Viên', value: employees.length, color: '#667eea' },
     { label: 'Đang Làm Việc', value: employees.filter(e => e.trangThai).length, color: '#43e97b' },
@@ -698,32 +1162,78 @@ export default function EmployeesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Box><Typography variant="h4" sx={{ fontWeight: 'bold' }}>👥 Nhân Viên</Typography><Typography variant="body2" color="textSecondary">Quản lý nhân sự và phân quyền</Typography></Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>👥 Nhân Viên & Quyền</Typography>
+          <Typography variant="body2" color="textSecondary">Quản lý nhân sự, vai trò và phân quyền nghiệp vụ</Typography>
+        </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
-          <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>Nhập Excel</Button>
-          <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExport}>Xuất Excel</Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Thêm</Button>
+          {activeTab === 0 ? (
+            <>
+              <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
+              <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>Nhập Excel</Button>
+              <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExport}>Xuất Excel</Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Thêm Nhân Viên</Button>
+            </>
+          ) : (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingRole(null); setRoleFormOpen(true); }} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Thêm Vai Trò</Button>
+          )}
         </Box>
       </Box>
 
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {stats.map((s, i) => (
-          <Grid item xs={6} md={3} key={i}>
-            <Card sx={{ borderLeft: `4px solid ${s.color}` }}><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}><Typography variant="h5" fontWeight="bold" color={s.color}>{s.value}</Typography><Typography variant="caption" color="textSecondary">{s.label}</Typography></CardContent></Card>
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+          <Tab label="👥 Danh sách Nhân viên" />
+          <Tab label="👑 Vai trò & Phân quyền" />
+        </Tabs>
+      </Box>
+
+      {/* Tab Panels */}
+      {activeTab === 0 ? (
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {stats.map((s, i) => (
+              <Grid item xs={6} md={3} key={i}>
+                <Card sx={{ borderLeft: `4px solid ${s.color}` }}><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}><Typography variant="h5" fontWeight="bold" color={s.color}>{s.value}</Typography><Typography variant="caption" color="textSecondary">{s.label}</Typography></CardContent></Card>
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
+          <DataTable rows={employees} columns={columns} getRowId={(row) => row.maNhanVien} loading={loading} />
+        </>
+      ) : (
+        <DataTable rows={roles} columns={roleColumns} getRowId={(row) => row.maVaiTro} loading={loading} />
+      )}
 
-      <DataTable rows={employees} columns={columns} getRowId={(row) => row.maNhanVien} loading={loading} />
-
+      {/* Dialogs */}
       <EmployeeFormDialog open={formOpen} onClose={() => setFormOpen(false)} editing={editing} roles={roles} onSaved={load} />
       <PermissionDialog open={!!permDialog} onClose={() => setPermDialog(null)} employee={permDialog} onSaved={load} />
       <ChangeRoleDialog open={!!roleDialog} onClose={() => setRoleDialog(null)} employee={roleDialog} roles={roles} onSaved={load} />
       <CreateAccountDialog open={!!createAccDialog} onClose={() => setCreateAccDialog(null)} employee={createAccDialog} roles={roles} onSaved={load} />
+      
+      {/* Role Dialogs */}
+      <RoleFormDialog open={roleFormOpen} onClose={() => setRoleFormOpen(false)} editing={editingRole} onSaved={load} />
 
-      <Dialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)}><DialogTitle>Xác nhận xóa</DialogTitle><DialogContent>Xóa nhân viên <b>{deleteConfirm?.tenNV}</b>? Thao tác này không thể hoàn tác.</DialogContent><DialogActions><Button onClick={() => setDeleteConfirm(null)}>Hủy</Button><Button variant="contained" color="error" onClick={() => handleDelete(deleteConfirm.maNhanVien)}>Xóa</Button></DialogActions></Dialog>
+      {/* Delete Employee Confirm */}
+      <Dialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)}>
+        <DialogTitle>Xác nhận xóa nhân viên</DialogTitle>
+        <DialogContent>Xóa nhân viên <b>{deleteConfirm?.tenNV}</b>? Thao tác này không thể hoàn tác.</DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)}>Hủy</Button>
+          <Button variant="contained" color="error" onClick={() => handleDelete(deleteConfirm.maNhanVien)}>Xóa</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Role Confirm */}
+      <Dialog open={!!roleDeleteConfirm} onClose={() => setRoleDeleteConfirm(null)}>
+        <DialogTitle>Xác nhận xóa vai trò</DialogTitle>
+        <DialogContent>Xóa vai trò <b>{roleDeleteConfirm?.tenVT}</b>? Thao tác này sẽ xóa tất cả phân quyền gắn với vai trò này.</DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRoleDeleteConfirm(null)}>Hủy</Button>
+          <Button variant="contained" color="error" onClick={() => handleDeleteRole(roleDeleteConfirm.maVaiTro)}>Xóa</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

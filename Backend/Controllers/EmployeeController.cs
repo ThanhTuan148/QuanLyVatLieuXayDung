@@ -46,12 +46,34 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] NhanVienDto dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.TenNV)) 
-                return BadRequest(new { message = "Tên nhân viên không được trống" });
+            if (dto == null) return BadRequest();
 
-            if (dto.MaVaiTro.HasValue && dto.MaVaiTro.Value > 0 && string.IsNullOrWhiteSpace(dto.Sdt))
+            if (string.IsNullOrWhiteSpace(dto.TenNV)) 
+                return BadRequest(new { message = "Tên nhân viên không được bỏ trống." });
+
+            if (string.IsNullOrWhiteSpace(dto.Sdt))
             {
-                return BadRequest(new { message = "Số điện thoại là bắt buộc để tạo tài khoản đăng nhập cho nhân viên." });
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Sdt.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
             }
 
             var executionStrategy = _ctx.Database.CreateExecutionStrategy();
@@ -151,9 +173,39 @@ namespace BuildingMaterialAPI.Controllers
                 return BadRequest(new { message = "Bạn không thể tự thay đổi trạng thái làm việc của chính mình." });
             }
 
-            nv.TenNV = dto.TenNV ?? nv.TenNV;
+            if (string.IsNullOrWhiteSpace(dto.TenNV))
+            {
+                return BadRequest(new { message = "Tên nhân viên không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Sdt))
+            {
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Sdt.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
+            }
+
+            nv.TenNV = dto.TenNV;
             nv.Sdt = dto.Sdt; 
-            nv.Email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : nv.Email; 
+            nv.Email = dto.Email; 
             nv.DiaChi = dto.DiaChi;
             nv.TrangThai = dto.TrangThai; nv.NgayCapNhat = DateTime.UtcNow;
             nv.SucChuaToiDa = dto.SucChuaToiDa;
@@ -263,6 +315,92 @@ namespace BuildingMaterialAPI.Controllers
         public async Task<IActionResult> GetRoles() =>
             Ok(await _ctx.VaiTros.Select(v => new { maVaiTro = v.MaVaiTro, maVT = v.MaVT, tenVT = v.TenVT, moTa = v.MoTa }).ToListAsync());
 
+        // ─── CREATE ROLE ───────────────────────────────────────
+        [HttpPost("roles")]
+        public async Task<IActionResult> CreateRole([FromBody] RoleDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.TenVT))
+                return BadRequest(new { message = "Tên vai trò không được trống" });
+
+            var vt = new VaiTro
+            {
+                TenVT = dto.TenVT,
+                MoTa = dto.MoTa,
+                NgayTao = DateTime.UtcNow,
+                NgayCapNhat = DateTime.UtcNow
+            };
+
+            _ctx.VaiTros.Add(vt);
+            await _ctx.SaveChangesAsync();
+
+            if (dto.MaQuyens != null && dto.MaQuyens.Any())
+            {
+                foreach (var mq in dto.MaQuyens.Distinct())
+                {
+                    _ctx.PhanQuyens.Add(new PhanQuyen { MaVaiTro = vt.MaVaiTro, MaQuyen = mq });
+                }
+                await _ctx.SaveChangesAsync();
+            }
+
+            return Ok(new { maVaiTro = vt.MaVaiTro, tenVT = vt.TenVT });
+        }
+
+        // ─── UPDATE ROLE ───────────────────────────────────────
+        [HttpPut("roles/{id}")]
+        public async Task<IActionResult> UpdateRole(int id, [FromBody] RoleDto dto)
+        {
+            var vt = await _ctx.VaiTros.FindAsync(id);
+            if (vt == null) return NotFound(new { message = "Không tìm thấy vai trò" });
+
+            vt.TenVT = dto.TenVT ?? vt.TenVT;
+            vt.MoTa = dto.MoTa;
+            vt.NgayCapNhat = DateTime.UtcNow;
+
+            var oldPerms = _ctx.PhanQuyens.Where(pq => pq.MaVaiTro == id);
+            _ctx.PhanQuyens.RemoveRange(oldPerms);
+
+            if (dto.MaQuyens != null && dto.MaQuyens.Any())
+            {
+                foreach (var mq in dto.MaQuyens.Distinct())
+                {
+                    _ctx.PhanQuyens.Add(new PhanQuyen { MaVaiTro = id, MaQuyen = mq });
+                }
+            }
+
+            await _ctx.SaveChangesAsync();
+            return Ok(new { message = "Cập nhật vai trò thành công" });
+        }
+
+        // ─── DELETE ROLE ───────────────────────────────────────
+        [HttpDelete("roles/{id}")]
+        public async Task<IActionResult> DeleteRole(int id)
+        {
+            var vt = await _ctx.VaiTros.FindAsync(id);
+            if (vt == null) return NotFound(new { message = "Không tìm thấy vai trò" });
+
+            var hasUsers = await _ctx.TaiKhoans.AnyAsync(tk => tk.MaVaiTro == id);
+            if (hasUsers)
+                return BadRequest(new { message = "Không thể xóa vai trò đang có tài khoản sử dụng." });
+
+            var oldPerms = _ctx.PhanQuyens.Where(pq => pq.MaVaiTro == id);
+            _ctx.PhanQuyens.RemoveRange(oldPerms);
+
+            _ctx.VaiTros.Remove(vt);
+            await _ctx.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // ─── GET PERMISSIONS OF A ROLE ──────────────────────────
+        [HttpGet("roles/{id}/permissions")]
+        public async Task<IActionResult> GetPermissionsOfRole(int id)
+        {
+            var phanQuyens = await _ctx.PhanQuyens
+                .Where(pq => pq.MaVaiTro == id)
+                .Select(pq => pq.MaQuyen)
+                .ToListAsync();
+            return Ok(phanQuyens);
+        }
+
         // ─── CHANGE ROLE for employee's account ────────────────
         [HttpPut("{id}/role")]
         public async Task<IActionResult> ChangeRole(int id, [FromBody] ChangeRoleDto dto)
@@ -273,9 +411,17 @@ namespace BuildingMaterialAPI.Controllers
 
             nv.TaiKhoan.MaVaiTro = dto.MaVaiTro;
             nv.TaiKhoan.NgayCapNhat = DateTime.UtcNow;
+
+            // Clear any custom permissions for this employee so they inherit the new role's permissions
+            var customPerms = _ctx.NhanVienModuleQuyens.Where(x => x.MaNhanVien == id);
+            if (customPerms.Any())
+            {
+                _ctx.NhanVienModuleQuyens.RemoveRange(customPerms);
+            }
+
             await _ctx.SaveChangesAsync();
             var role = await _ctx.VaiTros.FindAsync(dto.MaVaiTro);
-            return Ok(new { message = $"Đã nâng quyền lên '{role?.TenVT}'", tenVaiTro = role?.TenVT });
+            return Ok(new { message = $"Đã thay đổi vai trò thành '{role?.TenVT}' và đồng bộ quyền", tenVaiTro = role?.TenVT });
         }
 
         // ─── GET ALL PERMISSIONS ────────────────────────────────
@@ -327,11 +473,31 @@ namespace BuildingMaterialAPI.Controllers
 
         // ─── GET MODULE-LEVEL CRUD PERMISSIONS ─────────────────
         [HttpGet("{id}/module-permissions")]
-        public async Task<IActionResult> GetModulePermissions(int id) =>
-            Ok(await _ctx.NhanVienModuleQuyens
+        public async Task<IActionResult> GetModulePermissions(int id)
+        {
+            var nv = await _ctx.NhanViens.Include(n => n.TaiKhoan).FirstOrDefaultAsync(n => n.MaNhanVien == id);
+            if (nv == null) return NotFound(new { message = "Không tìm thấy nhân viên" });
+
+            var custom = await _ctx.NhanVienModuleQuyens
                 .Where(x => x.MaNhanVien == id)
                 .Select(x => new { x.Id, x.Module, x.TenModule, x.CoTheXem, x.CoTheTao, x.CoTheSua, x.CoTheXoa })
-                .ToListAsync());
+                .ToListAsync();
+
+            if (custom.Any()) return Ok(custom);
+
+            // Fallback to role-level module permissions if empty
+            if (nv.TaiKhoan != null)
+            {
+                var rolePerms = await _ctx.VaiTroModuleQuyens
+                    .Where(x => x.MaVaiTro == nv.TaiKhoan.MaVaiTro)
+                    .Select(x => new { Id = 0, x.Module, x.TenModule, x.CoTheXem, x.CoTheTao, x.CoTheSua, x.CoTheXoa })
+                    .ToListAsync();
+                
+                if (rolePerms.Any()) return Ok(rolePerms);
+            }
+
+            return Ok(new List<object>());
+        }
 
         // ─── SET MODULE-LEVEL CRUD PERMISSIONS ─────────────────
         [HttpPut("{id}/module-permissions")]
@@ -359,6 +525,40 @@ namespace BuildingMaterialAPI.Controllers
 
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Đã lưu phân quyền danh mục" });
+        }
+
+        // ─── GET ROLE MODULE-LEVEL CRUD PERMISSIONS ───────────
+        [HttpGet("roles/{id}/module-permissions")]
+        public async Task<IActionResult> GetRoleModulePermissions(int id) =>
+            Ok(await _ctx.VaiTroModuleQuyens
+                .Where(x => x.MaVaiTro == id)
+                .Select(x => new { x.Id, x.Module, x.TenModule, x.CoTheXem, x.CoTheTao, x.CoTheSua, x.CoTheXoa })
+                .ToListAsync());
+
+        // ─── SET ROLE MODULE-LEVEL CRUD PERMISSIONS ───────────
+        [HttpPut("roles/{id}/module-permissions")]
+        public async Task<IActionResult> SetRoleModulePermissions(int id, [FromBody] List<ModuleQuyenDto> dtos)
+        {
+            if (!await _ctx.VaiTros.AnyAsync(vt => vt.MaVaiTro == id))
+                return NotFound(new { message = "Không tìm thấy vai trò" });
+
+            var old = _ctx.VaiTroModuleQuyens.Where(x => x.MaVaiTro == id);
+            _ctx.VaiTroModuleQuyens.RemoveRange(old);
+
+            foreach (var dto in dtos ?? new List<ModuleQuyenDto>())
+            {
+                if (!dto.CoTheXem && !dto.CoTheTao && !dto.CoTheSua && !dto.CoTheXoa) continue;
+                _ctx.VaiTroModuleQuyens.Add(new VaiTroModuleQuyen
+                {
+                    MaVaiTro = id, Module = dto.Module, TenModule = dto.TenModule,
+                    CoTheXem = dto.CoTheXem, CoTheTao = dto.CoTheTao,
+                    CoTheSua = dto.CoTheSua, CoTheXoa = dto.CoTheXoa,
+                    NgayCapNhat = DateTime.UtcNow,
+                });
+            }
+
+            await _ctx.SaveChangesAsync();
+            return Ok(new { message = "Đã lưu phân quyền vai trò" });
         }
 
         // ─── TOGGLE ACCOUNT STATUS ──────────────────────────────
@@ -447,6 +647,13 @@ namespace BuildingMaterialAPI.Controllers
 
     public class ChangeRoleDto { public int MaVaiTro { get; set; } }
     public class SetPermissionsDto { public List<int>? MaQuyens { get; set; } }
+    
+    public class RoleDto
+    {
+        public string? TenVT { get; set; }
+        public string? MoTa { get; set; }
+        public List<int>? MaQuyens { get; set; }
+    }
 
     public class CreateAccountDto
     {

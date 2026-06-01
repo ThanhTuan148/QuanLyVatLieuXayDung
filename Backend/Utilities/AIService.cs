@@ -18,7 +18,7 @@ namespace BuildingMaterialAPI.Utilities
         bool ContainsBannedWords(string text);
         Task<bool> IsToxicAI(string text);
         Task<List<DeliveryBatch>> GetPoolingSuggestionsAI(List<PendingOrderDto> orders);
-        Task<string> GetChatResponse(string userMessage);
+        Task<string> GetChatResponse(string userMessage, string? customerId = null);
         Task<DemandForecastResult> GetDemandForecastAI();
         Task<RouteOptimizationResult> GetRouteOptimizationAI(List<string> addresses);
         Task<OcrInvoiceResult> ScanInvoiceOcrAI(string base64Image);
@@ -306,11 +306,189 @@ namespace BuildingMaterialAPI.Utilities
         // ==========================================
         // 3. TRỢ LÝ ẢO TƯ VẤN (CUSTOMER CHATBOT)
         // ==========================================
-        public async Task<string> GetChatResponse(string userMessage)
+        public async Task<string> GetChatResponse(string userMessage, string? customerId = null)
         {
             if (string.IsNullOrEmpty(userMessage)) return "Chào bạn, tôi có thể giúp gì cho bạn hôm nay?";
 
             string systemPrompt = @"Bạn là trợ lý kỹ thuật xây dựng và tư vấn bán hàng chuyên nghiệp của cửa hàng Vật Liệu Xây Dựng Thành Đạt (địa chỉ: 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, TP.HCM).
+
+Nhiệm vụ của bạn là:
+1. Tư vấn cực kỳ thông minh, chi tiết và có chuyên môn sâu sắc về kỹ thuật xây dựng (như cách trộn vữa/bê tông, chọn loại cát đá xi măng nào cho móng, tường, bể cá, sân thượng, chọn kích thước sắt thép Hòa Phát chống rỉ sét...).
+2. Cung cấp thông tin dịch vụ của cửa hàng Thành Đạt:
+   - Giao hàng bằng xe ben, xe tải chuyên nghiệp tận chân công trình trong ngày tại TP.HCM.
+   - Miễn phí vận chuyển (Freeship) cho các đơn hàng từ 500.000đ trở lên. Các đơn hàng dưới 500.000đ áp dụng phí vận chuyển đồng giá 30.000đ.
+   - Hỗ trợ xuất hóa đơn điện tử VAT tự động (gửi file PDF trực tiếp qua Email của khách hàng sau khi giao hàng thành công).
+   - Hỗ trợ thanh toán đa dạng: Tiền mặt khi nhận hàng (COD), chuyển khoản ngân hàng, hoặc mở tài khoản công nợ trả sau cho chủ thầu, đối tác lâu năm.
+3. PHÂN TÍCH VÀ ƯỚC TÍNH VẬT LIỆU XÂY DỰNG THÔNG MINH (Quantity Estimator):
+   - Khi khách hàng hỏi về ước lượng, tính toán vật tư cho một diện tích hoặc thể tích công trình cụ thể (ví dụ: xây 100m2 tường gạch ống, trát 50m2 tường, đổ 10m3 bê tông sàn...), bạn hãy tự động tính toán khoa học số lượng vật tư cần thiết theo định mức tiêu chuẩn:
+     * Định mức 1m2 xây tường gạch ống (độ dày 10cm): 68 viên Gạch Tuynel Bình Dương (SP005), 0.02 m3 Cát xây tô (SP007), 5 kg Xi măng (~0.1 bao Xi măng Insee SP001).
+     * Định mức 1m2 xây tường gạch đặc (độ dày 10cm): 75 viên Gạch Tuynel Bình Dương (SP005), 0.02 m3 Cát xây tô (SP007), 6 kg Xi măng (~0.12 bao Xi măng Insee SP001).
+     * Định mức 1m2 tô trát tường: 0.02 m3 Cát xây tô (SP007), 5 kg Xi măng (~0.1 bao Xi măng Insee SP001).
+     * Định mức 1m3 bê tông sàn/móng (Mác 200): 350 kg Xi măng (~7 bao Xi măng Insee SP001), 0.48 m3 Cát xây tô (SP007), 0.9 m3 Đá 1x2 (SP008), 90 kg Thép Hòa Phát D10 (SP003).
+   - Hãy liệt kê kết quả ước tính chi tiết, mạch lạc bằng các gạch đầu dòng trong phần trả lời bằng tiếng Việt của bạn.
+   - ĐẶC BIỆT: Bạn phải chèn một khối hành động JSON chuẩn mực ở cuối cùng câu trả lời của bạn, định dạng chính xác tuyệt đối như sau (với các giá trị quantity là số nguyên được làm tròn lên):
+     [ESTIMATE_ACTION: {""items"": [{""maSP"": ""SP005"", ""quantity"": 6800}, {""maSP"": ""SP007"", ""quantity"": 2}, {""maSP"": ""SP001"", ""quantity"": 10}]}]
+     Lưu ý: Chỉ chèn khối này khi khách hàng hỏi ước tính vật liệu. Hãy đảm bảo mã sản phẩm maSP khớp chính xác với mã sản phẩm thực tế trong cửa hàng (SP005: Gạch Tuynel Bình Dương, SP007: Cát xây tô, SP001: Xi măng Insee Đa Dụng, SP003: Thép Hòa Phát D10, SP008: Đá 1x2).
+4. Phong cách trả lời và định dạng văn bản chuyên nghiệp:
+   - Trả lời bằng tiếng Việt một cách lịch sự, nhiệt tình, chuyên nghiệp. Xưng là 'Thành Đạt' hoặc 'mình' và gọi khách hàng là 'bạn' hoặc 'quý khách'.
+   - Trình bày câu trả lời cực kỳ rõ ràng, mạch lạc, sử dụng các gạch đầu dòng (bullet points) có cấu trúc đẹp mắt và dùng emoji sinh động để minh họa.
+   - ĐẶC BIỆT: Khi phản hồi thông tin chi tiết về đơn hàng/hóa đơn, bạn PHẢI trình bày dưới dạng danh sách bullet points có cấu trúc cực kỳ sang trọng với emoji tương ứng trước mỗi thuộc tính, đồng thời sử dụng dấu bôi đậm `**...**` cho phần giá trị.
+     Ví dụ:
+     * 📦 Mã hóa đơn: **HD029 (ID: 29)**
+     * 📅 Ngày lập: **29/04/2026 02:23**
+     * 💰 Tổng tiền: **10,858,770đ**
+     * 🏷️ Đã giảm: **126,615đ**
+     * 🚚 Phí ship: **0đ**
+     * 💳 Đã trả: **10,858,770đ**
+     * 🔄 Trạng thái: **Hoàn thành**
+     * 💵 Phương thức thanh toán: **Chuyển khoản ATM/Banking (VietQR)**
+   - Khuyến khích giải thích chi tiết cả nguyên lý kỹ thuật xây dựng để tăng độ uy tín tuyệt đối (Ví dụ: vì sao xây hồ cá phải dùng gạch đặc và xi măng chống thấm Sika).
+   - Nếu khách hàng hỏi về giá cả chi tiết chính xác trong ngày (vì giá sắt thép, cát đá thay đổi liên tục), tình trạng tồn kho cụ thể của từng mã hàng, hoặc muốn kiểm tra tiến độ đơn hàng đã mua, hãy nhiệt tình hướng dẫn khách hàng nhấp sang tab 'Nhân viên' ngay bên cạnh để gặp trực tiếp nhân viên trực tuyến của Thành Đạt hỗ trợ lấy chiết khấu đặc biệt.";
+
+            // A. Ghép thông tin cá nhân hóa của khách hàng (nếu có customerId)
+            string customerContext = "";
+            if (!string.IsNullOrEmpty(customerId) && int.TryParse(customerId, out int parsedCustomerId))
+            {
+                try
+                {
+                    var customer = await _db.KhachHangs
+                        .AsNoTracking()
+                        .Include(kh => kh.DanhGias)
+                            .ThenInclude(dg => dg.SanPham)
+                        .FirstOrDefaultAsync(kh => kh.MaKhachHang == parsedCustomerId);
+
+                    if (customer != null)
+                    {
+                        var allOrders = await _db.HoaDons
+                            .AsNoTracking()
+                            .Include(hd => hd.CTHDs)
+                                .ThenInclude(ct => ct.SanPham)
+                            .Where(hd => hd.MaKhachHang == parsedCustomerId)
+                            .OrderBy(hd => hd.NgayLap)
+                            .ToListAsync();
+
+                        var infoBuilder = new StringBuilder();
+                        infoBuilder.AppendLine("\n\n=== THÔNG TIN KHÁCH HÀNG ĐANG HỎI CHI TIẾT (BÍ MẬT - CHỈ DÙNG ĐỂ TRẢ LỜI CHO HỌ) ===");
+                        infoBuilder.AppendLine($"- Tên khách hàng: {customer.TenKH}");
+                        infoBuilder.AppendLine($"- Mã khách hàng (MaKH): {customer.MaKH} (ID hệ thống: {customer.MaKhachHang})");
+                        infoBuilder.AppendLine($"- Số điện thoại: {customer.Sdt ?? "Chưa cung cấp"}");
+                        infoBuilder.AppendLine($"- Email: {customer.Email ?? "Chưa cung cấp"}");
+                        infoBuilder.AppendLine($"- Địa chỉ: {customer.DiaChi ?? "Chưa cung cấp"}");
+                        infoBuilder.AppendLine($"- Hạng thành viên: {customer.HangThanhVien}");
+                        infoBuilder.AppendLine($"- Tổng chi tiêu: {customer.TongChiTieu:N0}đ");
+
+                        // Lịch sử đơn hàng
+                        if (allOrders.Count > 0)
+                        {
+                            infoBuilder.AppendLine("\nDANH SÁCH LỊCH SỬ ĐƠN HÀNG CỦA KHÁCH HÀNG NÀY (Xếp theo thứ tự từ cũ nhất đến mới nhất):");
+                            var printedOrders = new List<(int Index, HoaDon Order)>();
+                            if (allOrders.Count <= 20)
+                            {
+                                for (int i = 0; i < allOrders.Count; i++)
+                                {
+                                    printedOrders.Add((i + 1, allOrders[i]));
+                                }
+                            }
+                            else
+                            {
+                                for (int i = 0; i < 15; i++)
+                                {
+                                    printedOrders.Add((i + 1, allOrders[i]));
+                                }
+                                printedOrders.Add((-1, null!)); 
+                                for (int i = allOrders.Count - 5; i < allOrders.Count; i++)
+                                {
+                                    printedOrders.Add((i + 1, allOrders[i]));
+                                }
+                            }
+
+                            foreach (var item in printedOrders)
+                            {
+                                if (item.Index == -1)
+                                {
+                                    infoBuilder.AppendLine($"[... Đã ẩn {allOrders.Count - 20} đơn hàng ở giữa để tối ưu dung lượng cuộc hội thoại ...]");
+                                    continue;
+                                }
+                                var hd = item.Order;
+                                string itemsList = string.Join(", ", hd.CTHDs.Select(ct => $"{ct.SanPham?.TenSP} (Mã:{ct.SanPham?.MaSP}, x{ct.SoLuong})"));
+                                infoBuilder.AppendLine($"- Đơn #{item.Index}: Mã {hd.MaHD} (ID:{hd.MaHoaDon}), Lập ngày {hd.NgayLap:dd/MM/yyyy HH:mm}, Tổng {hd.TongTien?.ToString("N0") ?? "0"}đ, Đã giảm {hd.GiamGia:N0}đ, Ship {hd.PhiVanChuyen:N0}đ, Đã trả {hd.ThanhToan?.ToString("N0") ?? "0"}đ, TT: {hd.TrangThai}, PTTT: {hd.PTTT}, Sản phẩm: [{itemsList}]");
+                            }
+                        }
+                        else
+                        {
+                            infoBuilder.AppendLine("\n- Lịch sử đơn hàng: Khách hàng chưa mua đơn hàng nào trên hệ thống.");
+                        }
+
+                        // Sản phẩm yêu thích / đã đánh giá cao
+                        var highRatedProducts = customer.DanhGias
+                            .Where(dg => dg.SoSao >= 4)
+                            .Select(dg => dg.SanPham)
+                            .Where(sp => sp != null)
+                            .DistinctBy(sp => sp.MaSanPham)
+                            .ToList();
+
+                        // Các sản phẩm mua nhiều nhất
+                        var topPurchasedProducts = allOrders
+                            .SelectMany(hd => hd.CTHDs)
+                            .GroupBy(ct => ct.MaSanPham)
+                            .Select(g => new { 
+                                SanPham = g.First().SanPham, 
+                                TimesPurchased = g.Count(),
+                                TotalQty = g.Sum(ct => ct.SoLuong)
+                            })
+                            .Where(x => x.SanPham != null)
+                            .OrderByDescending(x => x.TotalQty)
+                            .Take(5)
+                            .ToList();
+
+                        if (highRatedProducts.Count > 0 || topPurchasedProducts.Count > 0)
+                        {
+                            infoBuilder.AppendLine("\nDANH SÁCH SẢN PHẨM YÊU THÍCH VÀ QUAN TÂM NHẤT:");
+                            if (highRatedProducts.Count > 0)
+                            {
+                                infoBuilder.AppendLine("- Các sản phẩm khách hàng đánh giá 4-5 sao hoặc rất yêu thích:");
+                                foreach (var sp in highRatedProducts)
+                                {
+                                    infoBuilder.AppendLine($"  * {sp.TenSP} (Mã: {sp.MaSP})");
+                                }
+                            }
+                            if (topPurchasedProducts.Count > 0)
+                            {
+                                infoBuilder.AppendLine("- Các sản phẩm mua nhiều nhất/thường xuyên nhất:");
+                                foreach (var item in topPurchasedProducts)
+                                {
+                                    infoBuilder.AppendLine($"  * {item.SanPham.TenSP} ({item.SanPham.MaSP}) - Đã mua tổng cộng {item.TotalQty} {item.SanPham.DonViTinh ?? ""}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            infoBuilder.AppendLine("\n- Sản phẩm yêu thích / mua nhiều nhất: Chưa có dữ liệu cụ thể.");
+                        }
+
+                        infoBuilder.AppendLine("\n===========================================");
+                        infoBuilder.AppendLine("\nYêu cầu bổ sung cho AI:");
+                        infoBuilder.AppendLine("1. Sử dụng triệt để các thông tin cụ thể ở trên để trả lời khách hàng một cách tự nhiên và chính xác 100% khi họ hỏi về thông tin cá nhân của họ.");
+                        infoBuilder.AppendLine("2. Ví dụ: Nếu họ hỏi 'Đơn hàng số 10 của tôi gồm những gì?', bạn hãy đếm trong danh sách ở trên đơn hàng thứ 10 là đơn nào và liệt kê đầy đủ thông tin: Mã hóa đơn, Ngày lập, Danh sách sản phẩm, Số lượng, Đơn giá, Trạng thái đơn hàng. Nếu họ mới chỉ có ít hơn 10 đơn hàng, hãy chỉ rõ điều đó một cách lịch sự.");
+                        infoBuilder.AppendLine("3. Nếu khách hàng hỏi 'Sản phẩm yêu thích của tôi là gì?', hãy trả lời dựa trên danh sách các sản phẩm họ mua nhiều nhất hoặc đánh giá cao phía trên, nói năng uyển chuyển để họ cảm thấy bạn thực sự hiểu rõ thói quen tiêu dùng của họ.");
+                        infoBuilder.AppendLine("4. Khi xưng hô, hãy gọi đúng tên riêng của khách hàng (ví dụ: 'Chào anh/chị [Tên]') để tạo thiện cảm tuyệt đối.");
+
+                        customerContext = infoBuilder.ToString();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine($"[Error building Customer Context for AI] {ex.Message}");
+                }
+            }
+            else if (!string.IsNullOrEmpty(customerId) && customerId.StartsWith("Guest_"))
+            {
+                customerContext = $"\n\n=== THÔNG TIN KHÁCH HÀNG: Khách vãng lai ẩn danh (ID: {customerId}). Hãy khuyên khích họ đăng nhập tài khoản để AI có thể tự động tra cứu lịch sử mua hàng, hạng thành viên và sản phẩm yêu thích của họ nhé! ===";
+            }
+
+            systemPrompt += customerContext;
+
+            string originalPrompt = @"Bạn là trợ lý kỹ thuật xây dựng và tư vấn bán hàng chuyên nghiệp của cửa hàng Vật Liệu Xây Dựng Thành Đạt (địa chỉ: 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, TP.HCM).
 
 Nhiệm vụ của bạn là:
 1. Tư vấn cực kỳ thông minh, chi tiết và có chuyên môn sâu sắc về kỹ thuật xây dựng (như cách trộn vữa/bê tông, chọn loại cát đá xi măng nào cho móng, tường, bể cá, sân thượng, chọn kích thước sắt thép Hòa Phát chống rỉ sét...).
@@ -430,11 +608,13 @@ Nhiệm vụ của bạn là:
                     {
                         var errText = await response.Content.ReadAsStringAsync();
                         System.Console.WriteLine($"[Groq Error Response] {response.StatusCode} - {errText}");
+                        try { System.IO.File.AppendAllText("ai_errors.txt", $"\n\n--- GROQ ERROR ---\nStatus: {response.StatusCode}\n{errText}"); } catch {}
                     }
                 } 
                 catch (System.Exception ex) 
                 {
                     System.Console.WriteLine($"[Groq Exception] {ex.Message}");
+                    try { System.IO.File.AppendAllText("ai_errors.txt", $"\n\n--- GROQ EXCEPTION ---\n{ex.Message}\n{ex.StackTrace}"); } catch {}
                     if (ex.InnerException != null) System.Console.WriteLine($"[Groq Inner] {ex.InnerException.Message}");
                 }
             }
@@ -500,25 +680,43 @@ Nhiệm vụ của bạn là:
                     {
                         var errText = await response.Content.ReadAsStringAsync();
                         System.Console.WriteLine($"[Gemini Error Response] {response.StatusCode} - {errText}");
+                        try { System.IO.File.AppendAllText("ai_errors.txt", $"\n\n--- GEMINI ERROR ---\nStatus: {response.StatusCode}\n{errText}"); } catch {}
                     }
                 } 
                 catch (System.Exception ex) 
                 {
                     System.Console.WriteLine($"[Gemini Exception] {ex.Message}");
+                    try { System.IO.File.AppendAllText("ai_errors.txt", $"\n\n--- GEMINI EXCEPTION ---\n{ex.Message}\n{ex.StackTrace}"); } catch {}
                 }
             }
 
 
             // D. Fallback cục bộ
-            return GetChatResponseLocal(userMessage);
+            try
+            {
+                System.IO.File.AppendAllText("ai_errors.txt", $"\n\n--- SYSTEM PROMPT ---\n{systemPrompt}\n\n--- USER MESSAGE ---\n{userMessage}");
+            }
+            catch {}
+
+            return GetChatResponseLocal(userMessage, customerId);
         }
 
-        private string GetChatResponseLocal(string userMessage)
+        private string GetChatResponseLocal(string userMessage, string? customerId = null)
         {
             string msg = RemoveDiacritics(userMessage.ToLower());
 
+            string greetingName = "bạn";
+            if (!string.IsNullOrEmpty(customerId) && int.TryParse(customerId, out int parsedCustomerId))
+            {
+                var customer = _db.KhachHangs.AsNoTracking().FirstOrDefault(kh => kh.MaKhachHang == parsedCustomerId);
+                if (customer != null)
+                {
+                    greetingName = "quý khách " + customer.TenKH;
+                }
+            }
+
             if (msg.Contains("chao") || msg.Contains("hello") || msg.Contains("hi") || msg.Contains("xin chao"))
-                return "Chào bạn! Trợ lý ảo AI của VLXD Thành Đạt xin nghe. Bạn cần tư vấn về loại vật liệu xây dựng nào ạ?";
+                return $"Chào {greetingName}! Trợ lý ảo AI của VLXD Thành Đạt xin nghe. Bạn cần tư vấn về loại vật liệu xây dựng nào ạ?";
 
             if (msg.Contains("gia") || msg.Contains("bao nhieu") || msg.Contains("tien") || msg.Contains("bao gia"))
                 return "Hiện tại giá cát, đá, xi măng và sắt thép biến động liên tục theo thị trường. Bạn vui lòng liên hệ nhân viên trực tuyến hoặc hotline của cửa hàng để có bảng giá chi tiết kèm chiết khấu tốt nhất trong ngày nhé!";

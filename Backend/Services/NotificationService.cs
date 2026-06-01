@@ -91,11 +91,58 @@ namespace BuildingMaterialAPI.Services
                 .Distinct()
                 .ToListAsync();
 
-            // 2. Lấy danh sách tài khoản thuộc các vai trò đó
+            // 2. Lấy danh sách tài khoản thuộc các vai trò đó (từ DB)
             var accountIdsByRole = await _ctx.TaiKhoans
                 .Where(t => roleIds.Contains(t.MaVaiTro) && t.TrangThai)
                 .Select(t => t.MaTaiKhoan.ToString())
                 .ToListAsync();
+
+            // 2.5 FALLBACK: Thêm các tài khoản dựa trên tên Vai Trò (giống logic AuthController)
+            var allAccounts = await _ctx.TaiKhoans.Include(t => t.VaiTro).Where(t => t.TrangThai).ToListAsync();
+            var fallbackAccountIds = new List<string>();
+            foreach(var tk in allAccounts)
+            {
+                var roleName = tk.VaiTro?.TenVT?.ToLower() ?? "";
+                bool isManager = roleName.Contains("quản lý") || roleName == "manager";
+                bool isSales = roleName.Contains("bán hàng") || roleName == "sales";
+                bool isWarehouse = roleName.Contains("kho") || roleName == "warehouse";
+                bool isDriver = roleName.Contains("tài xế") || roleName == "driver";
+                bool isAdmin = roleName.Contains("admin") || roleName.Contains("quản trị");
+
+                bool canView = false;
+                switch (moduleKey.ToLower())
+                {
+                    case "orders":
+                        if (isManager || isSales) canView = true;
+                        break;
+                    case "products":
+                        if (isManager || isSales || isWarehouse) canView = true;
+                        break;
+                    case "inventory":
+                    case "stock_orders":
+                    case "returns":
+                        if (isManager || isWarehouse) canView = true;
+                        break;
+                    case "deliveries":
+                        if (isManager || isDriver) canView = true;
+                        break;
+                    case "customers":
+                    case "employees":
+                        if (isAdmin || isManager || (moduleKey.ToLower() == "customers" && isSales)) canView = true;
+                        break;
+                    case "promotions":
+                        if (isManager || isSales) canView = true;
+                        break;
+                    default:
+                        if (isManager) canView = true;
+                        break;
+                }
+
+                if (canView)
+                {
+                    fallbackAccountIds.Add(tk.MaTaiKhoan.ToString());
+                }
+            }
 
             // 3. Lấy danh sách tài khoản có ghi đè quyền cụ thể trong NHANVIEN_MODULE_QUYEN
             var accountIdsByOverride = await _ctx.NhanVienModuleQuyens
@@ -106,7 +153,11 @@ namespace BuildingMaterialAPI.Services
                 .ToListAsync();
 
             // Kết hợp và gửi thông báo
-            var targetUserIds = accountIdsByRole.Union(accountIdsByOverride!).Distinct().ToList();
+            var targetUserIds = accountIdsByRole
+                .Union(accountIdsByOverride!)
+                .Union(fallbackAccountIds)
+                .Distinct()
+                .ToList();
 
             foreach (var uid in targetUserIds)
             {

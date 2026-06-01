@@ -10,6 +10,12 @@ const autoMapGeneralToModule = (generalPerms) => {
   const hasQ = (code) => generalPerms.some(p => p.maQ === code);
   const createMod = (view, create, update, del) => ({ coTheXem: view, coTheTao: create, coTheSua: update, coTheXoa: del });
 
+  if (generalPerms.length > 0) {
+    map['dashboard'] = createMod(true, true, true, true);
+    map['contact'] = createMod(true, true, true, true);
+    map['chat'] = createMod(true, true, true, true);
+  }
+
   if (hasQ('Q01')) map['employees'] = createMod(true, true, true, true);
   if (hasQ('Q02')) {
     map['products'] = createMod(true, true, true, true);
@@ -29,6 +35,11 @@ const autoMapGeneralToModule = (generalPerms) => {
 
   if (hasQ('Q04')) {
     map['inventory'] = createMod(true, true, true, true);
+    map['inventory_gift'] = createMod(true, true, true, true);
+    map['inventory_history'] = createMod(true, true, true, true);
+    map['procurement'] = createMod(true, true, true, true);
+    map['returns'] = createMod(true, true, true, true);
+    map['returns_customer'] = createMod(true, true, true, true);
     map['suppliers'] = createMod(true, true, true, true);
   }
   if (hasQ('Q05')) map['deliveries'] = createMod(true, true, true, true);
@@ -85,12 +96,15 @@ export const PermissionProvider = ({ children }) => {
           // Có quyền map cụ thể trong NhanVienModuleQuyen → dùng trực tiếp
           const map = {};
           modPerms.forEach(mq => {
-            map[mq.module] = {
-              coTheXem: mq.coTheXem,
-              coTheTao: mq.coTheTao,
-              coTheSua: mq.coTheSua,
-              coTheXoa: mq.coTheXoa
-            };
+            const mKey = String(mq.module || mq.Module || '').toLowerCase().trim();
+            if (mKey) {
+              map[mKey] = {
+                coTheXem: mq.coTheXem,
+                coTheTao: mq.coTheTao,
+                coTheSua: mq.coTheSua,
+                coTheXoa: mq.coTheXoa
+              };
+            }
           });
           setPermissions(map);
         } else if (genPerms.length > 0) {
@@ -102,13 +116,13 @@ export const PermissionProvider = ({ children }) => {
           const defaultMap = {};
           
           if (role.includes('admin') || role.includes('quản trị')) {
-            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history'];
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'inventory_gift', 'inventory_history', 'procurement', 'returns', 'returns_customer', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'reports', 'settings', 'employees', 'price_history', 'contact', 'chat'];
             allModules.forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });
             defaultMap['debts'] = { coTheXem: false, coTheTao: false, coTheSua: false, coTheXoa: false };
           } else if (role.includes('giám đốc') || role.includes('quản lý') || role.includes('kế toán') || role.includes('accountant')) {
-            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'debts', 'reports', 'settings', 'employees', 'price_history'];
+            const allModules = ['dashboard', 'products', 'categories', 'inventory', 'inventory_gift', 'inventory_history', 'procurement', 'returns', 'returns_customer', 'orders', 'customers', 'suppliers', 'promotions', 'flashsales', 'deliveries', 'debts', 'reports', 'settings', 'employees', 'price_history'];
             allModules.forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
             });
@@ -119,10 +133,17 @@ export const PermissionProvider = ({ children }) => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
             });
           } else if (role.includes('thủ kho') || role.includes('warehouse')) {
-            ['inventory','products'].forEach(m => {
+            ['inventory','inventory_gift','inventory_history','procurement','returns','returns_customer','products'].forEach(m => {
               defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: false };
             });
           }
+          
+          if (role.includes('nhân viên') || role.includes('quản lý') || role.includes('bán hàng') || role.includes('kho') || role.includes('tài xế') || role.includes('sales') || role.includes('driver')) {
+             ['contact', 'chat'].forEach(m => {
+              defaultMap[m] = { coTheXem: true, coTheTao: true, coTheSua: true, coTheXoa: true };
+            });
+          }
+
           setPermissions(defaultMap);
         }
       } catch (err) {

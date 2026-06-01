@@ -12,6 +12,7 @@ namespace BuildingMaterialAPI.Data
         public DbSet<VaiTro> VaiTros { get; set; }
         public DbSet<PhanQuyen> PhanQuyens { get; set; }
         public DbSet<TaiKhoan> TaiKhoans { get; set; }
+        public DbSet<VaiTroModuleQuyen> VaiTroModuleQuyens { get; set; }
 
         // Nhân sự
         public DbSet<NhanVien> NhanViens { get; set; }
@@ -54,6 +55,7 @@ namespace BuildingMaterialAPI.Data
         // Khuyến mãi
         public DbSet<KhuyenMai> KhuyenMais { get; set; }
         public DbSet<KhuyenMaiDoiTuong> KhuyenMaiDoiTuongs { get; set; }
+        public DbSet<ChiTietKhuyenMai> ChiTietKhuyenMais { get; set; }
         public DbSet<VoucherUuDai> VoucherUuDais { get; set; }
         public DbSet<LichSuGia> LichSuGias { get; set; }
         public DbSet<ThongBao> ThongBaos { get; set; }
@@ -141,6 +143,13 @@ namespace BuildingMaterialAPI.Data
                 .HasOne(nmq => nmq.NhanVien)
                 .WithMany()
                 .HasForeignKey(nmq => nmq.MaNhanVien)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // VaiTroModuleQuyen → VaiTro
+            modelBuilder.Entity<VaiTroModuleQuyen>()
+                .HasOne(vmq => vmq.VaiTro)
+                .WithMany()
+                .HasForeignKey(vmq => vmq.MaVaiTro)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Khách hàng → Tài khoản
@@ -237,6 +246,13 @@ namespace BuildingMaterialAPI.Data
 
             // Phiếu giao hàng
             modelBuilder.Entity<PhieuGiaoHang>()
+                .Property(e => e.Lat)
+                .HasColumnType("decimal(18,7)");
+            modelBuilder.Entity<PhieuGiaoHang>()
+                .Property(e => e.Lng)
+                .HasColumnType("decimal(18,7)");
+                
+            modelBuilder.Entity<PhieuGiaoHang>()
                 .HasOne(pgh => pgh.HoaDon)
                 .WithMany(hd => hd.PhieuGiaoHangs)
                 .HasForeignKey(pgh => pgh.MaHoaDon)
@@ -266,6 +282,30 @@ namespace BuildingMaterialAPI.Data
                 .WithMany(p => p.ChiTiet)
                 .HasForeignKey(ct => ct.MaPhieuXK)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PhieuXuatKho>()
+                .HasOne(pxk => pxk.HoaDon)
+                .WithOne(hd => hd.PhieuXuatKho)
+                .HasForeignKey<PhieuXuatKho>(pxk => pxk.MaHoaDon)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PhieuXuatKho>()
+                .HasOne(pxk => pxk.KhoHang)
+                .WithMany(kh => kh.PhieuXuatKhos)
+                .HasForeignKey(pxk => pxk.MaKhoHang)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PhieuXuatKho>()
+                .HasOne(pxk => pxk.PhieuGiaoHang)
+                .WithOne(pgh => pgh.PhieuXuatKho)
+                .HasForeignKey<PhieuXuatKho>(pxk => pxk.MaPhieuGH)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PhieuXuatKho>()
+                .HasOne(pxk => pxk.NhanVien)
+                .WithMany(nv => nv.PhieuXuatKhos)
+                .HasForeignKey(pxk => pxk.MaNhanVien)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // Công nợ
             modelBuilder.Entity<CongNo>()
@@ -333,6 +373,19 @@ namespace BuildingMaterialAPI.Data
                 .WithMany(tk => tk.NhatKys)
                 .HasForeignKey(nk => nk.MaTaiKhoan)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Chi tiết khuyến mãi
+            modelBuilder.Entity<ChiTietKhuyenMai>()
+                .HasOne(ct => ct.HoaDon)
+                .WithMany(h => h.ChiTietKhuyenMais)
+                .HasForeignKey(ct => ct.MaHoaDon)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ChiTietKhuyenMai>()
+                .HasOne(ct => ct.KhuyenMai)
+                .WithMany(k => k.ChiTietKhuyenMais)
+                .HasForeignKey(ct => ct.MaKhuyenMai)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // ===================================
             // CẤU HÌNH CỘT TÍNH TOÁN (COMPUTED)

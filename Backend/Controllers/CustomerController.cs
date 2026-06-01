@@ -120,9 +120,34 @@ namespace BuildingMaterialAPI.Controllers
         {
             if (dto == null) return BadRequest();
 
+            if (string.IsNullOrWhiteSpace(dto.TenKH))
+            {
+                return BadRequest(new { message = "Tên khách hàng không được bỏ trống." });
+            }
+
             if (string.IsNullOrWhiteSpace(dto.SDT))
             {
-                return BadRequest(new { message = "Số điện thoại là bắt buộc để tạo tài khoản đăng nhập cho khách hàng." });
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.SDT.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
             }
 
             var executionStrategy = _ctx.Database.CreateExecutionStrategy();
@@ -210,10 +235,46 @@ namespace BuildingMaterialAPI.Controllers
         {
             var kh = await _ctx.KhachHangs.Include(k => k.TaiKhoan).FirstOrDefaultAsync(k => k.MaKhachHang == id);
             if (kh == null) return NotFound();
-            kh.TenKH = string.IsNullOrWhiteSpace(dto.TenKH) ? kh.TenKH : dto.TenKH;
-            kh.Sdt = string.IsNullOrWhiteSpace(dto.SDT) ? null : dto.SDT;
-            kh.Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email;
-            kh.DiaChi = string.IsNullOrWhiteSpace(dto.DiaChi) ? null : dto.DiaChi;
+
+            if (string.IsNullOrWhiteSpace(dto.TenKH))
+            {
+                return BadRequest(new { message = "Tên khách hàng không được bỏ trống." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.SDT))
+            {
+                return BadRequest(new { message = "Số điện thoại không được bỏ trống." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.SDT.Trim(), @"^[0-9]{10}$"))
+            {
+                return BadRequest(new { message = "Số điện thoại phải có đúng 10 chữ số." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email không được bỏ trống." });
+            }
+
+            if (!dto.Email.Contains("@") || !System.Text.RegularExpressions.Regex.IsMatch(dto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+            {
+                return BadRequest(new { message = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.DiaChi))
+            {
+                return BadRequest(new { message = "Địa chỉ không được bỏ trống." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.CCCD) && !System.Text.RegularExpressions.Regex.IsMatch(dto.CCCD.Trim(), @"^[0-9]{12}$"))
+            {
+                return BadRequest(new { message = "CCCD phải có đúng 12 chữ số." });
+            }
+
+            kh.TenKH = dto.TenKH;
+            kh.Sdt = dto.SDT;
+            kh.Email = dto.Email;
+            kh.DiaChi = dto.DiaChi;
             kh.LoaiKH = string.IsNullOrWhiteSpace(dto.LoaiKH) ? null : dto.LoaiKH;
             kh.NguoiLienHe = string.IsNullOrWhiteSpace(dto.NguoiLienHe) ? null : dto.NguoiLienHe;
             kh.MaSoThue = string.IsNullOrWhiteSpace(dto.MaSoThue) ? null : dto.MaSoThue;

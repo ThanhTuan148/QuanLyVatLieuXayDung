@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../core/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../core/permission_helper.dart';
 import '../../services/shared_preferences_service.dart';
 import 'dart:convert';
-
-
 
 class EmployeesTab extends StatefulWidget {
   const EmployeesTab({super.key});
@@ -13,7 +12,8 @@ class EmployeesTab extends StatefulWidget {
   State<EmployeesTab> createState() => _EmployeesTabState();
 }
 
-class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderStateMixin {
+class _EmployeesTabState extends State<EmployeesTab>
+    with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   late TabController _tabController;
 
@@ -25,7 +25,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   // Bộ lọc
   String _searchQuery = '';
   String _selectedRole = 'Tất cả';
-  bool _isTableView = true;
+  bool _isTableView = false;
 
   List<String> _roleFilterList = ['Tất cả'];
 
@@ -34,10 +34,23 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
       final userStr = SharedPreferencesService.getUser();
       if (userStr != null && userStr.isNotEmpty) {
         final userObj = jsonDecode(userStr);
-        final rawRole = userObj['roleName'] ?? userObj['RoleName'] ?? userObj['role'] ?? userObj['Role'] ?? userObj['quyen'] ?? userObj['Quyen'] ?? userObj['chucVu'] ?? 'Nhân viên';
+        final rawRole =
+            userObj['roleName'] ??
+            userObj['RoleName'] ??
+            userObj['role'] ??
+            userObj['Role'] ??
+            userObj['quyen'] ??
+            userObj['Quyen'] ??
+            userObj['chucVu'] ??
+            'Nhân viên';
         final rStr = rawRole.toString().toLowerCase();
-        final username = (userObj['username'] ?? userObj['tenTK'] ?? '').toString().toLowerCase();
-        return rStr.contains('admin') || rStr.contains('quản trị') || rStr.contains('quantri') || username.contains('admin');
+        final username = (userObj['username'] ?? userObj['tenTK'] ?? '')
+            .toString()
+            .toLowerCase();
+        return rStr.contains('admin') ||
+            rStr.contains('quản trị') ||
+            rStr.contains('quantri') ||
+            username.contains('admin');
       }
     } catch (_) {}
     return false;
@@ -48,14 +61,27 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
       final userStr = SharedPreferencesService.getUser();
       if (userStr != null && userStr.isNotEmpty) {
         final userObj = jsonDecode(userStr);
-        final myId = userObj['maNhanVien'] ?? userObj['id'] ?? userObj['maNV'] ?? userObj['employeeId'];
+        final myId =
+            userObj['maNhanVien'] ??
+            userObj['id'] ??
+            userObj['maNV'] ??
+            userObj['employeeId'];
         final empId = emp['maNhanVien'] ?? emp['id'] ?? emp['maNV'];
-        if (myId != null && empId != null && myId.toString() == empId.toString()) {
+        if (myId != null &&
+            empId != null &&
+            myId.toString() == empId.toString()) {
           return true;
         }
-        final myUsername = (userObj['username'] ?? userObj['tenTK'] ?? '').toString().toLowerCase();
-        final empUsername = (emp['taiKhoan'] ?? emp['tenTK'] ?? emp['username'] ?? '').toString().toLowerCase();
-        if (myUsername.isNotEmpty && empUsername.isNotEmpty && myUsername == empUsername) {
+        final myUsername = (userObj['username'] ?? userObj['tenTK'] ?? '')
+            .toString()
+            .toLowerCase();
+        final empUsername =
+            (emp['taiKhoan'] ?? emp['tenTK'] ?? emp['username'] ?? '')
+                .toString()
+                .toLowerCase();
+        if (myUsername.isNotEmpty &&
+            empUsername.isNotEmpty &&
+            myUsername == empUsername) {
           return true;
         }
       }
@@ -89,15 +115,26 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
 
       if (!mounted) return;
       setState(() {
-        if (resEmp.statusCode == 200 && resEmp.data != null) _employees = resEmp.data is List ? resEmp.data : [];
+        if (resEmp.statusCode == 200 && resEmp.data != null)
+          _employees = resEmp.data is List ? resEmp.data : [];
         if (resRoles.statusCode == 200 && resRoles.data != null) {
           _roles = resRoles.data is List ? resRoles.data : [];
-          _roleFilterList = ['Tất cả', ..._roles.map((r) => (r['tenVT'] ?? '').toString()).where((s) => s.isNotEmpty)];
+          _roleFilterList = [
+            'Tất cả',
+            ..._roles
+                .map((r) => (r['tenVT'] ?? '').toString())
+                .where((s) => s.isNotEmpty),
+          ];
         }
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi tải dữ liệu Nhân viên: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi tải dữ liệu Nhân viên: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -106,14 +143,21 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   List<dynamic> _getFilteredEmployees() {
     return _employees.where((item) {
       // Tìm kiếm nhanh
-      final ma = (item['maNV'] ?? item['maNhanVien'] ?? '').toString().toLowerCase();
+      final ma = (item['maNV'] ?? item['maNhanVien'] ?? '')
+          .toString()
+          .toLowerCase();
       final ten = (item['tenNV'] ?? '').toString().toLowerCase();
       final sdt = (item['sdt'] ?? '').toString().toLowerCase();
-      final matchQuery = ma.contains(_searchQuery.toLowerCase()) || ten.contains(_searchQuery.toLowerCase()) || sdt.contains(_searchQuery.toLowerCase());
+      final matchQuery =
+          ma.contains(_searchQuery.toLowerCase()) ||
+          ten.contains(_searchQuery.toLowerCase()) ||
+          sdt.contains(_searchQuery.toLowerCase());
 
       // Lọc vai trò
       final role = (item['tenVaiTro'] ?? '').toString();
-      final matchRole = _selectedRole == 'Tất cả' || role.toLowerCase() == _selectedRole.toLowerCase();
+      final matchRole =
+          _selectedRole == 'Tất cả' ||
+          role.toLowerCase() == _selectedRole.toLowerCase();
 
       return matchQuery && matchRole;
     }).toList();
@@ -124,11 +168,21 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   // =========================================================================
   void _showAddEditDialog([Map<String, dynamic>? emp]) async {
     final isEdit = emp != null;
-    final tenCtrl = TextEditingController(text: isEdit ? (emp['tenNV'] ?? '').toString() : '');
-    final sdtCtrl = TextEditingController(text: isEdit ? (emp['sdt'] ?? '').toString() : '');
-    final emailCtrl = TextEditingController(text: isEdit ? (emp['email'] ?? '').toString() : '');
-    final diaChiCtrl = TextEditingController(text: isEdit ? (emp['diaChi'] ?? '').toString() : '');
-    final sucChuaCtrl = TextEditingController(text: isEdit ? (emp['sucChuaToiDa'] ?? '').toString() : '');
+    final tenCtrl = TextEditingController(
+      text: isEdit ? (emp['tenNV'] ?? '').toString() : '',
+    );
+    final sdtCtrl = TextEditingController(
+      text: isEdit ? (emp['sdt'] ?? '').toString() : '',
+    );
+    final emailCtrl = TextEditingController(
+      text: isEdit ? (emp['email'] ?? '').toString() : '',
+    );
+    final diaChiCtrl = TextEditingController(
+      text: isEdit ? (emp['diaChi'] ?? '').toString() : '',
+    );
+    final sucChuaCtrl = TextEditingController(
+      text: isEdit ? (emp['sucChuaToiDa'] ?? '').toString() : '',
+    );
     bool trangThai = isEdit ? (emp['trangThai'] ?? true) : true;
 
     final formKey = GlobalKey<FormState>();
@@ -139,8 +193,13 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(isEdit ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên Mới', style: const TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                isEdit ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên Mới',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -149,43 +208,88 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     children: [
                       TextFormField(
                         controller: tenCtrl,
-                        decoration: const InputDecoration(labelText: 'Tên nhân viên (*)', border: OutlineInputBorder()),
-                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Tên nhân viên *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Tên nhân viên không được để trống'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: sdtCtrl,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Số điện thoại *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Số điện thoại không được để trống';
+                          }
+                          if (!RegExp(r'^[0-9]{10}$').hasMatch(val.trim())) {
+                            return 'Số điện thoại phải có đúng 10 chữ số';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: emailCtrl,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Email *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Email không được để trống';
+                          }
+                          if (!val.contains('@') || !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(val.trim())) {
+                            return 'Email không đúng định dạng (phải chứa @ và tên miền)';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: diaChiCtrl,
-                        decoration: const InputDecoration(labelText: 'Địa chỉ', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Địa chỉ *',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Địa chỉ không được để trống'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: sucChuaCtrl,
-                        decoration: const InputDecoration(labelText: 'Sức chứa tối đa (dành cho Tài xế)', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Sức chứa tối đa (dành cho Tài xế)',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       SwitchListTile(
                         title: const Text('Trạng thái hoạt động'),
                         value: trangThai,
-                        onChanged: (val) => setDialogState(() => trangThai = val),
+                        onChanged: (val) =>
+                            setDialogState(() => trangThai = val),
                       ),
                     ],
                   ),
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
                 ElevatedButton.icon(
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
@@ -205,15 +309,32 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                         if (isEdit) {
                           final id = emp['maNhanVien'] ?? emp['id'];
                           await _apiService.updateEmployee(id, data);
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cập nhật nhân viên thành công!'), backgroundColor: Colors.green));
+                          if (mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cập nhật nhân viên thành công!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
                         } else {
                           await _apiService.createEmployee(data);
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thêm nhân viên mới thành công!'), backgroundColor: Colors.green));
+                          if (mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Thêm nhân viên mới thành công!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
                         }
                         _fetchEmployeesData();
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Lỗi: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
                           _fetchEmployeesData();
                         }
                       }
@@ -221,7 +342,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                   },
                   icon: const Icon(Icons.save),
                   label: Text(isEdit ? 'LƯU THAY ĐỔI' : 'THÊM MỚI'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             );
@@ -243,8 +367,13 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Cấp Tài Khoản: ${emp['tenNV']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Cấp Tài Khoản: ${emp['tenNV']}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -253,37 +382,58 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     children: [
                       TextFormField(
                         controller: tkCtrl,
-                        decoration: const InputDecoration(labelText: 'Tên đăng nhập (*)', border: OutlineInputBorder()),
-                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập tên đăng nhập' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Tên đăng nhập (*)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Vui lòng nhập tên đăng nhập'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: mkCtrl,
                         obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Mật khẩu (*)', border: OutlineInputBorder()),
-                        validator: (val) => val == null || val.isEmpty ? 'Vui lòng nhập mật khẩu' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Mật khẩu (*)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Vui lòng nhập mật khẩu'
+                            : null,
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                         value: selectedRoleId,
-                        decoration: const InputDecoration(labelText: 'Vai trò / Quyền hạn', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Vai trò / Quyền hạn',
+                          border: OutlineInputBorder(),
+                        ),
                         items: _roles.map<DropdownMenuItem<int>>((r) {
                           return DropdownMenuItem<int>(
                             value: r['maVaiTro'],
                             child: Text(r['tenVT'] ?? ''),
                           );
                         }).toList(),
-                        onChanged: (val) => setDialogState(() => selectedRoleId = val),
+                        onChanged: (val) =>
+                            setDialogState(() => selectedRoleId = val),
                       ),
                     ],
                   ),
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    if (formKey.currentState!.validate() && selectedRoleId != null) {
+                    if (formKey.currentState!.validate() &&
+                        selectedRoleId != null) {
                       Navigator.pop(context);
                       setState(() => _isLoading = true);
 
@@ -296,12 +446,29 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
 
                       try {
                         final id = emp['maNhanVien'] ?? emp['id'];
-                        final res = await _apiService.createEmployeeAccount(id, data);
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.data['message'] ?? 'Cấp tài khoản thành công!'), backgroundColor: Colors.green));
+                        final res = await _apiService.createEmployeeAccount(
+                          id,
+                          data,
+                        );
+                        if (mounted)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                res.data['message'] ??
+                                    'Cấp tài khoản thành công!',
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
                         _fetchEmployeesData();
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi cấp tài khoản: $e'), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Lỗi cấp tài khoản: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
                           _fetchEmployeesData();
                         }
                       }
@@ -309,7 +476,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                   },
                   icon: const Icon(Icons.check),
                   label: const Text('XÁC NHẬN CẤP'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             );
@@ -322,12 +492,18 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   void _showChangeRoleDialog(Map<String, dynamic> emp) async {
     if (_isSelf(emp)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bạn không thể tự thay đổi vai trò của chính mình để tránh khóa tài khoản.'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text(
+            'Bạn không thể tự thay đổi vai trò của chính mình để tránh khóa tài khoản.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
     final empRoleId = emp['maVaiTro'];
-    int? selectedRoleId = (empRoleId != null && empRoleId is int && empRoleId > 0)
+    int? selectedRoleId =
+        (empRoleId != null && empRoleId is int && empRoleId > 0)
         ? empRoleId
         : (_roles.isNotEmpty ? _roles[0]['maVaiTro'] as int? : null);
 
@@ -337,45 +513,82 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Phân Quyền: ${emp['tenNV']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Phân Quyền: ${emp['tenNV']}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<int>(
                     value: selectedRoleId,
-                    decoration: const InputDecoration(labelText: 'Chọn vai trò mới', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'Chọn vai trò mới',
+                      border: OutlineInputBorder(),
+                    ),
                     items: _roles.map<DropdownMenuItem<int>>((r) {
                       return DropdownMenuItem<int>(
                         value: r['maVaiTro'],
                         child: Text(r['tenVT'] ?? ''),
                       );
                     }).toList(),
-                    onChanged: (val) => setDialogState(() => selectedRoleId = val),
+                    onChanged: (val) =>
+                        setDialogState(() => selectedRoleId = val),
                   ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
                 ElevatedButton.icon(
-                  onPressed: selectedRoleId == null ? null : () async {
-                    Navigator.pop(context);
-                    setState(() => _isLoading = true);
-                    try {
-                      final id = emp['maNhanVien'] ?? emp['id'];
-                      final res = await _apiService.changeEmployeeRole(id, selectedRoleId!);
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.data['message'] ?? 'Phân quyền thành công!'), backgroundColor: Colors.green));
-                      _fetchEmployeesData();
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi phân quyền: $e'), backgroundColor: Colors.red));
-                        _fetchEmployeesData();
-                      }
-                    }
-                  },
+                  onPressed: selectedRoleId == null
+                      ? null
+                      : () async {
+                          Navigator.pop(context);
+                          setState(() => _isLoading = true);
+                          try {
+                            final id = emp['maNhanVien'] ?? emp['id'];
+                            final res = await _apiService.changeEmployeeRole(
+                              id,
+                              selectedRoleId!,
+                            );
+                            if (mounted)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    res.data['message'] ??
+                                        'Phân quyền thành công!',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            _fetchEmployeesData();
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Lỗi phân quyền: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              _fetchEmployeesData();
+                            }
+                          }
+                        },
                   icon: const Icon(Icons.save),
                   label: const Text('LƯU PHÂN QUYỀN'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             );
@@ -385,16 +598,30 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     );
   }
 
-  Map<String, Map<String, bool>> _autoMapGeneralToModule(List<dynamic> generalPerms) {
+  Map<String, Map<String, bool>> _autoMapGeneralToModule(
+    List<dynamic> generalPerms,
+  ) {
     final Map<String, Map<String, bool>> resultMap = {};
-    bool hasQ(String code) => generalPerms.any((p) => p['maQ'] == code || p['maQuyen'] == code);
-    
+    bool hasQ(String code) =>
+        generalPerms.any((p) => p['maQ'] == code || p['maQuyen'] == code);
+
     Map<String, bool> createMod(bool view, bool create, bool update, bool del) {
-      return {'coTheXem': view, 'coTheTao': create, 'coTheSua': update, 'coTheXoa': del};
+      return {
+        'coTheXem': view,
+        'coTheTao': create,
+        'coTheSua': update,
+        'coTheXoa': del,
+      };
+    }
+
+    if (generalPerms.isNotEmpty) {
+      resultMap['dashboard'] = createMod(true, true, true, true);
+      resultMap['contact'] = createMod(true, true, true, true);
+      resultMap['chat'] = createMod(true, true, true, true);
     }
 
     if (hasQ('Q01')) resultMap['employees'] = createMod(true, true, true, true);
-    
+
     if (hasQ('Q02')) {
       resultMap['products'] = createMod(true, true, true, true);
       resultMap['categories'] = createMod(true, true, true, true);
@@ -404,33 +631,44 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     } else if (hasQ('Q10')) {
       resultMap['products'] = createMod(true, false, false, false);
       resultMap['categories'] = createMod(true, false, false, false);
-      resultMap['promotions'] = createMod(true, false, false, false);
-      resultMap['flashsales'] = createMod(true, false, false, false);
       resultMap['price_history'] = createMod(true, false, false, false);
     }
-    
+
     if (hasQ('Q03')) {
       resultMap['orders'] = createMod(true, true, true, true);
     } else if (hasQ('Q11')) {
       resultMap['orders'] = createMod(true, true, false, false);
     }
-    
+
     if (hasQ('Q04')) {
       resultMap['inventory'] = createMod(true, true, true, true);
+      resultMap['inventory_gift'] = createMod(true, true, true, true);
+      resultMap['inventory_history'] = createMod(true, true, true, true);
+      resultMap['procurement'] = createMod(true, true, true, true);
+      resultMap['returns'] = createMod(true, true, true, true);
+      resultMap['returns_customer'] = createMod(true, true, true, true);
       resultMap['suppliers'] = createMod(true, true, true, true);
     }
-    
-    if (hasQ('Q05')) resultMap['deliveries'] = createMod(true, true, true, true);
+
+    if (hasQ('Q05'))
+      resultMap['deliveries'] = createMod(true, true, true, true);
     if (hasQ('Q06')) resultMap['customers'] = createMod(true, true, true, true);
-    if (hasQ('Q07') || hasQ('Q08')) resultMap['reports'] = createMod(true, hasQ('Q08'), false, false);
-    
+    if (hasQ('Q07') || hasQ('Q08'))
+      resultMap['reports'] = createMod(true, hasQ('Q08'), false, false);
+    if (hasQ('Q09')) resultMap['settings'] = createMod(true, true, true, true);
+
     return resultMap;
   }
 
   void _showDetailedPermissionsDialog(Map<String, dynamic> emp) async {
     if (_isSelf(emp)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bạn không thể tự phân quyền cho chính mình để tránh khóa tài khoản.'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text(
+            'Bạn không thể tự phân quyền cho chính mình để tránh khóa tài khoản.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -439,10 +677,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     try {
       final response = await _apiService.getEmployeeModulePermissions(id);
       final responseGen = await _apiService.getRolePermissions(id);
-      
+
       List<dynamic> permissions = List.from(response.data ?? []);
       List<dynamic> rolePermissions = List.from(responseGen.data ?? []);
-      
+
       setState(() => _isLoading = false);
       if (mounted) {
         _showModulePermissionsEditor(emp, permissions, rolePermissions);
@@ -451,15 +689,22 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải danh sách quyền: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Lỗi tải danh sách quyền: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  void _showModulePermissionsEditor(Map<String, dynamic> emp, List<dynamic> permissions, List<dynamic> rolePermissions) async {
+  void _showModulePermissionsEditor(
+    Map<String, dynamic> emp,
+    List<dynamic> permissions,
+    List<dynamic> rolePermissions,
+  ) async {
     final id = emp['maNhanVien'] ?? emp['id'] ?? emp['maNV'];
-    
+
     // Auto-map role general permissions if no custom employee module permissions yet
     final Map<String, Map<String, bool>> initialModuleMap = {};
     if (permissions.isEmpty && rolePermissions.isNotEmpty) {
@@ -480,6 +725,19 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
 
     final categories = [
       {
+        'key': 'dashboard',
+        'label': '📊 Tổng Quan',
+        'tabs': [
+          {
+            'moduleKey': 'dashboard',
+            'label': 'Tổng Quan Hệ Thống',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem số liệu & biểu đồ tổng quan'},
+            ],
+          },
+        ],
+      },
+      {
         'key': 'products',
         'label': '📦 Sản Phẩm',
         'tabs': [
@@ -491,7 +749,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm sản phẩm / Nhập Excel'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin sản phẩm'},
               {'field': 'coTheXoa', 'label': 'Xóa sản phẩm'},
-            ]
+            ],
           },
           {
             'moduleKey': 'categories',
@@ -501,7 +759,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm danh mục mới'},
               {'field': 'coTheSua', 'label': 'Sửa tên danh mục'},
               {'field': 'coTheXoa', 'label': 'Xóa danh mục'},
-            ]
+            ],
           },
           {
             'moduleKey': 'price_history',
@@ -511,9 +769,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Ghi nhận thay đổi giá'},
               {'field': 'coTheSua', 'label': 'Cập nhật lý do đổi giá'},
               {'field': 'coTheXoa', 'label': 'Xóa lịch sử giá'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'orders',
@@ -527,7 +785,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo đơn hàng mới'},
               {'field': 'coTheSua', 'label': 'Cập nhật trạng thái đơn'},
               {'field': 'coTheXoa', 'label': 'Hủy / Xóa đơn hàng'},
-            ]
+            ],
           },
           {
             'moduleKey': 'deliveries',
@@ -537,9 +795,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo phiếu giao hàng'},
               {'field': 'coTheSua', 'label': 'Cập nhật trạng thái giao'},
               {'field': 'coTheXoa', 'label': 'Hủy phiếu giao hàng'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'customers',
@@ -553,9 +811,26 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm khách hàng mới'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin khách hàng'},
               {'field': 'coTheXoa', 'label': 'Xóa tài khoản khách hàng'},
-            ]
+            ],
           },
-        ]
+          {
+            'moduleKey': 'contact',
+            'label': 'Tư Vấn',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem phản hồi liên hệ của khách'},
+              {'field': 'coTheTao', 'label': 'Phản hồi / Gửi Email'},
+              {'field': 'coTheXoa', 'label': 'Xóa tin nhắn liên hệ'},
+            ],
+          },
+          {
+            'moduleKey': 'chat',
+            'label': 'Chat Trực Tuyến',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem / Quản lý chat trực tuyến'},
+              {'field': 'coTheXoa', 'label': 'Xóa cuộc hội thoại'},
+            ],
+          },
+        ],
       },
       {
         'key': 'debts',
@@ -569,44 +844,92 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thanh toán / Thu nợ'},
               {'field': 'coTheSua', 'label': 'Cập nhật gia hạn nợ'},
               {'field': 'coTheXoa', 'label': 'Xóa khoản nợ'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'inventory',
-        'label': '🏭 Kho & Nhập Hàng',
+        'label': '🏭 Kho Hàng',
         'tabs': [
           {
             'moduleKey': 'inventory',
-            'label': 'Kho Hàng',
+            'label': 'Tồn Kho Chi Tiết',
             'ops': [
               {'field': 'coTheXem', 'label': 'Xem tồn kho & phiếu kho'},
               {'field': 'coTheTao', 'label': 'Tạo phiếu xuất / nhập kho'},
               {'field': 'coTheSua', 'label': 'Điều chỉnh số lượng tồn'},
               {'field': 'coTheXoa', 'label': 'Xóa phiếu kho'},
-            ]
+            ],
           },
           {
-            'moduleKey': 'inventory',
+            'moduleKey': 'inventory_gift',
+            'label': 'Sản Phẩm Quà Tặng',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem danh sách quà tặng'},
+              {'field': 'coTheTao', 'label': 'Thêm sản phẩm quà tặng'},
+              {'field': 'coTheSua', 'label': 'Sửa thông tin quà tặng'},
+              {'field': 'coTheXoa', 'label': 'Xóa quà tặng'},
+            ],
+          },
+          {
+            'moduleKey': 'inventory_history',
+            'label': 'Lịch Sử Xuất Kho',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem lịch sử xuất kho'},
+              {'field': 'coTheTao', 'label': 'Xác nhận soạn hàng/giao nhận'},
+              {'field': 'coTheSua', 'label': 'Phê duyệt phiếu xuất kho'},
+              {'field': 'coTheXoa', 'label': 'Xóa lịch sử xuất kho'},
+            ],
+          },
+        ],
+      },
+      {
+        'key': 'procurement',
+        'label': '📥 Nhập Hàng',
+        'tabs': [
+          {
+            'moduleKey': 'procurement',
             'label': 'Nhập Hàng',
             'ops': [
               {'field': 'coTheXem', 'label': 'Xem đơn đặt hàng nhà cung cấp'},
               {'field': 'coTheTao', 'label': 'Tạo đơn nhập hàng mới'},
               {'field': 'coTheSua', 'label': 'Duyệt & cập nhật đơn nhập'},
               {'field': 'coTheXoa', 'label': 'Hủy đơn nhập hàng'},
-            ]
+            ],
+          },
+        ],
+      },
+      {
+        'key': 'returns',
+        'label': '🔄 Đổi / Trả',
+        'tabs': [
+          {
+            'moduleKey': 'returns',
+            'label': 'Đổi Trả NCC',
+            'ops': [
+              {'field': 'coTheXem', 'label': 'Xem yêu cầu đổi trả NCC'},
+              {'field': 'coTheTao', 'label': 'Tạo phiếu đổi trả NCC'},
+              {'field': 'coTheSua', 'label': 'Duyệt / Từ chối yêu cầu NCC'},
+              {'field': 'coTheXoa', 'label': 'Xóa yêu cầu đổi trả NCC'},
+            ],
           },
           {
-            'moduleKey': 'inventory',
-            'label': 'Đổi / Trả',
+            'moduleKey': 'returns_customer',
+            'label': 'Đổi Trả KH',
             'ops': [
-              {'field': 'coTheXem', 'label': 'Xem yêu cầu đổi trả'},
-              {'field': 'coTheTao', 'label': 'Tạo phiếu đổi trả'},
-              {'field': 'coTheSua', 'label': 'Duyệt / Từ chối yêu cầu'},
-              {'field': 'coTheXoa', 'label': 'Xóa yêu cầu đổi trả'},
-            ]
+              {'field': 'coTheXem', 'label': 'Xem yêu cầu đổi trả KH'},
+              {'field': 'coTheTao', 'label': 'Tạo phiếu đổi trả KH'},
+              {'field': 'coTheSua', 'label': 'Duyệt / Từ chối yêu cầu KH'},
+              {'field': 'coTheXoa', 'label': 'Xóa yêu cầu đổi trả KH'},
+            ],
           },
+        ],
+      },
+      {
+        'key': 'suppliers',
+        'label': '🏪 Nhà Cung Cấp',
+        'tabs': [
           {
             'moduleKey': 'suppliers',
             'label': 'Nhà Cung Cấp',
@@ -615,9 +938,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm nhà cung cấp mới'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin nhà cung cấp'},
               {'field': 'coTheXoa', 'label': 'Xóa nhà cung cấp'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'promotions',
@@ -631,7 +954,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo khuyến mãi sản phẩm'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin khuyến mãi'},
               {'field': 'coTheXoa', 'label': 'Xóa khuyến mãi'},
-            ]
+            ],
           },
           {
             'moduleKey': 'flashsales',
@@ -641,7 +964,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo Flash Sale mới'},
               {'field': 'coTheSua', 'label': 'Sửa Flash Sale'},
               {'field': 'coTheXoa', 'label': 'Xóa Flash Sale'},
-            ]
+            ],
           },
           {
             'moduleKey': 'flashsales',
@@ -651,7 +974,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo ưu đãi hệ thống'},
               {'field': 'coTheSua', 'label': 'Sửa ưu đãi'},
               {'field': 'coTheXoa', 'label': 'Xóa ưu đãi'},
-            ]
+            ],
           },
           {
             'moduleKey': 'promotions',
@@ -661,9 +984,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Tạo mã coupon mới'},
               {'field': 'coTheSua', 'label': 'Sửa coupon'},
               {'field': 'coTheXoa', 'label': 'Xóa coupon'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'reports',
@@ -675,9 +998,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
             'ops': [
               {'field': 'coTheXem', 'label': 'Xem báo cáo & biểu đồ'},
               {'field': 'coTheTao', 'label': 'Xuất báo cáo ra file'},
-            ]
+            ],
           },
-        ]
+        ],
       },
       {
         'key': 'employees',
@@ -691,9 +1014,9 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               {'field': 'coTheTao', 'label': 'Thêm NV / Cấp tài khoản'},
               {'field': 'coTheSua', 'label': 'Sửa thông tin / Đổi vai trò'},
               {'field': 'coTheXoa', 'label': 'Xóa nhân viên'},
-            ]
+            ],
           },
-        ]
+        ],
       },
     ];
 
@@ -703,9 +1026,14 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               titlePadding: const EdgeInsets.all(0),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
               title: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -724,18 +1052,29 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.verified_user, color: Colors.white, size: 24),
+                        Icon(
+                          Icons.verified_user,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'Phân Quyền Chi Tiết',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${emp['tenNV']} - Vai trò: ${emp['tenVaiTro'] ?? "N/A"}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -746,18 +1085,40 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8.0,
+                        horizontal: 4.0,
+                      ),
                       child: Row(
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () {
                                 setDialogState(() {
-                                  for (var k in [
-                                    'products', 'categories', 'orders', 'deliveries', 
-                                    'customers', 'inventory', 'suppliers', 'promotions', 
-                                    'flashsales', 'reports', 'employees'
-                                  ]) {
+                                  final allModules = [
+                                    'dashboard',
+                                    'products',
+                                    'categories',
+                                    'inventory',
+                                    'inventory_gift',
+                                    'inventory_history',
+                                    'procurement',
+                                    'returns',
+                                    'returns_customer',
+                                    'orders',
+                                    'customers',
+                                    'suppliers',
+                                    'flashsales',
+                                    'promotions',
+                                    'deliveries',
+                                    'reports',
+                                    'employees',
+                                    'debts',
+                                    'price_history',
+                                    'contact',
+                                    'chat',
+                                  ];
+                                  for (var k in allModules) {
                                     initialModuleMap[k] = {
                                       'coTheXem': true,
                                       'coTheTao': true,
@@ -771,8 +1132,19 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                                 padding: EdgeInsets.zero,
                                 side: const BorderSide(color: Colors.green),
                               ),
-                              icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
-                              label: const Text('CẤP HẾT', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11)),
+                              icon: const Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.green,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                'CẤP HẾT',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -780,11 +1152,30 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                             child: OutlinedButton.icon(
                               onPressed: () {
                                 setDialogState(() {
-                                  for (var k in [
-                                    'products', 'categories', 'orders', 'deliveries', 
-                                    'customers', 'inventory', 'suppliers', 'promotions', 
-                                    'flashsales', 'reports', 'employees'
-                                  ]) {
+                                  final allModules = [
+                                    'dashboard',
+                                    'products',
+                                    'categories',
+                                    'inventory',
+                                    'inventory_gift',
+                                    'inventory_history',
+                                    'procurement',
+                                    'returns',
+                                    'returns_customer',
+                                    'orders',
+                                    'customers',
+                                    'suppliers',
+                                    'flashsales',
+                                    'promotions',
+                                    'deliveries',
+                                    'reports',
+                                    'employees',
+                                    'debts',
+                                    'price_history',
+                                    'contact',
+                                    'chat',
+                                  ];
+                                  for (var k in allModules) {
                                     initialModuleMap[k] = {
                                       'coTheXem': false,
                                       'coTheTao': false,
@@ -798,8 +1189,19 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                                 padding: EdgeInsets.zero,
                                 side: const BorderSide(color: Colors.red),
                               ),
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 16),
-                              label: const Text('THU HỒI HẾT', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)),
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.red,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                'THU HỒI HẾT',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -811,11 +1213,14 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                         itemCount: categories.length,
                         itemBuilder: (context, index) {
                           final cat = categories[index];
-                          final tabs = cat['tabs'] as List<Map<String, dynamic>>;
+                          final tabs =
+                              cat['tabs'] as List<Map<String, dynamic>>;
                           return Card(
                             elevation: 2,
                             margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             child: ExpansionTile(
                               leading: Text(
                                 cat['label'].toString().split(' ')[0],
@@ -823,40 +1228,57 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                               ),
                               title: Text(
                                 cat['label'].toString().substring(2),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Colors.indigo,
+                                ),
                               ),
                               initiallyExpanded: index == 0,
                               children: tabs.map((tab) {
                                 final modKey = tab['moduleKey'] as String;
-                                final ops = tab['ops'] as List<Map<String, String>>;
-                                
+                                final ops =
+                                    tab['ops'] as List<Map<String, String>>;
+
                                 return Card(
-                                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   color: Colors.grey.shade50,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    side: BorderSide(color: Colors.grey.shade200),
+                                    side: BorderSide(
+                                      color: Colors.grey.shade200,
+                                    ),
                                   ),
                                   child: ExpansionTile(
                                     title: Text(
                                       tab['label'] as String,
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                     initiallyExpanded: true,
                                     children: ops.map((op) {
                                       final field = op['field'] as String;
                                       final label = op['label'] as String;
-                                      
-                                      final modMap = initialModuleMap[modKey] ??= {
-                                        'coTheXem': false,
-                                        'coTheTao': false,
-                                        'coTheSua': false,
-                                        'coTheXoa': false,
-                                      };
+
+                                      final modMap =
+                                          initialModuleMap[modKey] ??= {
+                                            'coTheXem': false,
+                                            'coTheTao': false,
+                                            'coTheSua': false,
+                                            'coTheXoa': false,
+                                          };
                                       final isSwitched = modMap[field] ?? false;
-                                      
+
                                       return SwitchListTile(
-                                        title: Text(label, style: const TextStyle(fontSize: 13)),
+                                        title: Text(
+                                          label,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
                                         value: isSwitched,
                                         onChanged: (val) {
                                           setDialogState(() {
@@ -879,24 +1301,190 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY', style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () {
+                    setDialogState(() {
+                      final String rName = (emp['tenVaiTro'] ?? 'Nhân viên')
+                          .toString()
+                          .toLowerCase();
+                      final allKeys = [
+                        'dashboard',
+                        'products',
+                        'categories',
+                        'inventory',
+                        'inventory_gift',
+                        'inventory_history',
+                        'procurement',
+                        'returns',
+                        'returns_customer',
+                        'orders',
+                        'customers',
+                        'suppliers',
+                        'flashsales',
+                        'promotions',
+                        'deliveries',
+                        'reports',
+                        'employees',
+                        'debts',
+                        'price_history',
+                        'contact',
+                        'chat',
+                      ];
+
+                      // Clean current map
+                      for (var k in allKeys) {
+                        initialModuleMap[k] = {
+                          'coTheXem': false,
+                          'coTheTao': false,
+                          'coTheSua': false,
+                          'coTheXoa': false,
+                        };
+                      }
+
+                      if (rName.contains('admin') ||
+                          rName.contains('quản trị')) {
+                        for (var mod in allKeys) {
+                          initialModuleMap[mod] = {
+                            'coTheXem': true,
+                            'coTheTao': true,
+                            'coTheSua': true,
+                            'coTheXoa': true,
+                          };
+                        }
+                        initialModuleMap['debts'] = {
+                          'coTheXem': false,
+                          'coTheTao': false,
+                          'coTheSua': false,
+                          'coTheXoa': false,
+                        };
+                      } else if (rName.contains('giám đốc') ||
+                          rName.contains('quản lý') ||
+                          rName.contains('kế toán') ||
+                          rName.contains('accountant')) {
+                        for (var mod in allKeys) {
+                          initialModuleMap[mod] = {
+                            'coTheXem': true,
+                            'coTheTao': true,
+                            'coTheSua': true,
+                            'coTheXoa': true,
+                          };
+                        }
+                      } else if (rName.contains('tài xế') ||
+                          rName.contains('driver')) {
+                        initialModuleMap['deliveries'] = {
+                          'coTheXem': true,
+                          'coTheTao': false,
+                          'coTheSua': false,
+                          'coTheXoa': false,
+                        };
+                      } else if (rName.contains('bán hàng') ||
+                          rName.contains('sales')) {
+                        for (var mod in [
+                          'products',
+                          'orders',
+                          'customers',
+                          'promotions',
+                        ]) {
+                          initialModuleMap[mod] = {
+                            'coTheXem': true,
+                            'coTheTao': true,
+                            'coTheSua': true,
+                            'coTheXoa': false,
+                          };
+                        }
+                      } else if (rName.contains('thủ kho') ||
+                          rName.contains('warehouse')) {
+                        for (var mod in [
+                          'inventory',
+                          'inventory_gift',
+                          'inventory_history',
+                          'procurement',
+                          'returns',
+                          'returns_customer',
+                          'products',
+                        ]) {
+                          initialModuleMap[mod] = {
+                            'coTheXem': true,
+                            'coTheTao': true,
+                            'coTheSua': true,
+                            'coTheXoa': false,
+                          };
+                        }
+                      }
+
+                      if (rName.contains('nhân viên') ||
+                          rName.contains('quản lý') ||
+                          rName.contains('bán hàng') ||
+                          rName.contains('kho') ||
+                          rName.contains('tài xế') ||
+                          rName.contains('sales') ||
+                          rName.contains('driver')) {
+                        for (var mod in ['contact', 'chat']) {
+                          initialModuleMap[mod] = {
+                            'coTheXem': true,
+                            'coTheTao': true,
+                            'coTheSua': true,
+                            'coTheXoa': true,
+                          };
+                        }
+                      }
+                    });
+                  },
+                  child: const Text(
+                    'RESET THEO VAI TRÒ',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'HỦY',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
                 ElevatedButton.icon(
                   onPressed: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
                     setState(() => _isLoading = true);
-                    
-                    final payload = [
-                      'products', 'categories', 'orders', 'deliveries', 
-                      'customers', 'inventory', 'suppliers', 'promotions', 
-                      'flashsales', 'reports', 'employees', 'debts', 'price_history'
-                    ].map((k) {
-                      final q = initialModuleMap[k] ?? {
-                        'coTheXem': false,
-                        'coTheTao': false,
-                        'coTheSua': false,
-                        'coTheXoa': false,
-                      };
+
+                    final allKeys = [
+                      'dashboard',
+                      'products',
+                      'categories',
+                      'inventory',
+                      'inventory_gift',
+                      'inventory_history',
+                      'procurement',
+                      'returns',
+                      'returns_customer',
+                      'orders',
+                      'customers',
+                      'suppliers',
+                      'flashsales',
+                      'promotions',
+                      'deliveries',
+                      'reports',
+                      'employees',
+                      'debts',
+                      'price_history',
+                      'contact',
+                      'chat',
+                    ];
+
+                    final payload = allKeys.map((k) {
+                      final q =
+                          initialModuleMap[k] ??
+                          {
+                            'coTheXem': false,
+                            'coTheTao': false,
+                            'coTheSua': false,
+                            'coTheXoa': false,
+                          };
                       return {
                         'module': k,
                         'tenModule': k,
@@ -908,25 +1496,42 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                     }).toList();
 
                     try {
-                      final res = await _apiService.setEmployeeModulePermissions(id, payload);
+                      final res = await _apiService
+                          .setEmployeeModulePermissions(id, payload);
                       if (mounted) {
                         messenger.showSnackBar(
-                          SnackBar(content: Text(res.data['message'] ?? 'Lưu phân quyền thành công!'), backgroundColor: Colors.green),
+                          SnackBar(
+                            content: Text(
+                              res.data['message'] ??
+                                  'Lưu phân quyền thành công!',
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
                         );
                       }
                       _fetchEmployeesData();
                     } catch (e) {
                       if (mounted) {
                         messenger.showSnackBar(
-                          SnackBar(content: Text('Lỗi lưu phân quyền: $e'), backgroundColor: Colors.red),
+                          SnackBar(
+                            content: Text('Lỗi lưu phân quyền: $e'),
+                            backgroundColor: Colors.red,
+                          ),
                         );
                         _fetchEmployeesData();
                       }
                     }
                   },
                   icon: const Icon(Icons.save),
-                  label: const Text('LƯU PHÂN QUYỀN'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                  label: const Text(
+                    'LƯU PHÂN QUYỀN',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
                 ),
               ],
             );
@@ -939,7 +1544,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
   void _deleteEmployee(Map<String, dynamic> emp) async {
     if (_isSelf(emp)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bạn không thể tự xóa tài khoản của chính mình.'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Bạn không thể tự xóa tài khoản của chính mình.'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -952,7 +1560,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         title: const Text('Xác nhận xóa'),
         content: Text('Bạn có chắc chắn muốn xóa nhân viên "$ten"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('HỦY')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('HỦY'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -966,11 +1577,22 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
       setState(() => _isLoading = true);
       try {
         await _apiService.deleteEmployee(id);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xóa nhân viên thành công!'), backgroundColor: Colors.green));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Xóa nhân viên thành công!'),
+              backgroundColor: Colors.green,
+            ),
+          );
         _fetchEmployeesData();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi khi xóa: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
           _fetchEmployeesData();
         }
       }
@@ -982,11 +1604,22 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     setState(() => _isLoading = true);
     try {
       await _apiService.toggleEmployeeStatus(id);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cập nhật trạng thái thành công!'), backgroundColor: Colors.green));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cập nhật trạng thái thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       _fetchEmployeesData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi cập nhật trạng thái: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi cập nhật trạng thái: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
         _fetchEmployeesData();
       }
     }
@@ -1000,7 +1633,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(72),
+        preferredSize: const Size.fromHeight(76),
         child: Container(
           color: Colors.indigo.shade800,
           child: SafeArea(
@@ -1010,7 +1643,10 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
               indicatorWeight: 3,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
               tabs: const [
                 Tab(icon: Icon(Icons.people, size: 20), text: 'NHÂN VIÊN'),
                 Tab(icon: Icon(Icons.security, size: 20), text: 'VAI TRÒ'),
@@ -1023,80 +1659,115 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         children: [
           // Toolbar y như Web
           Card(
-            margin: const EdgeInsets.all(16),
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12.0),
               child: Column(
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (isEmpTab) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(_isTableView ? Icons.grid_view : Icons.table_chart, color: Colors.indigo.shade800),
-                              tooltip: _isTableView ? 'Chuyển sang dạng Thẻ' : 'Chuyển sang dạng Bảng',
-                              onPressed: () => setState(() => _isTableView = !_isTableView),
-                              constraints: const BoxConstraints(),
-                              padding: const EdgeInsets.all(8),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedRole,
-                                  icon: const Icon(Icons.filter_list, size: 18),
-                                  isDense: true,
-                                  items: _roleFilterList
-                                      .map((r) => DropdownMenuItem(
-                                            value: r,
-                                            child: Text(r, style: const TextStyle(fontSize: 13)),
-                                          ))
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) setState(() => _selectedRole = val);
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
+                  if (isEmpTab) ...[
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _isTableView ? Icons.grid_view : Icons.table_chart,
+                            color: Colors.indigo.shade800,
+                          ),
+                          tooltip: _isTableView
+                              ? 'Chuyển sang dạng Thẻ'
+                              : 'Chuyển sang dạng Bảng',
+                          onPressed: () =>
+                              setState(() => _isTableView = !_isTableView),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(8),
                         ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddEditDialog(),
-                          icon: const Icon(Icons.person_add, size: 18),
-                          label: const Text('THÊM NHÂN VIÊN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo.shade800,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _selectedRole,
+                                isExpanded: true,
+                                icon: const Icon(Icons.filter_list, size: 18),
+                                isDense: true,
+                                items: _roleFilterList
+                                    .map(
+                                      (r) => DropdownMenuItem(
+                                        value: r,
+                                        child: Text(
+                                          r,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null)
+                                    setState(() => _selectedRole = val);
+                                },
+                              ),
+                            ),
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  if (isEmpTab) ...[
+                    ),
                     const SizedBox(height: 12),
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Tìm kiếm nhanh mã NV, tên nhân viên, SĐT...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      onChanged: (val) => setState(() => _searchQuery = val),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Tìm kiếm nhanh mã NV, tên nhân viên, SĐT...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            onChanged: (val) => setState(() => _searchQuery = val),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddEditDialog(),
+                          icon: const Icon(Icons.person_add, size: 18),
+                          label: const Text(
+                            'THÊM NHÂN VIÊN',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo.shade800,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
@@ -1107,12 +1778,17 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : isEmpTab
-                    ? (filteredEmployees.isEmpty
-                        ? const Center(child: Text('Không tìm thấy nhân viên nào phù hợp', style: TextStyle(color: Colors.grey, fontSize: 16)))
-                        : _isTableView
-                            ? _buildTableView(filteredEmployees)
-                            : _buildCardView(filteredEmployees))
-                    : _buildRolesView(),
+                ? (filteredEmployees.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Không tìm thấy nhân viên nào phù hợp',
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                        )
+                      : _isTableView
+                      ? _buildTableView(filteredEmployees)
+                      : _buildCardView(filteredEmployees))
+                : _buildRolesView(),
           ),
         ],
       ),
@@ -1121,7 +1797,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
 
   Widget _buildTableView(List<dynamic> list) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: SingleChildScrollView(
@@ -1130,50 +1806,124 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
           child: DataTable(
             headingRowColor: WidgetStateProperty.all(Colors.grey.shade100),
             columns: const [
-              DataColumn(label: Text('Mã NV', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Tên Nhân Viên', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Liên Hệ', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Tài Khoản', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Vai Trò', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Trạng Thái', style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(label: Text('Tác Vụ', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(
+                label: Text(
+                  'Mã NV',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Tên Nhân Viên',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Liên Hệ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Tài Khoản',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Vai Trò',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Trạng Thái',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Tác Vụ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
             ],
             rows: list.map((emp) {
               final isHoatDong = emp['trangThai'] == true;
-              final hasAccount = emp['maTaiKhoan'] != null && emp['maTaiKhoan'] > 0;
+              final hasAccount =
+                  emp['maTaiKhoan'] != null && emp['maTaiKhoan'] > 0;
 
               return DataRow(
                 cells: [
-                  DataCell(Text(emp['maNV'] ?? emp['maNhanVien'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo))),
-                  DataCell(Text(emp['tenNV'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('${emp['sdt'] ?? "N/A"}\n${emp['email'] ?? ""}')),
                   DataCell(
-                    hasAccount 
-                        ? Text(emp['tenTK'] ?? '') 
-                        : (_isAdmin() 
-                            ? ElevatedButton.icon(
-                                onPressed: () => _showCreateAccountDialog(emp),
-                                icon: const Icon(Icons.key, size: 16),
-                                label: const Text('Cấp TK', style: TextStyle(fontSize: 12)),
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                              )
-                            : const Text('Chưa cấp', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic))),
+                    Text(
+                      emp['maNV'] ?? emp['maNhanVien'].toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo,
+                      ),
+                    ),
                   ),
                   DataCell(
-                    hasAccount 
+                    Text(
+                      emp['tenNV'] ?? 'N/A',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataCell(
+                    Text('${emp['sdt'] ?? "N/A"}\n${emp['email'] ?? ""}'),
+                  ),
+                  DataCell(
+                    hasAccount
+                        ? Text(emp['tenTK'] ?? '')
+                        : (_isAdmin()
+                              ? ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _showCreateAccountDialog(emp),
+                                  icon: const Icon(Icons.key, size: 16),
+                                  label: const Text(
+                                    'Cấp TK',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Chưa cấp',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                )),
+                  ),
+                  DataCell(
+                    hasAccount
                         ? Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade50,
                               border: Border.all(color: Colors.blue.shade200),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              emp['tenVaiTro'] ?? 'Chưa cấp', 
-                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade800, fontSize: 12),
+                              emp['tenVaiTro'] ?? 'Chưa cấp',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryStart,
+                                fontSize: 12,
+                              ),
                             ),
                           )
-                        : const Text('N/A', style: TextStyle(color: Colors.grey)),
+                        : const Text(
+                            'N/A',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                   ),
                   DataCell(
                     Switch(
@@ -1188,27 +1938,51 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                       children: [
                         if (_isAdmin() || PermissionHelper.canEdit('EMPLOYEES'))
                           IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue), 
-                            tooltip: 'Sửa thông tin', 
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            tooltip: 'Sửa thông tin',
                             onPressed: () => _showAddEditDialog(emp),
                           ),
                         if (_isAdmin() && hasAccount) ...[
                           IconButton(
-                            icon: Icon(Icons.admin_panel_settings, color: _isSelf(emp) ? Colors.grey : Colors.orange),
-                            tooltip: _isSelf(emp) ? 'Không thể tự đổi vai trò' : 'Thay đổi vai trò',
-                            onPressed: _isSelf(emp) ? null : () => _showChangeRoleDialog(emp),
+                            icon: Icon(
+                              Icons.admin_panel_settings,
+                              color: _isSelf(emp) ? Colors.grey : Colors.orange,
+                            ),
+                            tooltip: _isSelf(emp)
+                                ? 'Không thể tự đổi vai trò'
+                                : 'Thay đổi vai trò',
+                            onPressed: _isSelf(emp)
+                                ? null
+                                : () => _showChangeRoleDialog(emp),
                           ),
                           IconButton(
-                            icon: Icon(Icons.security, color: _isSelf(emp) ? Colors.grey : Colors.teal),
-                            tooltip: _isSelf(emp) ? 'Không thể tự phân quyền' : 'Phân quyền chi tiết',
-                            onPressed: _isSelf(emp) ? null : () => _showDetailedPermissionsDialog(emp),
+                            icon: Icon(
+                              Icons.security,
+                              color: _isSelf(emp)
+                                  ? Colors.grey
+                                  : AppColors.primaryStart,
+                            ),
+                            tooltip: _isSelf(emp)
+                                ? 'Không thể tự phân quyền'
+                                : 'Phân quyền chi tiết',
+                            onPressed: _isSelf(emp)
+                                ? null
+                                : () => _showDetailedPermissionsDialog(emp),
                           ),
                         ],
-                        if (_isAdmin() || PermissionHelper.canDelete('EMPLOYEES'))
+                        if (_isAdmin() ||
+                            PermissionHelper.canDelete('EMPLOYEES'))
                           IconButton(
-                            icon: Icon(Icons.delete, color: _isSelf(emp) ? Colors.grey : Colors.red), 
-                            tooltip: _isSelf(emp) ? 'Không thể tự xóa' : 'Xóa nhân viên', 
-                            onPressed: _isSelf(emp) ? null : () => _deleteEmployee(emp),
+                            icon: Icon(
+                              Icons.delete,
+                              color: _isSelf(emp) ? Colors.grey : Colors.red,
+                            ),
+                            tooltip: _isSelf(emp)
+                                ? 'Không thể tự xóa'
+                                : 'Xóa nhân viên',
+                            onPressed: _isSelf(emp)
+                                ? null
+                                : () => _deleteEmployee(emp),
                           ),
                       ],
                     ),
@@ -1224,7 +1998,7 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
 
   Widget _buildCardView(List<dynamic> list) {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       itemCount: list.length,
       itemBuilder: (context, index) {
         final emp = list[index];
@@ -1234,42 +2008,72 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             children: [
               ListTile(
                 contentPadding: const EdgeInsets.all(16),
                 leading: CircleAvatar(
-                  backgroundColor: isHoatDong ? Colors.indigo.shade100 : Colors.red.shade100,
-                  child: Icon(Icons.person, color: isHoatDong ? Colors.indigo : Colors.red),
+                  backgroundColor: isHoatDong
+                      ? Colors.indigo.shade100
+                      : Colors.red.shade100,
+                  child: Icon(
+                    Icons.person,
+                    color: isHoatDong ? Colors.indigo : Colors.red,
+                  ),
                 ),
                 title: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Text(
-                        '${emp['maNV'] ?? emp['maNhanVien']} - ${emp['tenNV']}', 
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.indigo),
+                        '${emp['maNV'] ?? emp['maNhanVien']} - ${emp['tenNV']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.indigo,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Switch(value: isHoatDong, onChanged: (val) => _toggleStatus(emp), activeColor: Colors.green),
+                    Switch(
+                      value: isHoatDong,
+                      onChanged: (val) => _toggleStatus(emp),
+                      activeColor: Colors.green,
+                    ),
                   ],
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    Text('SĐT: ${emp['sdt'] ?? "N/A"} | Email: ${emp['email'] ?? "N/A"}'),
+                    Text(
+                      'SĐT: ${emp['sdt'] ?? "N/A"} | Email: ${emp['email'] ?? "N/A"}',
+                    ),
                     const SizedBox(height: 4),
                     if (hasAccount) ...[
                       Row(
                         children: [
-                          const Text('Tài khoản: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                          Text(emp['tenTK'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
+                          const Text(
+                            'Tài khoản: ',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                          Text(
+                            emp['tenTK'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                              fontSize: 13,
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade50,
                               border: Border.all(color: Colors.blue.shade200),
@@ -1277,20 +2081,34 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                             ),
                             child: Text(
                               emp['tenVaiTro'] ?? '',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryStart,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ] else ...[
-                      const Text('Chưa có tài khoản đăng nhập', style: TextStyle(color: Colors.red, fontStyle: FontStyle.italic, fontSize: 13)),
+                      const Text(
+                        'Chưa có tài khoản đăng nhập',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontStyle: FontStyle.italic,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
               const Divider(height: 1),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 4.0,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -1298,19 +2116,46 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                       if (!hasAccount)
                         TextButton.icon(
                           onPressed: () => _showCreateAccountDialog(emp),
-                          icon: const Icon(Icons.key, size: 18, color: Colors.green),
-                          label: const Text('CẤP TK', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                          icon: const Icon(
+                            Icons.key,
+                            size: 18,
+                            color: Colors.green,
+                          ),
+                          label: const Text(
+                            'CẤP TK',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
                         )
                       else ...[
                         IconButton(
-                          icon: Icon(Icons.admin_panel_settings, color: _isSelf(emp) ? Colors.grey : Colors.orange),
-                          tooltip: _isSelf(emp) ? 'Không thể tự đổi vai trò' : 'Thay đổi vai trò',
-                          onPressed: _isSelf(emp) ? null : () => _showChangeRoleDialog(emp),
+                          icon: Icon(
+                            Icons.admin_panel_settings,
+                            color: _isSelf(emp) ? Colors.grey : Colors.orange,
+                          ),
+                          tooltip: _isSelf(emp)
+                              ? 'Không thể tự đổi vai trò'
+                              : 'Thay đổi vai trò',
+                          onPressed: _isSelf(emp)
+                              ? null
+                              : () => _showChangeRoleDialog(emp),
                         ),
                         IconButton(
-                          icon: Icon(Icons.security, color: _isSelf(emp) ? Colors.grey : Colors.teal),
-                          tooltip: _isSelf(emp) ? 'Không thể tự phân quyền' : 'Phân quyền chi tiết',
-                          onPressed: _isSelf(emp) ? null : () => _showDetailedPermissionsDialog(emp),
+                          icon: Icon(
+                            Icons.security,
+                            color: _isSelf(emp)
+                                ? Colors.grey
+                                : AppColors.primaryStart,
+                          ),
+                          tooltip: _isSelf(emp)
+                              ? 'Không thể tự phân quyền'
+                              : 'Phân quyền chi tiết',
+                          onPressed: _isSelf(emp)
+                              ? null
+                              : () => _showDetailedPermissionsDialog(emp),
                         ),
                       ],
                     ],
@@ -1322,9 +2167,16 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
                       ),
                     if (_isAdmin() || PermissionHelper.canDelete('EMPLOYEES'))
                       IconButton(
-                        icon: Icon(Icons.delete, color: _isSelf(emp) ? Colors.grey : Colors.red),
-                        tooltip: _isSelf(emp) ? 'Không thể tự xóa' : 'Xóa nhân viên',
-                        onPressed: _isSelf(emp) ? null : () => _deleteEmployee(emp),
+                        icon: Icon(
+                          Icons.delete,
+                          color: _isSelf(emp) ? Colors.grey : Colors.red,
+                        ),
+                        tooltip: _isSelf(emp)
+                            ? 'Không thể tự xóa'
+                            : 'Xóa nhân viên',
+                        onPressed: _isSelf(emp)
+                            ? null
+                            : () => _deleteEmployee(emp),
                       ),
                   ],
                 ),
@@ -1345,11 +2197,19 @@ class _EmployeesTabState extends State<EmployeesTab> with SingleTickerProviderSt
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
-            leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.security, color: Colors.white)),
-            title: Text(role['tenVT'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            leading: const CircleAvatar(
+              backgroundColor: Colors.indigo,
+              child: Icon(Icons.security, color: Colors.white),
+            ),
+            title: Text(
+              role['tenVT'] ?? '',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             subtitle: Text(role['moTa'] ?? 'Không có mô tả chi tiết'),
             trailing: const Icon(Icons.check_circle, color: Colors.green),
           ),

@@ -35,5 +35,6 @@ namespace BuildingMaterialAPI.Models
         [ForeignKey("MaHoaDon")] public virtual HoaDon? HoaDon { get; set; }
         [ForeignKey("MaNhanVien")] public virtual NhanVien? NhanVien { get; set; }
         public virtual ICollection<CTPhieuGiaoHang> CTPhieuGiaoHangs { get; set; } = new List<CTPhieuGiaoHang>();
+        public virtual PhieuXuatKho? PhieuXuatKho { get; set; }
     }
 }

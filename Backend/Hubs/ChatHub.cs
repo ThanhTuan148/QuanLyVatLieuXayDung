@@ -66,7 +66,7 @@ namespace BuildingMaterialAPI.Hubs
                 if (mappedRole == "Customer_AI")
                 {
                     // Generate AI Response
-                    string aiResponse = await _aiService.GetChatResponse(message);
+                    string aiResponse = await _aiService.GetChatResponse(message, customerId);
                     var aiTimestamp = System.DateTime.Now;
 
                     var aiMsgObj = new ChatMessage

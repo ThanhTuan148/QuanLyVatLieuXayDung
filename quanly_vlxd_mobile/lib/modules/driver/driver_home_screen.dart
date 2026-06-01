@@ -28,7 +28,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tài Xế Giao Hàng (Driver)', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Tài Xế Giao Hàng (Driver)',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.teal.shade700,
         elevation: 2,
       ),
@@ -55,7 +58,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.teal.shade700,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
         unselectedLabelStyle: const TextStyle(fontSize: 11),
         onTap: _onItemTapped,
       ),
@@ -76,18 +82,40 @@ class _DriverProfileTab extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 16),
-          CircleAvatar(radius: 48, backgroundColor: Colors.teal.shade200, child: const Icon(Icons.person, size: 48, color: Colors.teal)),
+          CircleAvatar(
+            radius: 48,
+            backgroundColor: Colors.teal.shade200,
+            child: const Icon(Icons.person, size: 48, color: Colors.teal),
+          ),
           const SizedBox(height: 16),
-          const Text('Trang Cá Nhân Tài Xế', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-          const Text('Vai trò: Tài xế / Giao hàng vận chuyển', style: TextStyle(color: Colors.grey)),
+          const Text(
+            'Trang Cá Nhân Tài Xế',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+          ),
+          const Text(
+            'Vai trò: Tài xế / Giao hàng vận chuyển',
+            style: TextStyle(color: Colors.grey),
+          ),
           const SizedBox(height: 32),
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               children: [
-                ListTile(leading: const Icon(Icons.person), title: const Text('Thông tin bằng lái & phương tiện'), trailing: const Icon(Icons.arrow_forward_ios, size: 16), onTap: () {}),
+                ListTile(
+                  leading: const Icon(Icons.person),
+                  title: const Text('Thông tin bằng lái & phương tiện'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {},
+                ),
                 const Divider(height: 1),
-                ListTile(leading: const Icon(Icons.lock), title: const Text('Đổi mật khẩu'), trailing: const Icon(Icons.arrow_forward_ios, size: 16), onTap: () {}),
+                ListTile(
+                  leading: const Icon(Icons.lock),
+                  title: const Text('Đổi mật khẩu'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {},
+                ),
               ],
             ),
           ),
@@ -99,10 +127,17 @@ class _DriverProfileTab extends StatelessWidget {
                 Navigator.of(context).pushReplacementNamed('/login');
               },
               icon: const Icon(Icons.logout),
-              label: const Text('ĐĂNG XUẤT', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+              label: const Text(
+                'ĐĂNG XUẤT',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
-          )
+          ),
         ],
       ),
     );

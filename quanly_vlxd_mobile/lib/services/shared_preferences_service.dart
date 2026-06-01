@@ -15,7 +15,8 @@ class SharedPreferencesService {
 
   static String getServerUrl() {
     // Mặc định lấy theo IP Wi-Fi hiện tại của bạn
-    String url = _prefs.getString('server_url') ?? 'http://192.168.1.51:5000/api/';
+    String url =
+        _prefs.getString('server_url') ?? 'http://192.168.1.51:5000/api/';
     if (url.contains('192.168.1.43')) {
       url = url.replaceAll('192.168.1.43', '192.168.1.51');
       _prefs.setString('server_url', url);
@@ -53,9 +54,24 @@ class SharedPreferencesService {
   /// VD: '/images/products/abc.jpg' → 'http://192.168.1.51:5000/images/products/abc.jpg'
   static String getImageUrl(String? relativePath) {
     if (relativePath == null || relativePath.isEmpty) return '';
-    if (relativePath.startsWith('http')) return relativePath;
+    
     // Lấy base URL server (bỏ phần '/api/')
     final serverUrl = getServerUrl().replaceAll(RegExp(r'/api/?$'), '');
-    return '${serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl}$relativePath';
+    
+    String url = relativePath;
+    
+    // Xử lý trường hợp URL lưu trong DB bị dính localhost thay vì IP mạng LAN
+    if (url.contains('localhost')) {
+      try {
+        final uri = Uri.parse(serverUrl);
+        url = url.replaceAll('localhost', uri.host);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    
+    if (url.startsWith('http')) return url;
+    
+    return '${serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl}$url';
   }
 }

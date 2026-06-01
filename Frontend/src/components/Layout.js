@@ -67,15 +67,13 @@ function Layout({ children }) {
     { text: '👥 Khách Hàng', icon: <PeopleIcon />, path: '/customers', moduleKey: 'customers' },
     { text: '🏪 Nhà Cung Cấp', icon: <ManageAccountsIcon />, path: '/suppliers', moduleKey: 'suppliers' },
     { text: '🏷️ Khuyến Mãi', icon: <LocalOfferIcon />, path: '/promotions', moduleKey: 'promotions' },
-    { text: '📥 Nhập Hàng', icon: <AddShoppingCartIcon />, path: '/procurement', moduleKey: 'inventory' },
-    { text: '🔄 Đổi / Trả', icon: <CompareArrowsIcon />, path: '/returns', moduleKey: 'inventory' },
+    { text: '📥 Nhập Hàng', icon: <AddShoppingCartIcon />, path: '/procurement', moduleKey: 'procurement' },
+    { text: '🔄 Đổi / Trả', icon: <CompareArrowsIcon />, path: '/returns', moduleKey: 'returns' },
     { text: '📊 Kho Hàng', icon: <StorageIcon />, path: '/inventory', moduleKey: 'inventory' },
     { text: '📈 Lịch Sử Giá', icon: <StorageIcon />, path: '/price-history', moduleKey: 'price_history' },
     { text: '🚚 Giao Hàng', icon: <LocalShippingIcon />, path: '/deliveries', moduleKey: 'deliveries' },
     { text: '💳 Công Nợ', icon: <AccountBalanceWalletIcon />, path: '/debts', moduleKey: 'debts' },
     { text: '📈 Báo Cáo', icon: <BarChartIcon />, path: '/reports', moduleKey: 'reports' },
-    { text: '📧 Tin nhắn', icon: <Email />, path: '/contact-messages', moduleKey: 'dashboard' },
-    { text: '💬 Chat trực tuyến', icon: <Email />, path: '/admin-chat', moduleKey: 'dashboard' },
 
     { text: '👨‍💼 Nhân Viên', icon: <ManageAccountsIcon />, path: '/employees', moduleKey: 'employees' },
     { text: '⚙️ Cài Đặt', icon: <SettingsIcon />, path: '/settings', moduleKey: 'settings' },
@@ -102,12 +100,23 @@ function Layout({ children }) {
     // Với mọi vai trò: kiểm tra quyền động từ modulePermissions (hoặc fallback mặc định trong PermissionContext)
     if (!permissions) return false;
 
-    // Cài đặt: Hiển thị nếu có quyền, HOẶC luôn hiển thị cho Quản lý/Giám đốc/Admin
+    // Cài đặt: Mặc định tất cả vai trò nội bộ (không phải khách hàng) đều có thể truy cập danh mục cài đặt
     if (item.path === '/settings') {
-      return permissions?.['settings']?.coTheXem || isHighManager || isAdminRole;
+      return true;
+    }
+
+    // Tổng quan: Hiển thị nếu có quyền, HOẶC mặc định hiển thị cho Quản lý/Giám đốc
+    if (item.path === '/dashboard') {
+      return permissions?.['dashboard']?.coTheXem || isHighManager;
     }
 
     const mKey = item.moduleKey;
+    if (mKey === 'returns') {
+      return (permissions['returns']?.coTheXem || permissions['returns_customer']?.coTheXem) || false;
+    }
+    if (mKey === 'inventory') {
+      return (permissions['inventory']?.coTheXem || permissions['inventory_gift']?.coTheXem || permissions['inventory_history']?.coTheXem) || false;
+    }
     return permissions[mKey] ? permissions[mKey].coTheXem : false;
   });
 

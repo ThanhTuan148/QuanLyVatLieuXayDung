@@ -1,0 +1,133 @@
+================================================================================
+                    KỊCH BẢN DEMO WEB QUẢN LÝ VẬT LIỆU XÂY DỰNG
+================================================================================
+
+--------------------------------------------------------------------------------
+[PHẦN 0]: CÔNG TÁC CHUẨN BỊ (TRƯỚC KHI BẮT ĐẦU DEMO)
+--------------------------------------------------------------------------------
+1. Mở sẵn các trình duyệt (hoặc tab ẩn danh) để đăng nhập song song nhiều vai trò.
+2. Tài khoản đã chuẩn bị sẵn: 
+   - Admin (admin)
+   - Quản lý (qly)
+   - Nhân viên kho (nvk)
+   - Nhân viên bán hàng (nvbh)
+   - Nhân viên giao hàng (nvgh)
+   - Khách hàng (kh)
+3. Dữ liệu mồi (Seed data) bắt buộc phải có:
+   - 2 sản phẩm (vật liệu) sắp hết hàng (tồn kho rất thấp).
+   - 1 đơn hàng ở trạng thái sắp giao trễ.
+   - 1 khách hàng (nhà thầu/khách quen) đang có công nợ / đang trả nợ.
+
+================================================================================
+[PHẦN 1]: ĐĂNG NHẬP & TÀI KHOẢN CÁ NHÂN
+================================================================================
+- Bước 1 (Sai MK): Tại màn hình Login, nhập sai mật khẩu để báo lỗi -> Click "Quên mật khẩu/Đổi mật khẩu" -> Demo luồng lấy lại mật khẩu.
+- Bước 2 (Đúng MK): Đăng nhập thành công với tài khoản Khách hàng (kh) (hoặc nhân viên).
+- Bước 3 (Hồ sơ): Truy cập "Quản lý hồ sơ cá nhân". Cập nhật thông tin (Tên, SĐT, Địa chỉ), lưu lại.
+
+================================================================================
+[PHẦN 2]: QUẢN TRỊ HỆ THỐNG (VAI TRÒ: ADMIN)
+================================================================================
+Đăng nhập bằng tài khoản [Admin].
+[2.1] QUẢN LÝ DANH MỤC & PHÂN QUYỀN:
+- Giới thiệu lướt qua các màn hình quản lý: Khuyến mãi, Nhân viên, Sản phẩm, Khách hàng, Nhà cung cấp, Tài khoản.
+- Truy cập mục "Quản lý nhân viên":
+  + Bấm [Thêm mới] 1 nhân viên ảo.
+  + Bấm [Sửa] để cấp/phân quyền cho nhân viên đó.
+  + Bấm [Xóa] (hoặc khóa) nhân viên đó.
+- Demo việc phân quyền hoạt động thực tế bằng cách mở các tab/cửa sổ khác nhau và đăng nhập lần lượt các tài khoản để show menu tương ứng:
+  + [kh]: Giao diện mua sắm.
+  + [qly]: Xem toàn bộ báo cáo, duyệt chứng từ.
+  + [nvk]: Chỉ thấy module Kho, Nhập hàng.
+  + [nvbh]: Thấy Đơn hàng, Khách hàng.
+  + [nvgh]: Chỉ thấy Đơn giao hàng của mình.
+
+[2.2 & 2.3] BACKUP & RESTORE DỮ LIỆU:
+- Vào màn hình Cấu hình hệ thống (hoặc Backup).
+- Click [Backup] -> Tải xuống file sao lưu CSDL.
+- Click [Restore] -> Chọn file vừa backup để khôi phục (Nếu mất thời gian có thể chỉ trình bày thao tác).
+
+================================================================================
+[PHẦN 3]: ĐẶT HÀNG TỪ NHÀ CUNG CẤP
+================================================================================
+[3.1] VAI TRÒ: NHÂN VIÊN KHO (NVK)
+- Vào màn hình Tồn kho, chỉ ra 2 Sản phẩm "sắp hết hàng" đã chuẩn bị.
+- Bấm tạo "Phiếu đề xuất nhập hàng" (Điền NCC, vật tư cần nhập).
+- Click [Xuất phiếu đề xuất] (Xem PDF/In).
+- Đẩy phiếu lên trạng thái "Chờ duyệt".
+
+[3.2] VAI TRÒ: QUẢN LÝ (QL)
+- Đăng nhập (hoặc chuyển tab) Quản lý. Vào xem Danh sách Phiếu đề xuất.
+- [Case 1]: Click [Hủy duyệt] (từ chối).
+- [Case 2]: Click [Sửa] (thay đổi số lượng vật tư cần nhập) -> Click [Duyệt].
+
+================================================================================
+[PHẦN 4]: NHẬP KHO VẬT LIỆU
+================================================================================
+(Giả định NCC đã giao hàng tới kho).
+[4.1] VAI TRÒ: NHÂN VIÊN KHO (NVK)
+- Vào màn hình Nhập kho, kiểm tra hàng thực tế dựa trên phiếu đã duyệt.
+* Tình huống 4.1.1 (Thiếu hàng, lỗi):
+  - Nhập số lượng thực nhận ít hơn hoặc đánh dấu hàng lỗi.
+  - NVK đăng ký đổi trả -> Sinh ra & [Xuất Phiếu Đổi/Trả NCC].
+* Tình huống 4.1.2 (Duyệt đổi trả):
+  - Quản lý (QL) vào xem Phiếu yêu cầu đổi trả -> Click [Duyệt] hoặc [Hủy duyệt].
+* Tình huống Nhập thành công (Đủ hàng):
+  - NVK cập nhật đủ số lượng -> Click [Xác nhận nhập kho].
+  - Tồn kho sản phẩm tăng lên.
+  - Click [Xuất báo cáo nhập hàng / Phiếu nhập].
+
+================================================================================
+[PHẦN 5]: BÁN HÀNG & GIAO HÀNG (LUỒNG CỐT LÕI)
+================================================================================
+[5.1] VAI TRÒ: KHÁCH HÀNG (KH)
+- Đăng nhập KH. Tìm kiếm vật liệu xây dựng.
+- Đặt 2 ĐƠN HÀNG khác nhau:
+  + Đơn 1: Chọn [Thanh toán trực tiếp] (Tiền mặt / Chuyển khoản ngay).
+  + Đơn 2: Chọn [Công nợ] (Cho phép KH mua chịu do đã được cấu hình cấp tín dụng).
+
+[5.2] VAI TRÒ: NHÂN VIÊN BÁN HÀNG (NVBH)
+- Vào Quản lý Đơn hàng. Thấy 2 đơn báo mới.
+- Click xem chi tiết 1 đơn -> Bấm [Hủy đơn] (Ghi lý do: Hết hàng ảo hoặc KH yêu cầu).
+- Click xem đơn còn lại -> Bấm [Duyệt đơn hàng]. 
+- Hệ thống tự động trừ Tồn kho (Cập nhật tồn).
+- Click [Xuất Phiếu Xuất Kho]. Đơn hàng chuyển sang "Chờ giao".
+
+[5.3] GIAO HÀNG (NVGH, KH, QL)
+* 5.3.3 QL/NVBH: 
+  - Mở danh sách Giao hàng, chỉ ra 1 "Đơn hàng sắp giao trễ" (đã chuẩn bị ở phần 0) để cảnh báo.
+  - Phân công đơn hàng mới duyệt ở mục 5.2 cho NVGH.
+* NVGH: 
+  - Nhận đơn trên hệ thống -> Đổi trạng thái thành [Tiến hành giao].
+* 5.3.1 KH: 
+  - Mở màn hình KH, xem Theo dõi đơn hàng -> Thấy trạng thái chuyển sang "Đang giao".
+* 5.3.2 NVGH (Cập nhật trạng thái):
+  - [Case Thất bại]: Chọn [Giao thất bại] -> Nhập lý do (VD: Gọi KH không nghe máy). 
+    -> Hệ thống hiển thị: "Chờ xử lý". NVBH có thể chọn [Giao lại] hoặc [Hủy đơn].
+  - [Case Hủy đơn trực tiếp]: Chọn Hủy.
+  - [Case Thành công]: Chọn [Giao thành công] -> Nhập số tiền [Thu cọc / Thu hộ] -> Bấm [Xác nhận].
+
+[5.4] HẬU MÃI (TRẢ/ĐỔI HÀNG TỪ KHÁCH)
+Sau khi đơn hàng hoàn thành, KH kiểm tra hàng thực tế.
+
+* Kịch bản 5.4.a (Trả hàng):
+  - KH yêu cầu Trả hàng.
+  - 5.4.1 NVBH: Xem xét -> [Xác nhận Trả hàng]. Hệ thống cộng lại Tồn kho -> Click [Xuất Phiếu Trả Hàng].
+  - Hệ thống tự động Hoàn tiền hoặc Trừ thẳng vào Công nợ của KH.
+  - 5.4.2 KH: Mở màn hình Xem Công nợ -> Thấy số dư nợ đã giảm do trừ tiền trả hàng.
+  
+* Kịch bản 5.4.b (Đổi hàng):
+  - KH yêu cầu Đổi hàng (Lý do: gạch mẻ, sai màu).
+  - 5.4.3 NVBH: [Xác nhận] -> Tạo [Phiếu Đổi Hàng].
+  - 5.4.3.1 NVK: Mở Phiếu Đổi -> Thực hiện [Nhập hàng lỗi] về kho và [Xuất hàng mới] ra.
+  - 5.4.3.2 NVGH: Đi giao đơn hàng mới -> Lấy hàng cũ mang về -> Cập nhật trạng thái đổi thành công.
+  
+* Kịch bản Từ chối: NVBH có quyền click [Từ chối đổi/trả] kèm lý do.
+
+* Kịch bản 5.4.c (Nhận hàng thành công hoàn toàn):
+  - KH không khiếu nại -> Bấm [Xác nhận Đã nhận hàng].
+  - NVBH: Mở lại danh sách Đơn hàng -> Thấy trạng thái Đơn hàng chuyển sang Đóng/Hoàn tất 100%.
+
+================================================================================
+KẾT THÚC DEMO.
+================================================================================

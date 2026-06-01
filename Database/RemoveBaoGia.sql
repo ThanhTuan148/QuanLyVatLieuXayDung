@@ -1,3 +1,0 @@
--- Xóa cấu trúc dữ liệu Báo Giá
-DROP TABLE IF EXISTS CTBAOGIA;
-DROP TABLE IF EXISTS BAOGIA;

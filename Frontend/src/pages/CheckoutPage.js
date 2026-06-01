@@ -24,10 +24,14 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Snackbar
+  Snackbar,
+  Autocomplete,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CancelIcon from '@mui/icons-material/Cancel';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
 import orderService from '../services/orderService';
 import cartService from '../services/cartService';
 import customerService from '../services/customerService';
@@ -110,8 +114,8 @@ const CheckoutPage = () => {
 
   // Fetch provinces on mount
   useEffect(() => {
-    axios.get('https://provinces.open-api.vn/api/p/')
-      .then(res => setProvinces(res.data))
+    axios.get('https://esgoo.net/api-tinhthanh-new/1/0.htm')
+      .then(res => setProvinces(res.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }))))
       .catch(console.error);
 
     // Fetch customer info to auto-fill
@@ -201,8 +205,8 @@ const CheckoutPage = () => {
     setDistricts([]);
     setWards([]);
     if (code) {
-      axios.get(`https://provinces.open-api.vn/api/p/${code}?depth=2`)
-        .then(res => setDistricts(res.data.districts))
+      axios.get(`https://esgoo.net/api-tinhthanh-new/2/${code}.htm`)
+        .then(res => setDistricts(res.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }))))
         .catch(console.error);
     }
   };
@@ -214,8 +218,8 @@ const CheckoutPage = () => {
     setAddressForm({ ...addressForm, district: name, ward: '' });
     setWards([]);
     if (code) {
-      axios.get(`https://provinces.open-api.vn/api/d/${code}?depth=2`)
-        .then(res => setWards(res.data.wards))
+      axios.get(`https://esgoo.net/api-tinhthanh-new/3/${code}.htm`)
+        .then(res => setWards(res.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }))))
         .catch(console.error);
     }
   };
@@ -225,6 +229,128 @@ const CheckoutPage = () => {
     const name = wards.find(w => w.code === code)?.name || '';
     setSelectedCodes({ ...selectedCodes, wardCode: code });
     setAddressForm({ ...addressForm, ward: name });
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      showToast("Đang lấy vị trí hiện tại...", "info");
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=vi-VN`);
+          const { address, display_name } = res.data;
+          
+          let street = [];
+          if (address.house_number) street.push(address.house_number);
+          if (address.road) street.push(address.road);
+          let streetStr = street.join(', ');
+
+          const pMatch = provinces.find(p => display_name.includes(p.name));
+          if (pMatch) {
+            const pCode = pMatch.code;
+            setSelectedCodes(prev => ({ ...prev, provinceCode: pCode, districtCode: '', wardCode: '' }));
+            setAddressForm(prev => ({ ...prev, province: pMatch.name, district: '', ward: '', address: streetStr }));
+            
+            const wRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/2/${pCode}.htm`);
+            const dists = wRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
+            setDistricts(dists);
+
+            // Match ward/district from display_name
+            const wMatch = dists.find(w => {
+              const cleanName = w.name.replace(/Phường|Xã|Thị trấn|Quận|Huyện/g, '').trim();
+              return display_name.includes(cleanName);
+            });
+            
+            if (wMatch) {
+              setSelectedCodes(prev => ({ ...prev, districtCode: wMatch.code, wardCode: wMatch.code }));
+              setAddressForm(prev => ({ ...prev, district: wMatch.name, ward: wMatch.name, address: streetStr }));
+              showToast("Đã lấy vị trí thành công!", "success");
+            } else {
+              setAddressForm(prev => ({ ...prev, address: `${address.suburb || address.village || address.city_district || ''}, ${streetStr}`.replace(/^,\s*/, '') }));
+              showToast("Đã lấy tỉnh/thành phố, vui lòng kiểm tra lại phường/xã.", "success");
+            }
+          } else {
+            showToast("Không tìm thấy Tỉnh/Thành phố từ tọa độ.", "error");
+            setAddressForm(prev => ({ ...prev, address: display_name }));
+          }
+        } catch (err) {
+          console.error("Lỗi lấy vị trí", err);
+          showToast("Không thể tải địa chỉ từ tọa độ của bạn.", "error");
+        }
+      }, (err) => {
+        console.error(err);
+        showToast("Vui lòng cấp quyền truy cập vị trí.", "error");
+      }, { timeout: 10000, enableHighAccuracy: true });
+    } else {
+      showToast("Trình duyệt không hỗ trợ định vị.", "error");
+    }
+  };
+
+  const handleGetGroupLocation = (groupId) => {
+    if (navigator.geolocation) {
+      showToast("Đang lấy vị trí hiện tại...", "info");
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=vi-VN`);
+          const { address, display_name } = res.data;
+          
+          let street = [];
+          if (address.house_number) street.push(address.house_number);
+          if (address.road) street.push(address.road);
+          let streetStr = street.join(', ');
+
+          const pMatch = provinces.find(p => display_name.includes(p.name));
+          if (pMatch) {
+            const pCode = pMatch.code;
+            
+            const wRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/2/${pCode}.htm`);
+            const dists = wRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
+            
+            let finalDistrictCode = '';
+            let finalDistrictName = '';
+            let finalAddress = streetStr;
+
+            const wMatch = dists.find(w => {
+              const cleanName = w.name.replace(/Phường|Xã|Thị trấn|Quận|Huyện/g, '').trim();
+              return display_name.includes(cleanName);
+            });
+            
+            if (wMatch) {
+              finalDistrictCode = wMatch.code;
+              finalDistrictName = wMatch.name;
+              showToast("Đã lấy vị trí thành công!", "success");
+            } else {
+              finalAddress = `${address.suburb || address.village || address.city_district || ''}, ${streetStr}`.replace(/^,\s*/, '');
+              showToast("Đã lấy tỉnh/thành phố, vui lòng kiểm tra lại phường/xã.", "success");
+            }
+
+            setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? {
+              ...g,
+              province: pMatch.name,
+              provinceCode: pCode,
+              district: finalDistrictName,
+              districtCode: finalDistrictCode,
+              ward: finalDistrictName,
+              wardCode: finalDistrictCode,
+              address: finalAddress,
+              districts: dists
+            } : g));
+          } else {
+            showToast("Không tìm thấy Tỉnh/Thành phố từ tọa độ.", "error");
+            setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? { ...g, address: display_name } : g));
+          }
+        } catch (err) {
+          console.error("Lỗi lấy vị trí", err);
+          showToast("Không thể tải địa chỉ từ tọa độ của bạn.", "error");
+        }
+      }, (err) => {
+        console.error(err);
+        showToast("Vui lòng cấp quyền truy cập vị trí.", "error");
+      }, { timeout: 10000, enableHighAccuracy: true });
+    } else {
+      showToast("Trình duyệt không hỗ trợ định vị.", "error");
+    }
   };
 
   const [paymentMethod, setPaymentMethod] = useState('cod');
@@ -404,8 +530,8 @@ const CheckoutPage = () => {
                 setSelectedCodes(prev => ({ ...prev, provinceCode: pMatch.code }));
                 
                 // Fetch districts
-                const dRes = await axios.get(`https://provinces.open-api.vn/api/p/${pMatch.code}?depth=2`);
-                const dists = dRes.data.districts;
+                const dRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/2/${pMatch.code}.htm`);
+                const dists = dRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
                 setDistricts(dists);
                 
                 const dMatch = dists.find(d => d.name.includes(parsedAddr.district) || parsedAddr.district.includes(d.name));
@@ -414,8 +540,8 @@ const CheckoutPage = () => {
                   setSelectedCodes(prev => ({ ...prev, districtCode: dMatch.code }));
                   
                   // Fetch wards
-                  const wRes = await axios.get(`https://provinces.open-api.vn/api/d/${dMatch.code}?depth=2`);
-                  const wrds = wRes.data.wards;
+                  const wRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/3/${dMatch.code}.htm`);
+                  const wrds = wRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
                   setWards(wrds);
                   
                   const wMatch = wrds.find(w => w.name.includes(parsedAddr.ward) || parsedAddr.ward.includes(w.name));
@@ -465,13 +591,13 @@ const CheckoutPage = () => {
                   const pMatch = provinces.find(p => p.name.includes(gP) || gP.includes(p.name));
                   if (pMatch) {
                     gPCode = pMatch.code;
-                    const dRes = await axios.get(`https://provinces.open-api.vn/api/p/${pMatch.code}?depth=2`);
-                    gDists = dRes.data.districts;
+                    const dRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/2/${pMatch.code}.htm`);
+                    gDists = dRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
                     const dMatch = gDists.find(d => d.name.includes(gD) || gD.includes(d.name));
                     if (dMatch) {
                       gDCode = dMatch.code;
-                      const wRes = await axios.get(`https://provinces.open-api.vn/api/d/${dMatch.code}?depth=2`);
-                      gWrds = wRes.data.wards;
+                      const wRes = await axios.get(`https://esgoo.net/api-tinhthanh-new/3/${dMatch.code}.htm`);
+                      gWrds = wRes.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
                       const wMatch = gWrds.find(w => w.name.includes(gW) || gW.includes(w.name));
                       if (wMatch) gWCode = wMatch.code;
                     }
@@ -635,8 +761,8 @@ const CheckoutPage = () => {
     const name = provinces.find(p => p.code === code)?.name || '';
     let districtsOfProv = [];
     if (code) {
-      const res = await axios.get(`https://provinces.open-api.vn/api/p/${code}?depth=2`);
-      districtsOfProv = res.data.districts;
+      const res = await axios.get(`https://esgoo.net/api-tinhthanh-new/2/${code}.htm`);
+      districtsOfProv = res.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
     }
     setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? {
       ...g, province: name, provinceCode: code, district: '', districtCode: '', ward: '', wardCode: '', districts: districtsOfProv, wards: []
@@ -648,8 +774,8 @@ const CheckoutPage = () => {
     const name = group.districts.find(d => d.code === code)?.name || '';
     let wardsOfDist = [];
     if (code) {
-      const res = await axios.get(`https://provinces.open-api.vn/api/d/${code}?depth=2`);
-      wardsOfDist = res.data.wards;
+      const res = await axios.get(`https://esgoo.net/api-tinhthanh-new/3/${code}.htm`);
+      wardsOfDist = res.data.data.map(i => ({ code: i.id, name: i.full_name || i.name }));
     }
     setDeliveryGroups(deliveryGroups.map(g => g.id === groupId ? {
       ...g, district: name, districtCode: code, ward: '', wardCode: '', wards: wardsOfDist
@@ -1017,28 +1143,68 @@ const CheckoutPage = () => {
                         <TextField fullWidth size="small" value={addressForm.email} onChange={e => handleFieldChange('address', 'email', e.target.value)} error={!!errors.email} helperText={errors.email} />
                       </Grid>
 
-                      <Grid item xs={12} sm={3}><Typography variant="body2">Tỉnh/Thành Phố</Typography></Grid>
-                      <Grid item xs={12} sm={9}>
-                        <TextField select fullWidth size="small" value={selectedCodes.provinceCode} onChange={handleProvinceChange} error={!!errors.province} helperText={errors.province}>
-                          <MenuItem value="" disabled>Chọn tỉnh/thành Phố</MenuItem>
-                          {provinces.map(p => <MenuItem key={p.code} value={p.code}>{p.name}</MenuItem>)}
-                        </TextField>
+                      <Grid item xs={12} sm={3}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="body2">Tỉnh/Thành Phố</Typography>
+                          <Tooltip title="Lấy vị trí hiện tại">
+                            <IconButton size="small" color="primary" onClick={handleGetCurrentLocation} sx={{ ml: 1 }}>
+                              <MyLocationIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </Grid>
-
-                      <Grid item xs={12} sm={3}><Typography variant="body2">Quận/Huyện</Typography></Grid>
                       <Grid item xs={12} sm={9}>
-                        <TextField select fullWidth size="small" value={selectedCodes.districtCode} onChange={handleDistrictChange} disabled={!selectedCodes.provinceCode} error={!!errors.district} helperText={errors.district}>
-                          <MenuItem value="" disabled>Chọn quận/huyện</MenuItem>
-                          {districts.map(d => <MenuItem key={d.code} value={d.code}>{d.name}</MenuItem>)}
-                        </TextField>
+                        <Autocomplete
+                          fullWidth
+                          size="small"
+                          options={provinces}
+                          getOptionLabel={(option) => option.name || ''}
+                          value={provinces.find(p => p.code === selectedCodes.provinceCode) || null}
+                          onChange={(event, newValue) => {
+                            if (newValue) {
+                              handleProvinceChange({ target: { value: newValue.code } });
+                            } else {
+                              handleProvinceChange({ target: { value: '' } });
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              placeholder="Nhập từ khóa tìm kiếm tỉnh/thành phố..." 
+                              error={!!errors.province} 
+                              helperText={errors.province} 
+                            />
+                          )}
+                        />
                       </Grid>
 
                       <Grid item xs={12} sm={3}><Typography variant="body2">Phường/Xã</Typography></Grid>
                       <Grid item xs={12} sm={9}>
-                        <TextField select fullWidth size="small" value={selectedCodes.wardCode} onChange={handleWardChange} disabled={!selectedCodes.districtCode} error={!!errors.ward} helperText={errors.ward}>
-                          <MenuItem value="" disabled>Chọn phường/xã</MenuItem>
-                          {wards.map(w => <MenuItem key={w.code} value={w.code}>{w.name}</MenuItem>)}
-                        </TextField>
+                        <Autocomplete
+                          fullWidth
+                          size="small"
+                          options={districts}
+                          getOptionLabel={(option) => option.name || ''}
+                          value={districts.find(d => d.code === selectedCodes.districtCode) || null}
+                          onChange={(event, newValue) => {
+                            if (newValue) {
+                              setSelectedCodes({ ...selectedCodes, districtCode: newValue.code, wardCode: newValue.code });
+                              setAddressForm({ ...addressForm, district: newValue.name, ward: newValue.name });
+                            } else {
+                              setSelectedCodes({ ...selectedCodes, districtCode: '', wardCode: '' });
+                              setAddressForm({ ...addressForm, district: '', ward: '' });
+                            }
+                          }}
+                          disabled={!selectedCodes.provinceCode}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              placeholder="Nhập từ khóa tìm kiếm phường/xã..." 
+                              error={!!errors.ward || !!errors.district} 
+                              helperText={errors.ward || errors.district} 
+                            />
+                          )}
+                        />
                       </Grid>
 
                       <Grid item xs={12} sm={3}><Typography variant="body2">Địa chỉ cụ thể</Typography></Grid>
@@ -1052,9 +1218,16 @@ const CheckoutPage = () => {
                         <Paper key={group.id} variant="outlined" sx={{ p: 2, mb: 3, border: '1px solid #e0e0e0', position: 'relative' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                             <Typography variant="subtitle2" color="primary" fontWeight="bold">Địa chỉ {idx + 1}</Typography>
-                            {deliveryGroups.length > 1 && (
-                              <Button size="small" color="error" onClick={() => handleRemoveGroup(group.id)}>Xóa địa chỉ</Button>
-                            )}
+                            <Box>
+                              <Tooltip title="Lấy vị trí hiện tại">
+                                <IconButton size="small" color="primary" onClick={() => handleGetGroupLocation(group.id)} sx={{ mr: 1 }}>
+                                  <MyLocationIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {deliveryGroups.length > 1 && (
+                                <Button size="small" color="error" onClick={() => handleRemoveGroup(group.id)}>Xóa địa chỉ</Button>
+                              )}
+                            </Box>
                           </Box>
 
                           <Grid container spacing={2}>
@@ -1064,23 +1237,58 @@ const CheckoutPage = () => {
                             <Grid item xs={12} sm={6}>
                               <TextField fullWidth size="small" label="SĐT" value={group.phone} onChange={e => updateGroup(group.id, 'phone', e.target.value)} error={!!errors[`g${idx}_phone`]} />
                             </Grid>
-                            <Grid item xs={12} sm={4}>
-                              <TextField select fullWidth size="small" label="Tỉnh/TP" value={group.provinceCode} onChange={e => handleGroupProvinceChange(group.id, e.target.value)} error={!!errors[`g${idx}_province`]}>
-                                {provinces.map(p => <MenuItem key={p.code} value={p.code}>{p.name}</MenuItem>)}
-                              </TextField>
+                            <Grid item xs={12} sm={6}>
+                              <Autocomplete
+                                fullWidth
+                                size="small"
+                                options={provinces}
+                                getOptionLabel={(option) => option.name || ''}
+                                value={provinces.find(p => p.code === group.provinceCode) || null}
+                                onChange={(event, newValue) => {
+                                  if (newValue) {
+                                    handleGroupProvinceChange(group.id, newValue.code);
+                                  } else {
+                                    handleGroupProvinceChange(group.id, '');
+                                  }
+                                }}
+                                renderInput={(params) => (
+                                  <TextField 
+                                    {...params} 
+                                    label="Tỉnh/TP"
+                                    placeholder="Nhập từ khóa tìm kiếm..." 
+                                    error={!!errors[`g${idx}_province`]} 
+                                  />
+                                )}
+                              />
                             </Grid>
-                            <Grid item xs={12} sm={4}>
-                              <TextField select fullWidth size="small" label="Quận/Huyện" value={group.districtCode} onChange={e => handleGroupDistrictChange(group.id, e.target.value)} disabled={!group.provinceCode} error={!!errors[`g${idx}_district`]}>
-                                {group.districts.map(d => <MenuItem key={d.code} value={d.code}>{d.name}</MenuItem>)}
-                              </TextField>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                              <TextField select fullWidth size="small" label="Phường/Xã" value={group.wardCode} onChange={e => {
-                                const name = group.wards.find(w => w.code === e.target.value)?.name || '';
-                                setDeliveryGroups(deliveryGroups.map(g => g.id === group.id ? { ...g, ward: name, wardCode: e.target.value } : g));
-                              }} disabled={!group.districtCode} error={!!errors[`g${idx}_ward`]}>
-                                {group.wards.map(w => <MenuItem key={w.code} value={w.code}>{w.name}</MenuItem>)}
-                              </TextField>
+                            <Grid item xs={12} sm={6}>
+                              <Autocomplete
+                                fullWidth
+                                size="small"
+                                options={group.districts}
+                                getOptionLabel={(option) => option.name || ''}
+                                value={group.districts.find(d => d.code === group.districtCode) || null}
+                                onChange={(event, newValue) => {
+                                  if (newValue) {
+                                    setDeliveryGroups(deliveryGroups.map(g => g.id === group.id ? { 
+                                      ...g, district: newValue.name, districtCode: newValue.code, ward: newValue.name, wardCode: newValue.code 
+                                    } : g));
+                                  } else {
+                                    setDeliveryGroups(deliveryGroups.map(g => g.id === group.id ? { 
+                                      ...g, district: '', districtCode: '', ward: '', wardCode: '' 
+                                    } : g));
+                                  }
+                                }}
+                                disabled={!group.provinceCode}
+                                renderInput={(params) => (
+                                  <TextField 
+                                    {...params} 
+                                    label="Phường/Xã" 
+                                    placeholder="Nhập từ khóa tìm kiếm..." 
+                                    error={!!errors[`g${idx}_ward`] || !!errors[`g${idx}_district`]} 
+                                  />
+                                )}
+                              />
                             </Grid>
                             <Grid item xs={12}>
                               <TextField fullWidth size="small" label="Địa chỉ cụ thể" value={group.address} onChange={e => updateGroup(group.id, 'address', e.target.value)} error={!!errors[`g${idx}_address`]} />

@@ -257,7 +257,4 @@ flutter run  # Run on emulator/device
 ---
 
 **Created**: 2026-02-02  
-**Last Updated**: 2026-02-02  
-**Version**: 1.0.0-alpha
-
-For questions or issues, refer to the documentation files or contact the development team.
+**Last Updated**: 2026-02-02 

@@ -127,7 +127,21 @@ namespace BuildingMaterialAPI.Controllers
                         .Where(q => q.MaNhanVien == nhanVien.MaNhanVien)
                         .ToListAsync();
 
-                    foreach (var p in customPerms)
+                    var activePerms = customPerms;
+                    if (!customPerms.Any())
+                    {
+                        var rolePerms = await _ctx.VaiTroModuleQuyens
+                            .Where(q => q.MaVaiTro == taiKhoan.MaVaiTro)
+                            .ToListAsync();
+                        activePerms = rolePerms.Select(p => new NhanVienModuleQuyen
+                        {
+                            Module = p.Module, TenModule = p.TenModule,
+                            CoTheXem = p.CoTheXem, CoTheTao = p.CoTheTao,
+                            CoTheSua = p.CoTheSua, CoTheXoa = p.CoTheXoa
+                        }).ToList();
+                    }
+
+                    foreach (var p in activePerms)
                     {
                         var upperModule = p.Module.ToUpper();
                         
@@ -188,7 +202,7 @@ namespace BuildingMaterialAPI.Controllers
                     if (existingUser.TenTK == dto.Username)
                         return BadRequest(new { message = "Tên đăng nhập đã tồn tại." });
                     else
-                        return BadRequest(new { message = "Email này đã được sử dụng." });
+                        return BadRequest(new { message = "Email này đã được sử dụng. Nếu bạn đã từng đăng nhập bằng Google/GitHub, hãy tiếp tục dùng phương thức đó hoặc chọn 'Quên mật khẩu' để tạo mật khẩu đăng nhập trực tiếp." });
                 }
 
                 // Tìm VaiTro "Khách hàng" (thường tên vai trò có thể là Khách hàng)
@@ -246,6 +260,11 @@ namespace BuildingMaterialAPI.Controllers
                 // Fallback check if plain text matches (for old seed data compatibility)
                 if (tk.MatKhau != dto.OldPassword)
                     return BadRequest(new { message = "Mật khẩu cũ không đúng" });
+            }
+
+            if (_authService.VerifyPassword(dto.NewPassword, tk.MatKhau) || tk.MatKhau == dto.NewPassword)
+            {
+                return BadRequest(new { message = "Mật khẩu mới không được trùng với mật khẩu cũ." });
             }
 
             tk.MatKhau = _authService.HashPassword(dto.NewPassword);
@@ -322,6 +341,11 @@ namespace BuildingMaterialAPI.Controllers
             if (tk.OTPExpiry == null || tk.OTPExpiry < DateTime.UtcNow)
                 return BadRequest(new { message = "Mã OTP đã hết hạn." });
 
+            if (_authService.VerifyPassword(dto.NewPassword, tk.MatKhau) || tk.MatKhau == dto.NewPassword)
+            {
+                return BadRequest(new { message = "Mật khẩu mới không được trùng với mật khẩu cũ." });
+            }
+
             // Hợp lệ, tiến hành đổi
             tk.MatKhau = _authService.HashPassword(dto.NewPassword);
             tk.ResetOTP = null; // xóa OTP đã dùng
@@ -331,6 +355,228 @@ namespace BuildingMaterialAPI.Controllers
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại." });
         }
+
+        [HttpPost("social-login")]
+        public async Task<IActionResult> SocialLogin([FromBody] SocialLoginDto dto)
+        {
+            try
+            {
+                if (dto == null || string.IsNullOrEmpty(dto.Email))
+                    return BadRequest(new { message = "Email is required." });
+
+                // 1. Kiểm tra tài khoản bằng email đã tồn tại hay chưa
+                var taiKhoan = await _ctx.TaiKhoans
+                    .Include(tk => tk.VaiTro)
+                    .Include(tk => tk.NhanVien)
+                    .Include(tk => tk.KhachHang)
+                    .FirstOrDefaultAsync(t => t.Email == dto.Email);
+
+                if (taiKhoan == null)
+                {
+                    // 2. Nếu chưa tồn tại, tự động tạo mới tài khoản (Đăng ký tự động)
+                    var username = dto.Email.Split('@')[0] + "_" + dto.Provider.ToLower();
+                    
+                    // Đảm bảo username không trùng lặp (nếu trùng, thêm hậu tố ngẫu nhiên)
+                    var tempUsername = username;
+                    int count = 1;
+                    while (await _ctx.TaiKhoans.AnyAsync(t => t.TenTK == tempUsername))
+                    {
+                        tempUsername = $"{username}_{count++}";
+                    }
+                    username = tempUsername;
+
+                    var vaiTroKH = await _ctx.VaiTros.FirstOrDefaultAsync(v => v.TenVT.ToLower().Contains("khách hàng") || v.TenVT.ToLower() == "customer");
+                    if (vaiTroKH == null)
+                        return BadRequest(new { message = "Không tìm thấy vai trò Khách hàng trong hệ thống." });
+
+                    // Tạo mật khẩu mặc định an toàn cho đăng nhập MXH
+                    var defaultPassword = _authService.HashPassword("SocialLoginSecret123!");
+
+                    taiKhoan = new TaiKhoan
+                    {
+                        TenTK = username,
+                        MatKhau = defaultPassword,
+                        Email = dto.Email,
+                        MaVaiTro = vaiTroKH.MaVaiTro,
+                        TrangThai = true,
+                        NgayTao = DateTime.UtcNow,
+                        NgayCapNhat = DateTime.UtcNow
+                    };
+
+                    _ctx.TaiKhoans.Add(taiKhoan);
+                    await _ctx.SaveChangesAsync();
+
+                    var khachHang = new KhachHang
+                    {
+                        TenKH = string.IsNullOrEmpty(dto.FullName) ? username : dto.FullName,
+                        Email = dto.Email,
+                        Sdt = "0987654321", // SDT mặc định
+                        DiaChi = "",
+                        MaTaiKhoan = taiKhoan.MaTaiKhoan,
+                        NgayTao = DateTime.UtcNow,
+                        NgayCapNhat = DateTime.UtcNow,
+                        TrangThai = true,
+                        HangThanhVien = "Đồng",
+                        TongChiTieu = 0
+                    };
+                    
+                    _ctx.KhachHangs.Add(khachHang);
+                    await _ctx.SaveChangesAsync();
+                }
+
+                // 3. Sau khi đảm bảo tài khoản đã tồn tại (hoặc tự động đăng ký hoặc đã có từ trước)
+                // Tiến hành đăng nhập (Liên kết tự động)
+                if (taiKhoan.TrangThai == false)
+                    return Unauthorized(new { message = "Tài khoản của bạn đã bị khóa." });
+
+                var nhanVien = taiKhoan.NhanVien;
+                var khachHangObj = taiKhoan.KhachHang;
+
+                if (khachHangObj != null && khachHangObj.TrangThai == false)
+                    return Unauthorized(new { message = "Tài khoản khách hàng này đã ngưng hoạt động." });
+
+                if (nhanVien != null && nhanVien.TrangThai == false)
+                    return Unauthorized(new { message = "Tài khoản nhân viên này đã ngưng hoạt động." });
+
+                var fullName = nhanVien?.TenNV ?? khachHangObj?.TenKH ?? taiKhoan.TenTK;
+                var phoneNumber = nhanVien?.Sdt ?? khachHangObj?.Sdt;
+
+                // Cập nhật ngày đăng nhập cuối
+                taiKhoan.DangNhapCuoi = DateTime.UtcNow;
+                await _ctx.SaveChangesAsync();
+
+                // Xác định danh sách module được phép truy cập
+                var allowedModules = new List<string>();
+                var roleName = taiKhoan.VaiTro?.TenVT ?? "Unknown";
+
+                bool isAdminRole = roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị");
+                if (isAdminRole)
+                {
+                    allowedModules.AddRange(new[] { "CUSTOMERS", "EMPLOYEES", "SETTINGS", "BACKUP_RESTORE" });
+                }
+                else if (roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager")
+                {
+                    allowedModules.AddRange(new[] { "DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT" });
+                }
+                else if (roleName.ToLower().Contains("bán hàng") || roleName.ToLower() == "sales")
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "ORDERS", "CUSTOMERS", "PROMOTIONS", "CHAT" });
+                }
+                else if (roleName.ToLower().Contains("kho") || roleName.ToLower() == "warehouse")
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "STOCK_ORDERS", "INVENTORY", "RETURNS" });
+                }
+                else if (roleName.ToLower().Contains("tài xế") || roleName.ToLower() == "driver")
+                {
+                    allowedModules.AddRange(new[] { "DELIVERIES" });
+                }
+                else
+                {
+                    allowedModules.AddRange(new[] { "PRODUCTS", "ORDERS", "CHAT" });
+                }
+
+                var modulePermissions = new Dictionary<string, ModuleQuyenDto>();
+                var defaultAllModules = new[] { "DASHBOARD", "PRODUCTS", "ORDERS", "CUSTOMERS", "SUPPLIERS", "PROMOTIONS", "STOCK_ORDERS", "RETURNS", "INVENTORY", "PRICE_HISTORY", "DELIVERIES", "DEBTS", "REPORTS", "EMPLOYEES", "CHAT" };
+                bool isManagerOrAdmin = roleName.ToLower().Contains("quản lý") || roleName.ToLower() == "manager" || roleName.ToLower().Contains("admin") || roleName.ToLower().Contains("quản trị");
+
+                foreach (var m in defaultAllModules)
+                {
+                    bool canView = isManagerOrAdmin || allowedModules.Contains(m);
+                    bool canCrud = isManagerOrAdmin;
+
+                    if (isAdminRole && m != "CUSTOMERS" && m != "EMPLOYEES")
+                    {
+                        canView = false;
+                        canCrud = false;
+                    }
+
+                    if (roleName.ToLower().Contains("bán hàng") || roleName.ToLower() == "sales")
+                    {
+                        if (m == "ORDERS" || m == "CUSTOMERS" || m == "PRODUCTS") canCrud = true;
+                    }
+                    else if (roleName.ToLower().Contains("thủ kho") || roleName.ToLower() == "warehouse")
+                    {
+                        if (m == "STOCK_ORDERS" || m == "RETURNS" || m == "INVENTORY" || m == "PRODUCTS") canCrud = true;
+                    }
+
+                    modulePermissions[m] = new ModuleQuyenDto
+                    {
+                        Module = m, TenModule = m, CoTheXem = canView, CoTheTao = canCrud, CoTheSua = canCrud, CoTheXoa = canCrud
+                    };
+                }
+
+                if (nhanVien != null)
+                {
+                    var customPerms = await _ctx.NhanVienModuleQuyens
+                        .Where(q => q.MaNhanVien == nhanVien.MaNhanVien)
+                        .ToListAsync();
+
+                    var activePerms = customPerms;
+                    if (!customPerms.Any())
+                    {
+                        var rolePerms = await _ctx.VaiTroModuleQuyens
+                            .Where(q => q.MaVaiTro == taiKhoan.MaVaiTro)
+                            .ToListAsync();
+                        activePerms = rolePerms.Select(p => new NhanVienModuleQuyen
+                        {
+                            Module = p.Module, TenModule = p.TenModule,
+                            CoTheXem = p.CoTheXem, CoTheTao = p.CoTheTao,
+                            CoTheSua = p.CoTheSua, CoTheXoa = p.CoTheXoa
+                        }).ToList();
+                    }
+
+                    foreach (var p in activePerms)
+                    {
+                        var upperModule = p.Module.ToUpper();
+                        
+                        modulePermissions[upperModule] = new ModuleQuyenDto
+                        {
+                            Module = p.Module, TenModule = p.TenModule, CoTheXem = p.CoTheXem, CoTheTao = p.CoTheTao, CoTheSua = p.CoTheSua, CoTheXoa = p.CoTheXoa
+                        };
+
+                        if (p.CoTheXem)
+                        {
+                            if (!allowedModules.Contains(p.Module)) allowedModules.Add(p.Module);
+                            if (!allowedModules.Contains(upperModule)) allowedModules.Add(upperModule);
+                        }
+                        else
+                        {
+                            allowedModules.Remove(p.Module);
+                            allowedModules.Remove(upperModule);
+                        }
+                    }
+                }
+
+                var response = new LoginResponseDto
+                {
+                    Id = taiKhoan.MaTaiKhoan,
+                    EmployeeId = nhanVien?.MaNhanVien,
+                    Username = taiKhoan.TenTK,
+                    Email = taiKhoan.Email,
+                    FullName = fullName,
+                    PhoneNumber = phoneNumber,
+                    RoleName = roleName,
+                    IsActive = taiKhoan.TrangThai,
+                    MaKhachHang = taiKhoan.KhachHang?.MaKhachHang,
+                    ChuKy = nhanVien?.ChuKy,
+                    AllowedModules = allowedModules,
+                    ModulePermissions = modulePermissions
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống khi đăng nhập mạng xã hội.", details = ex.Message });
+            }
+        }
+    }
+
+    public class SocialLoginDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string Provider { get; set; } = string.Empty;
     }
 
     public class ChangePasswordDto

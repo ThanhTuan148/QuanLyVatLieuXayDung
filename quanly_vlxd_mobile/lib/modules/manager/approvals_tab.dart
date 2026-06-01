@@ -30,7 +30,7 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
       "nguoiYeuCau": "Lan (Kho)",
       "lyDo": "Nhập 1000 bao Xi măng Hà Tiên",
       "thoiGian": "2 giờ trước",
-    }
+    },
   ];
 
   void _approveItem(int index) {
@@ -94,9 +94,16 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.done_all, size: 64, color: Colors.green.shade200),
+                      Icon(
+                        Icons.done_all,
+                        size: 64,
+                        color: Colors.green.shade200,
+                      ),
                       const SizedBox(height: 16),
-                      const Text('Tuyệt vời! Không còn chứng từ nào cần duyệt.', style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        'Tuyệt vời! Không còn chứng từ nào cần duyệt.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ],
                   ),
                 )
@@ -116,7 +123,11 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
                         alignment: Alignment.centerLeft,
                         padding: const EdgeInsets.only(left: 20),
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: const Icon(Icons.check_circle, color: Colors.white, size: 32),
+                        child: const Icon(
+                          Icons.check_circle,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
                       secondaryBackground: Container(
                         decoration: BoxDecoration(
@@ -126,7 +137,11 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 20),
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: const Icon(Icons.cancel, color: Colors.white, size: 32),
+                        child: const Icon(
+                          Icons.cancel,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
                       onDismissed: (direction) {
                         if (direction == DismissDirection.startToEnd) {
@@ -138,13 +153,17 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
                       child: Card(
                         elevation: 2,
                         margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(16),
                           leading: CircleAvatar(
                             backgroundColor: Colors.purple.shade100,
                             child: Icon(
-                              item['loai'].contains('Kho') ? Icons.inventory : Icons.monetization_on,
+                              item['loai'].contains('Kho')
+                                  ? Icons.inventory
+                                  : Icons.monetization_on,
                               color: Colors.purple.shade700,
                             ),
                           ),
@@ -157,9 +176,18 @@ class _ApprovalsTabState extends State<ApprovalsTab> {
                             children: [
                               const SizedBox(height: 4),
                               Text('Yêu cầu bởi: ${item['nguoiYeuCau']}'),
-                              Text('Nội dung: ${item['lyDo']}', style: const TextStyle(color: Colors.black87)),
+                              Text(
+                                'Nội dung: ${item['lyDo']}',
+                                style: const TextStyle(color: Colors.black87),
+                              ),
                               const SizedBox(height: 4),
-                              Text(item['thoiGian'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              Text(
+                                item['thoiGian'],
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
                             ],
                           ),
                         ),

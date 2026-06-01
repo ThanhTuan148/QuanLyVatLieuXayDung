@@ -29,6 +29,7 @@ namespace BuildingMaterialAPI.Controllers
                 .AsNoTracking()
                 .Include(h => h.KhachHang)
                 .Include(h => h.NhanVien)
+                .Include(h => h.ChiTietKhuyenMais)
                 .OrderByDescending(h => h.NgayLap)
                 .ToListAsync();
 
@@ -38,7 +39,9 @@ namespace BuildingMaterialAPI.Controllers
                 ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
                 tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
                 pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
-                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang, maKhuyenMai = h.MaKhuyenMai,
+                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
+                maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
+                maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
                 tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
                 tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
                 coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
@@ -56,6 +59,7 @@ namespace BuildingMaterialAPI.Controllers
                 .Where(h => h.MaKhachHang == customerId)
                 .Include(h => h.KhachHang)
                 .Include(h => h.NhanVien)
+                .Include(h => h.ChiTietKhuyenMais)
                 .OrderByDescending(h => h.NgayLap)
                 .ToListAsync();
 
@@ -65,7 +69,9 @@ namespace BuildingMaterialAPI.Controllers
                 ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
                 tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
                 pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
-                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang, maKhuyenMai = h.MaKhuyenMai,
+                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
+                maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
+                maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
                 tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
                 tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
                 coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
@@ -83,6 +89,7 @@ namespace BuildingMaterialAPI.Controllers
                 .Include(h => h.KhachHang)
                 .Include(h => h.NhanVien)
                 .Include(h => h.CTHDs).ThenInclude(ct => ct.SanPham)
+                .Include(h => h.ChiTietKhuyenMais)
                 .FirstOrDefaultAsync(h => h.MaHoaDon == id);
 
             if (h == null) return NotFound();
@@ -172,7 +179,8 @@ namespace BuildingMaterialAPI.Controllers
                 
                 maKhachHang = h.MaKhachHang,
                 maNhanVien = h.MaNhanVien,
-                maKhuyenMai = h.MaKhuyenMai,
+                maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
+                maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
                 sdtKhachHang = h.KhachHang?.Sdt,
                 emailKhachHang = h.KhachHang?.Email,
                 
@@ -245,7 +253,10 @@ namespace BuildingMaterialAPI.Controllers
         [HttpPost("{id}/cancel")]
         public async Task<IActionResult> CancelOrder(int id)
         {
-            var order = await _ctx.HoaDons.Include(h => h.CTHDs).FirstOrDefaultAsync(h => h.MaHoaDon == id);
+            var order = await _ctx.HoaDons
+                .Include(h => h.CTHDs)
+                .Include(h => h.ChiTietKhuyenMais)
+                .FirstOrDefaultAsync(h => h.MaHoaDon == id);
             if (order == null) return NotFound();
 
             var currentStatus = order.TrangThai?.Trim();
@@ -300,9 +311,9 @@ namespace BuildingMaterialAPI.Controllers
             }
 
             // Hoàn lại lượt dùng mã giảm giá
-            if (order.MaKhuyenMai.HasValue)
+            foreach (var ctkm in order.ChiTietKhuyenMais)
             {
-                var km = await _ctx.KhuyenMais.FindAsync(order.MaKhuyenMai.Value);
+                var km = await _ctx.KhuyenMais.FindAsync(ctkm.MaKhuyenMai);
                 if (km != null) km.SoLuongDaDung = Math.Max(0, km.SoLuongDaDung - 1);
             }
 
@@ -372,7 +383,7 @@ namespace BuildingMaterialAPI.Controllers
                             ThanhToan = dto.PTTT?.Contains("ATM") == true ? (dto.ThanhToan ?? 0) : 0,
                             SoTienPhaiThu = dto.PTTT?.Contains("ATM") == true ? 0 : (dto.ThanhToan ?? 0),
                             PTTT = dto.PTTT, TrangThai = dto.TrangThai ?? "Chờ xử lý",
-                            GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang, MaKhuyenMai = dto.MaKhuyenMai,
+                            GhiChu = dto.GhiChu, MaNhanVien = dto.MaNhanVien, MaKhachHang = dto.MaKhachHang,
                             NgayTao = DateTime.UtcNow,
                             
                             // New fields
@@ -408,13 +419,20 @@ namespace BuildingMaterialAPI.Controllers
                         await _ctx.SaveChangesAsync();
 
                         // Cập nhật số lượng sử dụng mã giảm giá (nếu có)
-                        if (hd.MaKhuyenMai.HasValue)
+                        if (dto.MaKhuyenMai.HasValue)
                         {
-                            var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
+                            var km = await _ctx.KhuyenMais.FindAsync(dto.MaKhuyenMai.Value);
                             if (km != null)
                             {
                                 km.SoLuongDaDung++;
                                 km.NgayCapNhat = DateTime.Now;
+
+                                hd.ChiTietKhuyenMais.Add(new ChiTietKhuyenMai
+                                {
+                                    MaKhuyenMai = dto.MaKhuyenMai.Value,
+                                    SoTienGiam = hd.GiamGia,
+                                    NgayTao = DateTime.UtcNow
+                                });
                             }
                         }
                         await _ctx.SaveChangesAsync();
@@ -593,7 +611,9 @@ namespace BuildingMaterialAPI.Controllers
                     using var transaction = await _ctx.Database.BeginTransactionAsync();
                     try
                     {
-                        var hd = await _ctx.HoaDons.FindAsync(id);
+                        var hd = await _ctx.HoaDons
+                            .Include(h => h.ChiTietKhuyenMais)
+                            .FirstOrDefaultAsync(h => h.MaHoaDon == id);
                         if (hd == null) return NotFound();
 
                         if (dto.NgayLap.HasValue) hd.NgayLap = dto.NgayLap.Value;
@@ -604,7 +624,7 @@ namespace BuildingMaterialAPI.Controllers
                         string? oldStatus = hd.TrangThai;
                         hd.TrangThai = dto.TrangThai ?? hd.TrangThai;
                         hd.GhiChu = dto.GhiChu; hd.MaNhanVien = dto.MaNhanVien;
-                        hd.MaKhachHang = dto.MaKhachHang; hd.MaKhuyenMai = dto.MaKhuyenMai;
+                        hd.MaKhachHang = dto.MaKhachHang;
 
                         if (oldStatus != hd.TrangThai)
                         {
@@ -679,11 +699,30 @@ namespace BuildingMaterialAPI.Controllers
                             _ctx.CTHDs.Remove(oldItem);
                         }
 
-                        // Hoàn lại lượt dùng mã giảm giá cũ
-                        if (oldStatus != hd.TrangThai && oldStatus != "Đã hủy" && hd.MaKhuyenMai.HasValue)
+                        // Cập nhật chi tiết khuyến mãi mới
+                        var oldCtkms = hd.ChiTietKhuyenMais.ToList();
+                        foreach (var oldCtkm in oldCtkms)
                         {
-                            // Logic này phức tạp vì Update có thể đổi MaKhuyenMai. 
-                            // Để đơn giản, ta chỉ xử lý tăng/giảm dựa trên dto.MaKhuyenMai mới ở dưới.
+                            var km = await _ctx.KhuyenMais.FindAsync(oldCtkm.MaKhuyenMai);
+                            if (km != null) km.SoLuongDaDung = Math.Max(0, km.SoLuongDaDung - 1);
+                        }
+                        _ctx.ChiTietKhuyenMais.RemoveRange(oldCtkms);
+
+                        if (dto.MaKhuyenMai.HasValue)
+                        {
+                            var km = await _ctx.KhuyenMais.FindAsync(dto.MaKhuyenMai.Value);
+                            if (km != null)
+                            {
+                                km.SoLuongDaDung++;
+                                km.NgayCapNhat = DateTime.Now;
+
+                                hd.ChiTietKhuyenMais.Add(new ChiTietKhuyenMai
+                                {
+                                    MaKhuyenMai = dto.MaKhuyenMai.Value,
+                                    SoTienGiam = hd.GiamGia,
+                                    NgayTao = DateTime.UtcNow
+                                });
+                            }
                         }
 
                         // CRITICAL FIX: Save changes here to persist old CTHDs deletion and restored stocks in the DB!
@@ -844,6 +883,7 @@ namespace BuildingMaterialAPI.Controllers
                     {
                         var hd = await _ctx.HoaDons
                             .Include(h => h.CTHDs)
+                            .Include(h => h.ChiTietKhuyenMais)
                             .FirstOrDefaultAsync(h => h.MaHoaDon == id);
                             
                         if (hd == null) return NotFound();
@@ -990,9 +1030,9 @@ namespace BuildingMaterialAPI.Controllers
                             }
 
                             // Restore voucher count
-                            if (hd.MaKhuyenMai.HasValue)
+                            foreach (var ctkm in hd.ChiTietKhuyenMais)
                             {
-                                var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
+                                var km = await _ctx.KhuyenMais.FindAsync(ctkm.MaKhuyenMai);
                                 if (km != null) km.SoLuongDaDung = Math.Max(0, km.SoLuongDaDung - 1);
                             }
                         }
@@ -1072,7 +1112,9 @@ namespace BuildingMaterialAPI.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var hd = await _ctx.HoaDons.FindAsync(id);
+            var hd = await _ctx.HoaDons
+                .Include(h => h.ChiTietKhuyenMais)
+                .FirstOrDefaultAsync(h => h.MaHoaDon == id);
             if (hd == null) return NotFound();
 
             // 1. Restore stock (if order was completed)
@@ -1097,9 +1139,9 @@ namespace BuildingMaterialAPI.Controllers
             }
 
             // Hoàn lại lượt dùng voucher
-            if (hd.MaKhuyenMai.HasValue)
+            foreach (var ctkm in hd.ChiTietKhuyenMais)
             {
-                var km = await _ctx.KhuyenMais.FindAsync(hd.MaKhuyenMai.Value);
+                var km = await _ctx.KhuyenMais.FindAsync(ctkm.MaKhuyenMai);
                 if (km != null) km.SoLuongDaDung = Math.Max(0, km.SoLuongDaDung - 1);
             }
 

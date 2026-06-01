@@ -94,7 +94,7 @@ namespace BuildingMaterialAPI.Controllers
                 // Guest
                 result.Add(new {
                     MaKhachHang = id,
-                    TenKH = "Khách lạ (" + (id.Length > 4 ? id.Substring(id.Length - 4) : id) + ")",
+                    TenKH = "Khách vãng lai (" + (id.Length > 4 ? id.Substring(id.Length - 4) : id) + ")",
                     AnhDaiDien = "",
                     LastMessage = await _ctx.ChatMessages
                         .Where(m => m.CustomerId == id)
@@ -118,6 +118,21 @@ namespace BuildingMaterialAPI.Controllers
             await _ctx.SaveChangesAsync();
 
             return Ok();
+        }
+        // DELETE: api/Chat/{customerId}
+        [HttpDelete("{customerId}")]
+        public async Task<IActionResult> DeleteChatHistory(string customerId)
+        {
+            var history = await _ctx.ChatMessages
+                .Where(m => m.CustomerId == customerId)
+                .ToListAsync();
+            
+            if (history.Any())
+            {
+                _ctx.ChatMessages.RemoveRange(history);
+                await _ctx.SaveChangesAsync();
+            }
+            return Ok(new { Message = "Đã xóa cuộc hội thoại" });
         }
     }
 }

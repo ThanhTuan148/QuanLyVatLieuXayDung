@@ -142,6 +142,61 @@ const FloatingChat = () => {
     }
   }, [messages, isOpen]);
 
+  const renderFormattedMessage = (text, isCustomer) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+
+    return lines.map((line, idx) => {
+      let trimmed = line.trim();
+      if (!trimmed) return <Box key={idx} sx={{ height: '8px' }} />;
+
+      const isBullet = trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ');
+      if (isBullet) {
+        const content = trimmed.substring(2);
+        return (
+          <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, my: 0.4, pl: 1 }}>
+            <span style={{ color: isCustomer ? '#ffffff' : '#e68c55', fontSize: '1rem', lineHeight: '1rem', marginTop: '1px' }}>•</span>
+            <Typography variant="body2" sx={{ fontSize: '0.85rem', lineHeight: 1.45, color: 'inherit', display: 'inline' }}>
+              {parseKeyValueOrBold(content, isCustomer)}
+            </Typography>
+          </Box>
+        );
+      }
+
+      return (
+        <Typography key={idx} variant="body2" sx={{ my: 0.4, lineHeight: 1.45, fontSize: '0.85rem', color: 'inherit' }}>
+          {parseKeyValueOrBold(line, isCustomer)}
+        </Typography>
+      );
+    });
+  };
+
+  const parseKeyValueOrBold = (text, isCustomer) => {
+    const colonIndex = text.indexOf(':');
+    if (colonIndex > 0 && colonIndex < 35 && !text.substring(0, colonIndex).includes('http') && !text.substring(0, colonIndex).includes('//')) {
+      const key = text.substring(0, colonIndex + 1);
+      const val = text.substring(colonIndex + 1);
+      return (
+        <>
+          <span style={{ fontWeight: '700', color: isCustomer ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.64)' }}>{key}</span>
+          <span style={{ fontWeight: '500' }}>{parseBoldText(val)}</span>
+        </>
+      );
+    }
+    return parseBoldText(text);
+  };
+
+  const parseBoldText = (text) => {
+    if (!text) return '';
+    const parts = text.split(/\*\*([\s\S]*?)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} style={{ fontWeight: '800' }}>{part}</strong>;
+      }
+      return part;
+    });
+  };
+
   const parseMessage = (text) => {
     if (!text) return { cleanText: '', actionData: null };
     const actionRegex = /\[ESTIMATE_ACTION:\s*(\{[\s\S]*\})\s*\]/s;
@@ -511,9 +566,9 @@ const FloatingChat = () => {
                         </Box>
                       )}
 
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.5, fontSize: '0.85rem', fontWeight: '500' }}>
-                        {cleanText}
-                      </Typography>
+                      <Box sx={{ color: 'inherit' }}>
+                        {renderFormattedMessage(cleanText, isCustomer)}
+                      </Box>
 
                       {actionData && actionData.items && (
                         <Box sx={{ mt: 2, p: 2, bgcolor: '#ffffff', borderRadius: '14px', border: '1px solid rgba(230,140,85,0.25)', color: '#333', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>

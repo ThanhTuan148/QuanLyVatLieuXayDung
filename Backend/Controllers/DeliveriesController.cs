@@ -52,7 +52,9 @@ namespace BuildingMaterialAPI.Controllers
                     tongTienOrder = p.HoaDon != null ? p.HoaDon.TongTien : 0,
                     daThanhToanOrder = p.HoaDon != null ? (p.HoaDon.ThanhToan ?? 0) : 0,
                     maNhanVien = p.MaNhanVien,
-                    tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "N/A"
+                    tenNhanVien = p.NhanVien != null ? p.NhanVien.TenNV : "N/A",
+                    tenKhachHang = p.HoaDon != null ? (p.HoaDon.KhachHang != null ? p.HoaDon.KhachHang.TenKH : p.HoaDon.TenNguoiNhan) : "Khách hàng",
+                    sdtKhachHang = p.HoaDon != null ? (p.HoaDon.KhachHang != null ? p.HoaDon.KhachHang.Sdt : p.HoaDon.SdtNguoiNhan) : ""
                 })
                 .ToListAsync();
 

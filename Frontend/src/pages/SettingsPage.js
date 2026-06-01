@@ -1,9 +1,10 @@
 // src/pages/SettingsPage.js
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Box, Typography, Paper, TextField, Button, Alert, Divider,
   Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Tooltip,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Switch, Select, MenuItem, FormControl, InputLabel, FormControlLabel, Chip
 } from '@mui/material';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -11,6 +12,7 @@ import BackupIcon from '@mui/icons-material/Backup';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteIcon from '@mui/icons-material/Delete';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { usePermissions } from '../contexts/PermissionContext';
@@ -26,14 +28,19 @@ function SettingsPage() {
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupActionLoading, setBackupActionLoading] = useState(false);
-  
+
   // Dialog States
   const [restoreDialog, setRestoreDialog] = useState(null);
   const [deleteBackupDialog, setDeleteBackupDialog] = useState(null);
 
+  // Schedule State
+  const [schedule, setSchedule] = useState({ enabled: true, diffHour: 20, diffMinute: 0, fullHour: 2, fullMinute: 0 });
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState({ type: '', text: '' });
+
   const { user } = usePermissions();
-  const isAdmin = user?.role?.toLowerCase().includes('admin') || 
-                  user?.roleName?.toLowerCase().includes('quản trị');
+  const isAdmin = user?.role?.toLowerCase().includes('admin') ||
+    user?.roleName?.toLowerCase().includes('quản trị');
 
   // Retrieve user ID from localStorage
   const userStr = localStorage.getItem('user');
@@ -47,7 +54,7 @@ function SettingsPage() {
 
     setSaving(true);
     setMsg({ type: '', text: '' });
-    
+
     try {
       await api.put(`/auth/${userId}/change-password`, { oldPassword: form.oldPassword, newPassword: form.newPassword });
       setMsg({ type: 'success', text: 'Đổi mật khẩu thành công! Bạn sẽ được đăng xuất sau 2 giây...' });
@@ -74,15 +81,38 @@ function SettingsPage() {
     }
   };
 
+  const loadSchedule = async () => {
+    try {
+      const res = await api.get('/backup/schedule');
+      setSchedule(res.data || { enabled: true, diffHour: 20, diffMinute: 0, fullHour: 2, fullMinute: 0 });
+    } catch (e) {
+      console.error('Không thể tải lịch sao lưu:', e);
+    }
+  };
+
+  const handleSaveSchedule = async () => {
+    setScheduleLoading(true);
+    setScheduleMsg({ type: '', text: '' });
+    try {
+      await api.put('/backup/schedule', schedule);
+      setScheduleMsg({ type: 'success', text: 'Đã lưu lịch sao lưu tự động thành công!' });
+    } catch (e) {
+      setScheduleMsg({ type: 'error', text: e.response?.data?.message || 'Lỗi khi lưu lịch sao lưu.' });
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (tabValue === 1) { loadBackups(); }
+    if (tabValue === 1) { loadBackups(); loadSchedule(); }
   }, [tabValue]);
 
-  const handleCreateBackup = async () => {
+  const handleCreateBackup = async (type = 'full') => {
     setBackupActionLoading(true);
     try {
-      await api.post('/backup');
-      alert('Đã tạo bản sao lưu dữ liệu thành công!');
+      await api.post(`/backup?type=${type}`);
+      const label = type === 'differential' ? 'Differential (phần thay đổi)' : 'Full (toàn bộ)';
+      alert(`Đã tạo bản sao lưu ${label} thành công!`);
       loadBackups();
     } catch (e) {
       alert('Lỗi tạo sao lưu: ' + (e.response?.data?.message || e.message));
@@ -149,15 +179,15 @@ function SettingsPage() {
 
             {userId ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <TextField label="Mật khẩu hiện tại" type="password" fullWidth value={form.oldPassword} onChange={e => setForm({...form, oldPassword: e.target.value})} />
-                <TextField label="Mật khẩu mới" type="password" fullWidth value={form.newPassword} onChange={e => setForm({...form, newPassword: e.target.value})} />
-                <TextField 
-                  label="Xác nhận mật khẩu mới" type="password" fullWidth 
-                  value={form.confirmPassword} onChange={e => setForm({...form, confirmPassword: e.target.value})}
+                <TextField label="Mật khẩu hiện tại" type="password" fullWidth value={form.oldPassword} onChange={e => setForm({ ...form, oldPassword: e.target.value })} />
+                <TextField label="Mật khẩu mới" type="password" fullWidth value={form.newPassword} onChange={e => setForm({ ...form, newPassword: e.target.value })} />
+                <TextField
+                  label="Xác nhận mật khẩu mới" type="password" fullWidth
+                  value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
                   error={Boolean(form.confirmPassword && form.confirmPassword !== form.newPassword)}
                   helperText={form.confirmPassword && form.confirmPassword !== form.newPassword ? "Mật khẩu xác nhận không khớp" : ""}
                 />
-                
+
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                   <Button variant="contained" size="large" onClick={handleSavePassword} disabled={saving}
                     sx={{ borderRadius: 2, px: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -186,17 +216,28 @@ function SettingsPage() {
                   Các tệp sao lưu được lưu trữ trên Server dưới định dạng chuẩn SQL Server (.bak).
                 </Typography>
               </Box>
-              <Button 
-                variant="contained" 
-                startIcon={<BackupIcon />} 
-                onClick={handleCreateBackup}
-                disabled={backupActionLoading}
-                sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: '#004d40', fontWeight: 'bold' }}
-              >
-                {backupActionLoading ? 'Đang chạy...' : 'Tạo Sao Lưu Mới'}
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<BackupIcon />}
+                  onClick={() => handleCreateBackup('full')}
+                  disabled={backupActionLoading}
+                  sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: '#004d40', fontWeight: 'bold' }}
+                >
+                  {backupActionLoading ? 'Đang chạy...' : '💾 Sao lưu đầy đủ'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<BackupIcon />}
+                  onClick={() => handleCreateBackup('differential')}
+                  disabled={backupActionLoading}
+                  sx={{ borderColor: '#ff9800', color: '#e65100', fontWeight: 'bold', '&:hover': { borderColor: '#e65100', background: 'rgba(255,152,0,0.08)' } }}
+                >
+                  {backupActionLoading ? 'Đang chạy...' : '⚡ Sao lưu khác biệt'}
+                </Button>
+              </Box>
             </Box>
-            
+
             <Divider sx={{ mb: 3 }} />
 
             <TableContainer>
@@ -244,6 +285,146 @@ function SettingsPage() {
             <Alert severity="warning" sx={{ mt: 3, '& .MuiAlert-message': { fontSize: '0.85rem' } }}>
               <strong>Lưu ý quan trọng:</strong> Quá trình phục hồi dữ liệu sẽ xóa sạch toàn bộ các hóa đơn và nhân viên được tạo sau thời điểm tệp sao lưu. Vui lòng đảm bảo không có ai đang sử dụng hệ thống khi thực hiện phục hồi.
             </Alert>
+          </Paper>
+
+          {/* ── PHẦN CẤU HÌNH LỊCH SAO LƯU TỰ ĐỘNG ── */}
+          <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', mt: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <ScheduleIcon color="primary" /> Lịch Sao Lưu Tự Động
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Hệ thống tự động sao lưu theo lịch cố định hàng tuần.
+                </Typography>
+              </Box>
+              <Chip
+                label={schedule.enabled ? 'Đang hoạt động' : 'Đã tắt'}
+                color={schedule.enabled ? 'success' : 'default'}
+                size="small"
+                sx={{ fontWeight: 'bold' }}
+              />
+            </Box>
+
+            <Divider sx={{ mb: 3 }} />
+
+            {scheduleMsg.text && <Alert severity={scheduleMsg.type} sx={{ mb: 2 }}>{scheduleMsg.text}</Alert>}
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              {/* Bật/Tắt */}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={schedule.enabled}
+                    onChange={(e) => setSchedule({ ...schedule, enabled: e.target.checked })}
+                    color="success"
+                  />
+                }
+                label={<Typography sx={{ fontWeight: 600 }}>Bật sao lưu tự động</Typography>}
+              />
+
+              {schedule.enabled && (
+                <>
+                  {/* Lịch mặc định cố định */}
+                  <Alert severity="info" icon={false} sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+                    <Typography sx={{ fontWeight: 'bold', mb: 1.5, fontSize: '0.95rem' }}>📋 Lịch sao lưu mặc định:</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip label="T2 → T7" size="small" sx={{ fontWeight: 'bold', bgcolor: '#fff3e0', color: '#e65100' }} />
+                        <Typography variant="body2">⚡ Differential Backup (chỉ sao lưu phần thay đổi)</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip label="Chủ Nhật" size="small" sx={{ fontWeight: 'bold', bgcolor: '#e8f5e9', color: '#2e7d32' }} />
+                        <Typography variant="body2">💾 Full Backup (sao lưu toàn bộ cơ sở dữ liệu)</Typography>
+                      </Box>
+                    </Box>
+                  </Alert>
+
+                  {/* Giờ Differential (T2 - T6) */}
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                    <Typography sx={{ fontWeight: 'bold', mb: 1.5, color: '#e65100' }}>
+                      ⚡ Giờ sao lưu Differential (Thứ 2 → Thứ 7)
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Giờ</InputLabel>
+                        <Select
+                          value={schedule.diffHour ?? 20}
+                          label="Giờ"
+                          onChange={(e) => setSchedule({ ...schedule, diffHour: Number(e.target.value) })}
+                        >
+                          {[...Array(24)].map((_, i) => (
+                            <MenuItem key={i} value={i}>{String(i).padStart(2, '0')}h</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Phút</InputLabel>
+                        <Select
+                          value={schedule.diffMinute ?? 0}
+                          label="Phút"
+                          onChange={(e) => setSchedule({ ...schedule, diffMinute: Number(e.target.value) })}
+                        >
+                          {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                            <MenuItem key={m} value={m}>{String(m).padStart(2, '0')} phút</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Paper>
+
+                  {/* Giờ Full (Chủ Nhật) */}
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                    <Typography sx={{ fontWeight: 'bold', mb: 1.5, color: '#2e7d32' }}>
+                      💾 Giờ sao lưu Full (Chủ Nhật)
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Giờ</InputLabel>
+                        <Select
+                          value={schedule.fullHour ?? 2}
+                          label="Giờ"
+                          onChange={(e) => setSchedule({ ...schedule, fullHour: Number(e.target.value) })}
+                        >
+                          {[...Array(24)].map((_, i) => (
+                            <MenuItem key={i} value={i}>{String(i).padStart(2, '0')}h</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Phút</InputLabel>
+                        <Select
+                          value={schedule.fullMinute ?? 0}
+                          label="Phút"
+                          onChange={(e) => setSchedule({ ...schedule, fullMinute: Number(e.target.value) })}
+                        >
+                          {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                            <MenuItem key={m} value={m}>{String(m).padStart(2, '0')} phút</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Paper>
+
+                  {/* Tóm tắt */}
+                  <Alert severity="success" sx={{ '& .MuiAlert-message': { fontSize: '0.9rem' } }}>
+                    ⏰ <strong>Thứ 2 → Thứ 7:</strong> Diff Backup lúc <strong>{String(schedule.diffHour ?? 20).padStart(2, '0')}:{String(schedule.diffMinute ?? 0).padStart(2, '0')}</strong> &nbsp;|&nbsp; <strong>Chủ Nhật:</strong> Full Backup lúc <strong>{String(schedule.fullHour ?? 2).padStart(2, '0')}:{String(schedule.fullMinute ?? 0).padStart(2, '0')}</strong>
+                  </Alert>
+                </>
+              )}
+
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                <Button
+                  variant="contained"
+                  onClick={handleSaveSchedule}
+                  disabled={scheduleLoading}
+                  startIcon={<ScheduleIcon />}
+                  sx={{ borderRadius: 2, px: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                >
+                  {scheduleLoading ? 'Đang lưu...' : 'Lưu Lịch Sao Lưu'}
+                </Button>
+              </Box>
+            </Box>
           </Paper>
         </Box>
       )}
@@ -309,8 +490,8 @@ function SignatureTab({ userId }) {
         setEmployee(res.data);
         if (res.data.chuKy) {
           // Nếu là path tương đối, thêm baseURL
-          const fullPath = res.data.chuKy.startsWith('http') 
-            ? res.data.chuKy 
+          const fullPath = res.data.chuKy.startsWith('http')
+            ? res.data.chuKy
             : `${api.defaults.baseURL.replace('/api', '')}${res.data.chuKy}`;
           setPreview(fullPath);
         }
@@ -340,7 +521,7 @@ function SignatureTab({ userId }) {
       // Cập nhật vào DB Nhân viên
       const updateData = { ...employee, chuKy: signaturePath };
       await api.put(`/employees/${employeeId}`, updateData);
-      
+
       // CẬP NHẬT PHIÊN LÀM VIỆC (LOCAL SESSION)
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
       currentUser.chuKy = signaturePath;
@@ -352,7 +533,7 @@ function SignatureTab({ userId }) {
       alert("Lỗi tải lên chữ ký: " + (e.response?.data?.message || e.message));
     } finally {
       setLoading(false);
-      window.location.reload(); 
+      window.location.reload();
     }
   };
 

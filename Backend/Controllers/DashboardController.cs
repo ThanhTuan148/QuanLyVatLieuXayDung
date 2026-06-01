@@ -123,5 +123,26 @@ namespace BuildingMaterialAPI.Controllers
                 .ToListAsync();
             return Ok(debts);
         }
+
+        [HttpGet("late-orders")]
+        public async Task<IActionResult> GetLateOrders()
+        {
+            var threshold = DateTime.Now.AddDays(-2);
+            var lateOrders = await _context.HoaDons
+                .Include(h => h.KhachHang)
+                .Where(h => h.TrangThai != "Hoàn thành" && h.TrangThai != "Đã hủy" && h.NgayLap < threshold)
+                .Select(h => new
+                {
+                    maHD = h.MaHD,
+                    tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : (h.TenNguoiNhan ?? "Khách vãng lai"),
+                    ngayLap = h.NgayLap,
+                    trangThai = h.TrangThai,
+                    tongTien = h.TongTien
+                })
+                .OrderBy(h => h.ngayLap)
+                .Take(20)
+                .ToListAsync();
+            return Ok(lateOrders);
+        }
     }
 }

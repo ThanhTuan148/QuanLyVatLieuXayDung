@@ -443,5 +443,6 @@ app.UseStaticFiles(); // Serve files from wwwroot
 app.MapControllers();
 app.MapHub<BuildingMaterialAPI.Hubs.NotificationHub>("/hubs/notifications");
 app.MapHub<BuildingMaterialAPI.Hubs.ChatHub>("/hubs/chat");
+app.MapHub<BuildingMaterialAPI.Hubs.LocationHub>("/hubs/location");
 
 app.Run();

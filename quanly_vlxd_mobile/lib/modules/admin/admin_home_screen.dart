@@ -27,7 +27,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản Trị Hệ Thống (Admin)', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Quản Trị Hệ Thống (Admin)',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.blueGrey.shade800,
       ),
       body: _pages.elementAt(_selectedIndex),
@@ -67,8 +70,18 @@ class _EmployeesAdminTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> mockEmployees = [
-      {"id": "NV001", "name": "Nguyễn Văn A", "role": "Nhân viên Bán hàng", "active": true},
-      {"id": "NV002", "name": "Trần Thị B", "role": "Nhân viên Kho", "active": true},
+      {
+        "id": "NV001",
+        "name": "Nguyễn Văn A",
+        "role": "Nhân viên Bán hàng",
+        "active": true,
+      },
+      {
+        "id": "NV002",
+        "name": "Trần Thị B",
+        "role": "Nhân viên Kho",
+        "active": true,
+      },
       {"id": "NV003", "name": "Lê Hoàng C", "role": "Tài xế", "active": true},
       {"id": "NV004", "name": "Phạm Thị D", "role": "Quản lý", "active": true},
     ];
@@ -80,15 +93,28 @@ class _EmployeesAdminTab extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Danh sách nhân sự (${mockEmployees.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                'Danh sách nhân sự (${mockEmployees.length})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
               ElevatedButton.icon(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mở form tạo tài khoản nhân viên mới')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mở form tạo tài khoản nhân viên mới'),
+                    ),
+                  );
                 },
                 icon: const Icon(Icons.person_add),
                 label: const Text('THÊM MỚI'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, foregroundColor: Colors.white),
-              )
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey.shade800,
+                  foregroundColor: Colors.white,
+                ),
+              ),
             ],
           ),
         ),
@@ -101,14 +127,22 @@ class _EmployeesAdminTab extends StatelessWidget {
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
                   leading: CircleAvatar(
                     backgroundColor: Colors.blueGrey.shade100,
                     child: const Icon(Icons.person, color: Colors.blueGrey),
                   ),
-                  title: Text(emp['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  title: Text(
+                    emp['name'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -119,28 +153,60 @@ class _EmployeesAdminTab extends StatelessWidget {
                         children: [
                           OutlinedButton.icon(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mở bảng phân quyền chi tiết cho ${emp['name']}')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Mở bảng phân quyền chi tiết cho ${emp['name']}',
+                                  ),
+                                ),
+                              );
                             },
-                            icon: const Icon(Icons.security, size: 16, color: Colors.blue),
-                            label: const Text('Phân quyền', style: TextStyle(fontSize: 12, color: Colors.blue)),
+                            icon: const Icon(
+                              Icons.security,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                            label: const Text(
+                              'Phân quyền',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mở popup đổi vai trò cho ${emp['name']}')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Mở popup đổi vai trò cho ${emp['name']}',
+                                  ),
+                                ),
+                              );
                             },
-                            icon: const Icon(Icons.swap_horiz, size: 16, color: Colors.orange),
-                            label: const Text('Đổi vai trò', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                            icon: const Icon(
+                              Icons.swap_horiz,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                            label: const Text(
+                              'Đổi vai trò',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                              ),
+                            ),
                           ),
                         ],
-                      )
+                      ),
                     ],
                   ),
                 ),
               );
             },
           ),
-        )
+        ),
       ],
     );
   }
@@ -161,10 +227,15 @@ class _SettingsAdminTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Cấu hình & Bảo mật', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const Text(
+            'Cấu hình & Bảo mật',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
           const SizedBox(height: 16),
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               children: [
                 ListTile(
@@ -198,14 +269,17 @@ class _SettingsAdminTab extends StatelessWidget {
                 Navigator.of(context).pushReplacementNamed('/login');
               },
               icon: const Icon(Icons.logout),
-              label: const Text('ĐĂNG XUẤT TÀI KHOẢN ADMIN', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                'ĐĂNG XUẤT TÀI KHOẢN ADMIN',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade600,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
-          )
+          ),
         ],
       ),
     );

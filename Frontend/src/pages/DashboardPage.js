@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const COLORS = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#f5576c', '#00f2fe', '#38f9d7'];
 
@@ -21,6 +22,7 @@ const formatVND = (value) => {
 };
 
 function DashboardPage() {
+  const { permissions, loading: permissionsLoading, user } = usePermissions();
   const [stats, setStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
@@ -52,7 +54,23 @@ function DashboardPage() {
     setDebtPage(0);
   };
 
+  // Check permissions
+  const roleStr = String(user?.role || user?.Role || user?.roleName || '').trim().toLowerCase();
+  const isHighManager = roleStr.includes('quản lý') || roleStr.includes('giám đốc');
+  const isAdminRole = roleStr.includes('admin') || roleStr.includes('quản trị');
+  const hasAccess = !isAdminRole && (isHighManager || permissions?.['dashboard']?.coTheXem);
+
   useEffect(() => {
+    if (permissionsLoading) return;
+    if (!hasAccess) {
+      if (isAdminRole) {
+        navigate('/customers');
+      } else {
+        navigate('/shopping');
+      }
+      return;
+    }
+
     const fetchAll = async () => {
       try {
         const [statsRes, ordersRes, productsRes, alertsRes, debtsRes] = await Promise.all([
@@ -74,9 +92,10 @@ function DashboardPage() {
       }
     };
     fetchAll();
-  }, []);
+  }, [permissionsLoading, hasAccess, isAdminRole, navigate]);
 
-  if (loading) return <Box sx={{ p: 4 }}><LinearProgress /><Typography sx={{ mt: 2, textAlign: 'center' }}>Đang tải dữ liệu...</Typography></Box>;
+  if (permissionsLoading || (hasAccess && loading)) return <Box sx={{ p: 4 }}><LinearProgress /><Typography sx={{ mt: 2, textAlign: 'center' }}>Đang tải dữ liệu...</Typography></Box>;
+  if (!hasAccess) return null;
 
   const statCards = [
     { title: '📦 Tổng Sản Phẩm', value: stats?.tongSanPham || 0, bgColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', icon: '📦', path: '/products' },

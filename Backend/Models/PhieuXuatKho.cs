@@ -23,6 +23,7 @@ namespace BuildingMaterialAPI.Models
         
         [Column("MaPhieuGH")] public int? MaPhieuGH { get; set; }
         [Column("MaHoaDon")] public int? MaHoaDon { get; set; }
+        [Column("MaKhoHang")] public int? MaKhoHang { get; set; }
         [Column("MaNhanVien")] public int? MaNhanVien { get; set; }
         [Column("MaNguoiDuyet")] public int? MaNguoiDuyet { get; set; }
         [Column("NgayDuyet")] public DateTime? NgayDuyet { get; set; }
@@ -40,6 +41,7 @@ namespace BuildingMaterialAPI.Models
         [ForeignKey("MaHoaDon")] public virtual HoaDon? HoaDon { get; set; }
         [ForeignKey("MaNhanVien")] public virtual NhanVien? NhanVien { get; set; }
         [ForeignKey("MaNguoiDuyet")] public virtual NhanVien? NguoiDuyet { get; set; }
+        [ForeignKey("MaKhoHang")] public virtual KhoHang? KhoHang { get; set; }
         
         public virtual ICollection<CTPhieuXuatKho> ChiTiet { get; set; }
     }

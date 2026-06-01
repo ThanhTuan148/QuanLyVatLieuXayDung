@@ -5,24 +5,68 @@ function CustomerForm({ open, onClose, onSaved, initial = {} }) {
   const [form, setForm] = useState({
     maKH: '', tenKH: '', sdt: '', email: '', diaChi: '', loaiKH: '', maSoThue: '', nguoiLienHe: '', trangThai: true,
   });
+  const [errors, setErrors] = useState({ tenKH: '', sdt: '', email: '', diaChi: '' });
 
   useEffect(() => {
+    setErrors({ tenKH: '', sdt: '', email: '', diaChi: '' });
     if (initial && Object.keys(initial).length) {
       setForm({
         maKH: initial.maKH || '', tenKH: initial.tenKH || '', sdt: initial.sdt || '', email: initial.email || '',
         diaChi: initial.diaChi || '', loaiKH: initial.loaiKH || '', maSoThue: initial.maSoThue || '',
         nguoiLienHe: initial.nguoiLienHe || '', trangThai: initial.trangThai ?? true,
       });
+    } else {
+      setForm({
+        maKH: '', tenKH: '', sdt: '', email: '', diaChi: '', loaiKH: '', maSoThue: '', nguoiLienHe: '', trangThai: true,
+      });
     }
   }, [initial, open]);
 
-  const handleChange = (e) => { const { name, value } = e.target; setForm((s) => ({ ...s, [name]: value })); };
+  const handleChange = (e) => { 
+    const { name, value } = e.target; 
+    setForm((s) => ({ ...s, [name]: value })); 
+    if (errors[name]) {
+      setErrors((err) => ({ ...err, [name]: '' }));
+    }
+  };
 
   const handleSubmit = () => {
-    if (!form.sdt || !form.sdt.trim()) {
-      alert("Vui lòng nhập Số điện thoại (SĐT sẽ dùng làm tên đăng nhập tài khoản của khách hàng).");
-      return;
+    const newErrors = { tenKH: '', sdt: '', email: '', diaChi: '' };
+    let hasError = false;
+
+    if (!form.tenKH || !form.tenKH.trim()) {
+      newErrors.tenKH = "Tên khách hàng không được bỏ trống!";
+      hasError = true;
     }
+    if (!form.sdt || !form.sdt.trim()) {
+      newErrors.sdt = "Số điện thoại không được bỏ trống!";
+      hasError = true;
+    } else {
+      const sdtRegex = /^[0-9]{10}$/;
+      if (!sdtRegex.test(form.sdt.trim())) {
+        newErrors.sdt = "Số điện thoại phải có đúng 10 chữ số!";
+        hasError = true;
+      }
+    }
+    if (!form.email || !form.email.trim()) {
+      newErrors.email = "Email không được bỏ trống!";
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim()) || !form.email.includes('@')) {
+        newErrors.email = "Email không đúng định dạng (phải chứa ký tự @ và tên miền)!";
+        hasError = true;
+      }
+    }
+    if (!form.diaChi || !form.diaChi.trim()) {
+      newErrors.diaChi = "Địa chỉ không được bỏ trống!";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasError) return;
+
     const payload = {
       MaKH: form.maKH, TenKH: form.tenKH, Sdt: form.sdt, Email: form.email,
       DiaChi: form.diaChi, LoaiKH: '', MaSoThue: '', NguoiLienHe: '',
@@ -35,10 +79,23 @@ function CustomerForm({ open, onClose, onSaved, initial = {} }) {
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{initial && initial.maKhachHang ? 'Sửa Khách Hàng' : 'Thêm Khách Hàng'}</DialogTitle>
       <DialogContent dividers>
-        <TextField fullWidth margin="normal" label="Tên Khách Hàng" name="tenKH" value={form.tenKH} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="SĐT (Tài khoản đăng nhập)" name="sdt" value={form.sdt} onChange={handleChange} required helperText="SĐT dùng làm tên đăng nhập, mật khẩu mặc định là 123456" />
-        <TextField fullWidth margin="normal" label="Email" name="email" value={form.email} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="Địa Chỉ" name="diaChi" value={form.diaChi} onChange={handleChange} />
+        <TextField 
+          fullWidth margin="normal" label="Tên Khách Hàng *" name="tenKH" value={form.tenKH} 
+          error={Boolean(errors.tenKH)} helperText={errors.tenKH} onChange={handleChange} 
+        />
+        <TextField 
+          fullWidth margin="normal" label="SĐT (Tài khoản đăng nhập) *" name="sdt" value={form.sdt} 
+          error={Boolean(errors.sdt)} helperText={errors.sdt || "SĐT dùng làm tên đăng nhập, mật khẩu mặc định là 123456"} onChange={handleChange} 
+          required 
+        />
+        <TextField 
+          fullWidth margin="normal" label="Email *" name="email" value={form.email} 
+          error={Boolean(errors.email)} helperText={errors.email} onChange={handleChange} 
+        />
+        <TextField 
+          fullWidth margin="normal" label="Địa Chỉ *" name="diaChi" value={form.diaChi} 
+          error={Boolean(errors.diaChi)} helperText={errors.diaChi} onChange={handleChange} 
+        />
         
 
         {initial && initial.maKhachHang && (

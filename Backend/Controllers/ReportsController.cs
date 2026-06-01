@@ -38,14 +38,17 @@ namespace BuildingMaterialAPI.Controllers
 
             // Lấy giá nhập gần nhất của các sản phẩm để tính lợi nhuận (giả định đơn giản)
             var productIds = orders.SelectMany(h => h.CTHDs).Select(c => c.MaSanPham).Distinct().ToList();
-            var latestImportPrices = await _ctx.CTPNs
+            var ctpns = await _ctx.CTPNs
                 .Where(c => productIds.Contains(c.MaSanPham))
+                .Select(c => new { c.MaSanPham, c.DonGia, c.NgayTao })
+                .ToListAsync();
+
+            var latestImportPrices = ctpns
                 .GroupBy(c => c.MaSanPham)
-                .Select(g => new { 
-                    MaSanPham = g.Key, 
-                    GiaNhap = g.OrderByDescending(x => x.NgayTao).Select(x => x.DonGia).FirstOrDefault() 
-                })
-                .ToDictionaryAsync(x => x.MaSanPham, x => x.GiaNhap);
+                .ToDictionary(
+                    g => g.Key, 
+                    g => g.OrderByDescending(x => x.NgayTao).Select(x => x.DonGia).FirstOrDefault()
+                );
 
             var report = orders
                 .GroupBy(h => h.NgayLap.Date)
@@ -85,7 +88,7 @@ namespace BuildingMaterialAPI.Controllers
                     k.SoLuongTon,
                     ngayCapNhat = k.NgayCapNhat,
                     tenKho = k.KhoHang != null ? k.KhoHang.TenKho : "Unknown",
-                    daysOld = (DateTime.UtcNow - k.NgayCapNhat).Days
+                    daysOld = EF.Functions.DateDiffDay(k.NgayCapNhat, DateTime.UtcNow)
                 })
                 .OrderByDescending(k => k.daysOld)
                 .ToListAsync();
@@ -174,18 +177,20 @@ namespace BuildingMaterialAPI.Controllers
             var totalProducts = await _ctx.SanPhams.CountAsync();
             var totalOrders = await _ctx.HoaDons.CountAsync(h => h.TrangThai != null && h.TrangThai.ToLower().Contains("hoàn thành"));
             
-            // Giá trị kho = Tổng (Số lượng tồn * Giá nhập gần nhất)
             var inventoryItems = await _ctx.CTKhoHangs.Where(k => k.SoLuongTon > 0).ToListAsync();
             var productIds = inventoryItems.Select(i => i.MaSanPham).Distinct().ToList();
             
-            var latestPrices = await _ctx.CTPNs
+            var ctpns = await _ctx.CTPNs
                 .Where(c => productIds.Contains(c.MaSanPham))
+                .Select(c => new { c.MaSanPham, c.DonGia, c.NgayTao })
+                .ToListAsync();
+
+            var latestPrices = ctpns
                 .GroupBy(c => c.MaSanPham)
-                .Select(g => new { 
-                    MaSanPham = g.Key, 
-                    GiaNhap = g.OrderByDescending(x => x.NgayTao).Select(x => x.DonGia).FirstOrDefault() 
-                })
-                .ToDictionaryAsync(x => x.MaSanPham, x => x.GiaNhap);
+                .ToDictionary(
+                    g => g.Key, 
+                    g => g.OrderByDescending(x => x.NgayTao).Select(x => x.DonGia).FirstOrDefault()
+                );
 
             decimal inventoryValue = inventoryItems.Sum(item => {
                 decimal price = latestPrices.ContainsKey(item.MaSanPham) ? latestPrices[item.MaSanPham] : 0;

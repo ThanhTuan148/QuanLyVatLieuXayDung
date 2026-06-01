@@ -14,6 +14,7 @@ namespace BuildingMaterialAPI.Models
             PhieuGiaoHangs = new HashSet<PhieuGiaoHang>();
             CongNos = new HashSet<CongNo>();
             ChiTietTraNos = new HashSet<ChiTietTraNo>();
+            ChiTietKhuyenMais = new HashSet<ChiTietKhuyenMai>();
         }
 
         [Key][Column("MaHoaDon")] public int MaHoaDon { get; set; }
@@ -32,7 +33,6 @@ namespace BuildingMaterialAPI.Models
         [Column("MaKhachHang")] public int? MaKhachHang { get; set; }
         [Column("NgayTao")] public DateTime NgayTao { get; set; }
         [Column("NgayCapNhat")] public DateTime NgayCapNhat { get; set; }
-        [Column("MaKhuyenMai")] public int? MaKhuyenMai { get; set; }
         
         // Delivery Info
         [Column("TenNguoiNhan")] public string? TenNguoiNhan { get; set; }
@@ -58,12 +58,13 @@ namespace BuildingMaterialAPI.Models
  
         [ForeignKey("MaNhanVien")] public virtual NhanVien? NhanVien { get; set; }
         [ForeignKey("MaKhachHang")] public virtual KhachHang? KhachHang { get; set; }
-        [ForeignKey("MaKhuyenMai")] public virtual KhuyenMai? KhuyenMai { get; set; }
  
         public virtual ICollection<CTHD> CTHDs { get; set; } = new List<CTHD>();
         public virtual ICollection<PhieuDoiTra> PhieuDoiTras { get; set; } = new List<PhieuDoiTra>();
         public virtual ICollection<PhieuGiaoHang> PhieuGiaoHangs { get; set; } = new List<PhieuGiaoHang>();
         public virtual ICollection<CongNo> CongNos { get; set; } = new List<CongNo>();
         public virtual ICollection<ChiTietTraNo> ChiTietTraNos { get; set; } = new List<ChiTietTraNo>();
+        public virtual ICollection<ChiTietKhuyenMai> ChiTietKhuyenMais { get; set; } = new List<ChiTietKhuyenMai>();
+        public virtual PhieuXuatKho? PhieuXuatKho { get; set; }
     }
 }

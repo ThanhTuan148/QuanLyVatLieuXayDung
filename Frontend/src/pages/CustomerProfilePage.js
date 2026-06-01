@@ -42,6 +42,13 @@ const CustomerProfilePage = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [errors, setErrors] = useState({
+    hoTen: '',
+    soDienThoai: '',
+    diaChi: '',
+    ngaySinh: '',
+    cccd: ''
+  });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
@@ -97,6 +104,9 @@ const CustomerProfilePage = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleAvatarChange = async (e) => {
@@ -168,6 +178,64 @@ const CustomerProfilePage = () => {
   };
 
   const handleSave = async () => {
+    const newErrors = {
+      hoTen: '',
+      soDienThoai: '',
+      diaChi: '',
+      ngaySinh: '',
+      cccd: ''
+    };
+    let hasError = false;
+
+    // Ràng buộc dữ liệu đầu vào
+    if (!formData.hoTen || !formData.hoTen.trim()) {
+      newErrors.hoTen = 'Họ và tên không được bỏ trống!';
+      hasError = true;
+    }
+
+    if (!formData.soDienThoai || !formData.soDienThoai.trim()) {
+      newErrors.soDienThoai = 'Số điện thoại không được bỏ trống!';
+      hasError = true;
+    } else {
+      const sdtRegex = /^[0-9]{10}$/;
+      if (!sdtRegex.test(formData.soDienThoai.trim())) {
+        newErrors.soDienThoai = 'Số điện thoại phải có đúng 10 chữ số!';
+        hasError = true;
+      }
+    }
+
+    if (!formData.diaChi || !formData.diaChi.trim()) {
+      newErrors.diaChi = 'Địa chỉ không được bỏ trống!';
+      hasError = true;
+    }
+
+    if (!formData.ngaySinh) {
+      newErrors.ngaySinh = 'Ngày sinh không được bỏ trống!';
+      hasError = true;
+    }
+
+    if (!formData.cccd || !formData.cccd.trim()) {
+      newErrors.cccd = 'CCCD không được bỏ trống!';
+      hasError = true;
+    } else {
+      const cccdRegex = /^[0-9]{12}$/;
+      if (!cccdRegex.test(formData.cccd.trim())) {
+        newErrors.cccd = 'CCCD phải có đúng 12 chữ số!';
+        hasError = true;
+      }
+    }
+
+    setErrors(newErrors);
+
+    if (hasError) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Vui lòng kiểm tra và nhập lại thông tin', 
+        severity: 'warning' 
+      });
+      return;
+    }
+
     try {
       const id = user.maKhachHang || user.MaKhachHang;
       if (!id) {
@@ -475,6 +543,8 @@ const CustomerProfilePage = () => {
                       <TextField 
                         fullWidth name="hoTen" value={formData.hoTen} onChange={handleInputChange} 
                         variant="outlined" size="medium" placeholder="Khánh Vy"
+                        error={Boolean(errors.hoTen)}
+                        helperText={errors.hoTen}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -483,6 +553,8 @@ const CustomerProfilePage = () => {
                       <TextField 
                         fullWidth name="soDienThoai" value={formData.soDienThoai} onChange={handleInputChange} 
                         variant="outlined" size="medium" placeholder="0981212121"
+                        error={Boolean(errors.soDienThoai)}
+                        helperText={errors.soDienThoai}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -491,6 +563,8 @@ const CustomerProfilePage = () => {
                       <TextField 
                         fullWidth name="diaChi" value={formData.diaChi} onChange={handleInputChange} 
                         variant="outlined" size="medium" multiline rows={3} placeholder="Trung Thành, Yên Thành, Nghệ An"
+                        error={Boolean(errors.diaChi)}
+                        helperText={errors.diaChi}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -499,6 +573,8 @@ const CustomerProfilePage = () => {
                       <TextField 
                         fullWidth name="ngaySinh" type="date" value={formData.ngaySinh} onChange={handleInputChange} 
                         variant="outlined" size="medium" InputLabelProps={{ shrink: true }}
+                        error={Boolean(errors.ngaySinh)}
+                        helperText={errors.ngaySinh}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -517,9 +593,28 @@ const CustomerProfilePage = () => {
                       <TextField 
                         fullWidth name="cccd" value={formData.cccd} onChange={handleInputChange} 
                         variant="outlined" size="medium" placeholder="01281212121"
+                        error={Boolean(errors.cccd)}
+                        helperText={errors.cccd}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                       />
                     </Grid>
+                    
+                    {Object.values(errors).some(err => err) && (
+                      <Grid item xs={12} sx={{ mt: 2 }}>
+                        <Alert 
+                          severity="error" 
+                          variant="outlined" 
+                          sx={{ 
+                            borderRadius: '8px', 
+                            fontWeight: 600,
+                            borderWidth: '1.5px',
+                            bgcolor: 'rgba(253, 237, 237, 0.5)'
+                          }}
+                        >
+                          Vui lòng kiểm tra và nhập lại thông tin ở các ô viền đỏ phía trên.
+                        </Alert>
+                      </Grid>
+                    )}
                     
                     <Grid item xs={12} sx={{ mt: 3 }}>
                       <Button 
@@ -640,8 +735,28 @@ const CustomerProfilePage = () => {
         </Grid>
       </Grid>
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert severity={snackbar.severity} sx={{ width: '100%', borderRadius: '8px' }}>{snackbar.message}</Alert>
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={4000} 
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ 
+          top: '90px !important'
+        }}
+      >
+        <Alert 
+          severity={snackbar.severity} 
+          variant="filled"
+          sx={{ 
+            width: '100%', 
+            borderRadius: '12px', 
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            fontWeight: 600,
+            fontSize: '0.95rem'
+          }}
+        >
+          {snackbar.message}
+        </Alert>
       </Snackbar>
     </Container>
   );

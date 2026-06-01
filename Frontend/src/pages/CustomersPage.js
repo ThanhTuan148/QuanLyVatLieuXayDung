@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Box, Button, Typography, Chip, LinearProgress, Card, CardContent, Grid
+  Box, Button, Typography, Chip, LinearProgress, Card, CardContent, Grid, Tabs, Tab
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -10,8 +10,11 @@ import customerService from '../services/customerService';
 import CustomerForm from '../components/CustomerForm';
 import DataTable from '../components/DataTable';
 import { usePermissions } from '../contexts/PermissionContext';
+import ContactMessagesPage from './ContactMessagesPage';
+import AdminChatPage from './AdminChatPage';
 
 function CustomersPage() {
+  const [tabIndex, setTabIndex] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -22,6 +25,8 @@ function CustomersPage() {
   const canCreate = permissions?.customers?.coTheTao ?? false;
   const canEdit = permissions?.customers?.coTheSua ?? false;
   const canDelete = permissions?.customers?.coTheXoa ?? false;
+  const canViewContact = permissions?.contact?.coTheXem ?? false;
+  const canViewChat = permissions?.chat?.coTheXem ?? false;
 
   useEffect(() => { fetchCustomers(); }, []);
 
@@ -173,9 +178,19 @@ function CustomersPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabIndex} onChange={(e, val) => setTabIndex(val)} textColor="primary" indicatorColor="primary">
+          <Tab label="Quản lý khách hàng" value={0} sx={{ fontWeight: 'bold' }} />
+          {canViewContact && <Tab label="Tư vấn" value={1} sx={{ fontWeight: 'bold' }} />}
+          {canViewChat && <Tab label="Chat trực tuyến" value={2} sx={{ fontWeight: 'bold' }} />}
+        </Tabs>
+      </Box>
+
+      {tabIndex === 0 && (
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>👥 Quản Lý Khách Hàng</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>👥 Quản Lý Khách Hàng</Typography>
           <Typography variant="body2" color="textSecondary">Danh sách khách hàng của cửa hàng</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -220,6 +235,16 @@ function CustomersPage() {
       />
 
       <CustomerForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
+        </Box>
+      )}
+
+      {tabIndex === 1 && canViewContact && (
+        <ContactMessagesPage />
+      )}
+
+      {tabIndex === 2 && canViewChat && (
+        <AdminChatPage />
+      )}
     </Box>
   );
 }

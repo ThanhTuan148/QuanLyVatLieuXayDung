@@ -11,6 +11,7 @@ import {
   Email as EmailIcon
 } from '@mui/icons-material';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const ContactMessagesPage = () => {
   const [messages, setMessages] = useState([]);
@@ -18,6 +19,10 @@ const ContactMessagesPage = () => {
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [openDetail, setOpenDetail] = useState(false);
   const [replyText, setReplyText] = useState('');
+
+  const { permissions } = usePermissions();
+  const canReply = permissions?.contact?.coTheTao ?? false;
+  const canDelete = permissions?.contact?.coTheXoa ?? false;
 
   const fetchMessages = async () => {
     try {
@@ -148,11 +153,13 @@ const ContactMessagesPage = () => {
                       <ViewIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Xóa">
-                    <IconButton size="small" color="error" onClick={() => handleDelete(msg.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
+                  {canDelete && (
+                    <Tooltip title="Xóa">
+                      <IconButton size="small" color="error" onClick={() => handleDelete(msg.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -218,10 +225,10 @@ const ContactMessagesPage = () => {
         <DialogActions sx={{ p: 2, borderTop: '1px solid #eee' }}>
           <Button variant="outlined" onClick={() => setOpenDetail(false)}>Đóng</Button>
           <Box sx={{ flexGrow: 1 }} />
-          <Button variant="contained" color="success" onClick={handleReply}>Lưu phản hồi</Button>
-          <Button variant="contained" color="primary" onClick={handleSendEmail} disabled={loading}>
+          {canReply && <Button variant="contained" color="success" onClick={handleReply}>Lưu phản hồi</Button>}
+          {canReply && <Button variant="contained" color="primary" onClick={handleSendEmail} disabled={loading}>
             {loading ? 'Đang gửi...' : 'Gửi Email phản hồi'}
-          </Button>
+          </Button>}
         </DialogActions>
       </Dialog>
     </Box>
