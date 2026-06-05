@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Button, Typography, Chip, LinearProgress, Card, CardContent, Grid
+  Box, Button, Typography, Chip, LinearProgress, Card, CardContent, Grid,
+  Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import AddIcon from '@mui/icons-material/Add';
 import EmailIcon from '@mui/icons-material/Email';
 import orderService from '../services/orderService';
@@ -23,6 +26,7 @@ const statusColor = (s) => {
 function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mainViewMode, setMainViewMode] = useState('table');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -202,12 +206,28 @@ function OrdersPage() {
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>🛒 Quản Lý Đơn Hàng</Typography>
           <Typography variant="body2" color="textSecondary">Danh sách hóa đơn bán hàng</Typography>
         </Box>
-        {canCreate && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
-            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 2 }}>
-            Tạo Đơn Hàng
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
+          {canCreate && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
+              sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 2 }}>
+              Tạo Đơn Hàng
+            </Button>
+          )}
+        </Box>
       </Box>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -223,12 +243,96 @@ function OrdersPage() {
         ))}
       </Grid>
 
-      <DataTable 
-        rows={orders}
-        columns={columns}
-        getRowId={(row) => row.maHoaDon}
-        loading={loading}
-      />
+      {mainViewMode === 'table' ? (
+        <DataTable 
+          rows={orders}
+          columns={columns}
+          getRowId={(row) => row.maHoaDon}
+          loading={loading}
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {orders.map((item, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={item.maHoaDon || idx}>
+              <Card sx={{
+                borderRadius: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+              }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#667eea' }}>
+                        {item.maHD}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                        📅 {item.ngayLap ? new Date(item.ngayLap).toLocaleDateString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                    <Chip 
+                      label={item.trangThai} 
+                      size="small" 
+                      color={statusColor(item.trangThai)} 
+                      variant="outlined"
+                      sx={{ fontWeight: 'bold', bgcolor: '#fff' }}
+                    />
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Tổng Tiền</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {formatVND(item.tongTien)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Thanh Toán</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#43e97b' }}>
+                        {formatVND(item.thanhToan)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Ngày Giao Dự Kiến</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {item.ngayGiao ? new Date(item.ngayGiao).toLocaleDateString('vi-VN') : '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">PTTT</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {item.pttt || '—'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                    {canEdit && item.trangThai === 'Chờ xử lý' && (
+                      <Button size="small" color="success" variant="contained" disableElevation onClick={() => handleApprove(item)}>Duyệt</Button>
+                    )}
+                    <Button size="small" variant="outlined" onClick={() => { setSelectedOrderId(item.maHoaDon); setDetailOpen(true); }}>Chi tiết</Button>
+                    {canEdit && <Button size="small" variant="outlined" color="primary" onClick={() => handleEditClick(item)}>Sửa</Button>}
+                    {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(item.maHoaDon)}>Xóa</Button>}
+                    {item.trangThai === 'Hoàn thành' && item.vatEmail && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<EmailIcon sx={{ fontSize: 14 }} />}
+                        onClick={() => handleSendVatInvoice(item)}
+                        sx={{ bgcolor: '#e68c55', color: '#fff', fontSize: '0.7rem', px: 1, '&:hover': { bgcolor: '#c97a40' }, whiteSpace: 'nowrap' }}
+                      >
+                        HĐ GTGT
+                      </Button>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       <OrderForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
       <OrderDetailDialog open={detailOpen} onClose={() => setDetailOpen(false)} orderId={selectedOrderId} />

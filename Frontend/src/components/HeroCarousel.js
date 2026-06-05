@@ -117,19 +117,14 @@ const HeroCarousel = ({ ctaLink = "/shopping", ctaLabel = "Khám Phá →", mode
       try {
         const data = await teamService.getAllTeamMembers();
         if (data && data.length > 0) {
-          setSlides(data.map(m => {
-            let avatarUrl = m.avatar || 'https://fifth-gentle-45902158.figma.site/_components/v2/4de492f6d9cf8244ad5293233e5c6f52407d42fc/1.02464a56.png';
-            let bgColor = m.bg || '#F4845F';
-            if (m.studentId === '2001226134' || m.id === '2001226134' || m.name?.includes('Ngọc Yến')) {
-              avatarUrl = 'https://i.ibb.co/5hHx2KNM/Chat-GPT-Image-21-19-31-16-thg-5-2026-removebg-preview.png';
-              bgColor = '#5A9BD5';
-            }
+          setSlides(data.map((m, index) => {
+            const defaultSlide = DEFAULT_SLIDES.find(s => s.id === (m.studentId || m.id)) || DEFAULT_SLIDES[index % DEFAULT_SLIDES.length];
             return {
-              bg: bgColor,
-              label: m.role || 'Thành viên',
+              bg: m.bg || defaultSlide.bg,
+              label: m.role || defaultSlide.label || 'Thành viên',
               name: m.name || '',
               id: m.studentId || m.id || '',
-              img: avatarUrl
+              img: m.avatar || defaultSlide.img
             };
           }));
         }

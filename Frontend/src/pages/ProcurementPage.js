@@ -5,7 +5,7 @@ import {
   Checkbox, FormControlLabel, Collapse, CircularProgress, Divider,
   Chip, Tooltip, IconButton, Dialog, DialogTitle, TableHead, TableRow,
   Card, CardContent, Grid, TablePagination, InputAdornment,
-  Select, MenuItem, FormControl
+  Select, MenuItem, FormControl, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -25,6 +25,8 @@ import Warning from '@mui/icons-material/Warning';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SyncIcon from '@mui/icons-material/Sync';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import api from '../services/api';
 import inventoryService from '../services/inventoryService';
 import ProductForm from '../components/ProductForm';
@@ -34,6 +36,7 @@ function ProcurementPage() {
   const [procurements, setProcurements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [mainViewMode, setMainViewMode] = useState('table');
 
 
   // Create Proposal Dialog
@@ -96,37 +99,144 @@ function ProcurementPage() {
   const [aiOcrImage, setAiOcrImage] = useState(null);
 
   const handleRunAiOcr = async () => {
-    setAiOcrOpen(true);
+    if (!aiOcrImage) {
+      return alert('Vui lòng chọn ảnh hóa đơn trước khi quét!');
+    }
     setAiOcrLoading(true);
     try {
       const payload = {
-        base64Image: aiOcrImage || "DEFAULT_SAMPLE_INVOICE_IMAGE_BASE64",
+        base64Image: aiOcrImage,
         fileName: "hoa_don_vat_lieu.jpg"
       };
-      const res = await api.post('/ai/ocr-invoice', payload);
-      setAiOcrData(res.data);
+      const res = await api.post('/ai/ocr-invoice', payload, { timeout: 60000 });
+      const ocrData = res.data;
+
+      // Check if this is demo/fallback data
+      if (ocrData.doTinCayAI === 0 || ocrData.tenNhaCungCap?.includes('DEMO') || ocrData.tenNhaCungCap?.includes('⚠️')) {
+        ocrData.isDemo = true;
+      }
+
+      // Auto-match global supplier (skip if demo warning)
+      if (!ocrData.isDemo) {
+        const nccMatch = suppliers.find(s => {
+          const sName = (s.tenNCC || s.tenNhaCungCap || '').toLowerCase();
+          const ocrName = (ocrData.tenNhaCungCap || '').toLowerCase();
+          return sName.includes(ocrName) || ocrName.includes(sName);
+        });
+        ocrData.matchedSupplier = nccMatch || null;
+      } else {
+        ocrData.matchedSupplier = null;
+      }
+
+      // Auto-match products & find supplier price
+      const normalizeText = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/[^a-z0-9\s]/g, "");
+      };
+
+      if (ocrData.danhSachSanPham) {
+        ocrData.danhSachSanPham = ocrData.danhSachSanPham.map(item => {
+          const itemNorm = normalizeText(item.tenSP);
+
+          let bestMatchScore = 0;
+          let prodMatch = null;
+
+          // Advanced token matching
+          products.forEach(p => {
+            const pNorm = normalizeText(p.tenSP || p.tenSanPham);
+            if (pNorm === itemNorm) {
+              prodMatch = p; bestMatchScore = 100;
+            } else if ((pNorm.includes(itemNorm) || itemNorm.includes(pNorm)) && bestMatchScore < 50) {
+              prodMatch = p; bestMatchScore = 50;
+            } else {
+              const t1 = itemNorm.split(' ').filter(x => x.length > 1);
+              const t2 = pNorm.split(' ').filter(x => x.length > 1);
+              const overlap = t1.filter(t => t2.includes(t)).length;
+              if (overlap >= 2 && overlap > bestMatchScore) {
+                prodMatch = p; bestMatchScore = overlap;
+              }
+            }
+          });
+
+          let bestSupplier = ocrData.matchedSupplier || null;
+
+          // If we have a product match and it has supplier data, let's find the price
+          if (prodMatch && prodMatch.nhaCungCaps && prodMatch.nhaCungCaps.length > 0 && !ocrData.isDemo) {
+
+            if (bestSupplier) {
+              // 1. We ALREADY have a global supplier (from invoice header). 
+              // Try to get the specific price from this supplier for this product.
+              const exactSupPrice = prodMatch.nhaCungCaps.find(n => Number(n.maNCC) === Number(bestSupplier.maNhaCungCap || bestSupplier.maNCC));
+              if (exactSupPrice) {
+                item.donGia = exactSupPrice.giaCungCap;
+                item.thanhTien = item.soLuong * item.donGia;
+              }
+            } else {
+              // 2. Global supplier NOT FOUND. We auto-select the CHEAPEST supplier for this product.
+              const cheapest = [...prodMatch.nhaCungCaps].sort((a, b) => a.giaCungCap - b.giaCungCap)[0];
+              const sup = suppliers.find(s => Number(s.maNhaCungCap || s.maNCC) === Number(cheapest.maNCC));
+              if (sup) {
+                bestSupplier = sup;
+                // Auto update price to best supplier price
+                item.donGia = cheapest.giaCungCap;
+                item.thanhTien = item.soLuong * item.donGia;
+              }
+            }
+          }
+
+          return {
+            ...item,
+            matchedProduct: prodMatch || null,
+            matchedSupplier: bestSupplier || null
+          };
+        });
+      }
+      setAiOcrData(ocrData);
+
+      if (ocrData.isDemo) {
+        alert('⚠️ AI Vision không phản hồi (có thể do giới hạn tần suất API). Dữ liệu hiển thị là MẪU DEMO. Vui lòng thử lại sau 30 giây.');
+      }
     } catch (err) {
-      alert('Lỗi khi gọi AI quét hóa đơn OCR: ' + (err.response?.data?.message || err.message));
+      const msg = err.response?.data?.message || err.response?.data || err.message;
+      alert('Lỗi khi gọi AI quét hóa đơn OCR: ' + msg);
     } finally {
       setAiOcrLoading(false);
     }
   };
 
+  const handleOcrItemChange = (idx, field, value) => {
+    const newData = { ...aiOcrData };
+    newData.danhSachSanPham[idx][field] = value;
+    if (field === 'soLuong' || field === 'donGia') {
+      newData.danhSachSanPham[idx].thanhTien = newData.danhSachSanPham[idx].soLuong * newData.danhSachSanPham[idx].donGia;
+      newData.tongTien = newData.danhSachSanPham.reduce((sum, item) => sum + (item.thanhTien || 0), 0);
+    }
+    setAiOcrData(newData);
+  };
+
   const handleApplyOcrToProposal = () => {
     if (!aiOcrData) return;
-    const nccMatch = suppliers.find(s => s.tenNCC?.toLowerCase().includes(aiOcrData.tenNhaCungCap?.toLowerCase()) || s.tenNhaCungCap?.toLowerCase().includes(aiOcrData.tenNhaCungCap?.toLowerCase())) || suppliers[0];
-    const maNCC = nccMatch ? (nccMatch.maNCC || nccMatch.maNhaCungCap || 1) : 1;
-    const tenNCC = nccMatch ? (nccMatch.tenNCC || nccMatch.tenNhaCungCap || aiOcrData.tenNhaCungCap) : aiOcrData.tenNhaCungCap;
 
-    const newItems = aiOcrData.danhSachMatHang?.map(item => {
-      const prodMatch = products.find(p => p.tenSP?.toLowerCase().includes(item.tenMatHang?.toLowerCase()) || p.tenSanPham?.toLowerCase().includes(item.tenMatHang?.toLowerCase())) || products[0];
-      const maSP = prodMatch ? (prodMatch.maSP || prodMatch.maSanPham || 1) : 1;
-      const tenSP = prodMatch ? (prodMatch.tenSP || prodMatch.tenSanPham || item.tenMatHang) : item.tenMatHang;
+    if (!aiOcrData.danhSachSanPham || aiOcrData.danhSachSanPham.length === 0) {
+      return alert('Không có mặt hàng nào được phân tích!');
+    }
+
+    const missingProduct = aiOcrData.danhSachSanPham.find(i => !i.matchedProduct);
+    if (missingProduct) return alert(`Vui lòng khớp mã hệ thống cho sản phẩm: ${missingProduct.tenSP}`);
+
+    const missingSupplier = aiOcrData.danhSachSanPham.find(i => !i.matchedSupplier);
+    if (missingSupplier) return alert(`Vui lòng chọn Nhà cung cấp cho sản phẩm: ${missingSupplier.tenSP}`);
+
+    const newItems = aiOcrData.danhSachSanPham.map(item => {
+      const p = item.matchedProduct;
+      const s = item.matchedSupplier;
+      const maNCC = s.maNCC || s.maNhaCungCap;
+      const tenNCC = s.tenNCC || s.tenNhaCungCap;
 
       return {
-        itemKey: `${maSP}_${maNCC}_${Math.random()}`,
-        maSanPham: maSP,
-        tenSanPham: tenSP,
+        itemKey: `${p.maSanPham || p.maSP}_${maNCC}_${Math.random()}`,
+        maSanPham: p.maSanPham || p.maSP,
+        tenSanPham: p.tenSanPham || p.tenSP,
         soLuong: item.soLuong || 1,
         donGia: item.donGia || 0,
         maNhaCungCap: maNCC,
@@ -134,16 +244,16 @@ function ProcurementPage() {
         maKhoHang: warehouses[0]?.maKhoHang || 1,
         tenKho: warehouses[0]?.tenKho || 'Mặc định'
       };
-    }) || [];
+    });
 
     setNewProposal(prev => ({
-      note: `Hóa đơn bóc tách tự động OCR AI (Mã HĐ: ${aiOcrData.soHoaDon || 'N/A'}, Ngày: ${aiOcrData.ngayHoaDon || 'N/A'})`,
+      note: `Hóa đơn tự động OCR AI`,
       items: [...prev.items, ...newItems]
     }));
 
     setAiOcrOpen(false);
     setCreateDialog(true);
-    alert('Đã bóc tách thành công và chuyển dữ liệu vào Phiếu Đề Xuất Nhập Hàng!');
+    alert('Đã phân tích và tự động lấy giá tốt nhất từ các nhà cung cấp!');
   };
 
   const userStr = localStorage.getItem('user');
@@ -223,10 +333,10 @@ function ProcurementPage() {
         const res = await api.get(`/procurement/price-compare/${product.maSanPham}`);
         setAlertConfigs(prev => ({
           ...prev,
-          [maSP]: { 
-            ...prev[maSP], 
-            loading: false, 
-            prices: res.data, 
+          [maSP]: {
+            ...prev[maSP],
+            loading: false,
+            prices: res.data,
             supplier: res.data.length > 0 ? res.data[0] : null // Auto select first one (usually best/latest)
           }
         }));
@@ -248,9 +358,9 @@ function ProcurementPage() {
       const alert = inventoryAlerts.find(a => a.maSP === maSP);
       const product = products.find(p => p.maSP === maSP);
       const config = alertConfigs[maSP];
-      
+
       if (!config || !config.supplier) return null;
-      
+
       return {
         maSanPham: product.maSanPham,
         soLuong: config.qty,
@@ -353,12 +463,12 @@ function ProcurementPage() {
       let isApproveAction = false;
       let isRejectAction = false;
       let hasRevise = false;
-      
+
       // Nếu targetStatus là 'processed', có nghĩa là Quản lý đang bấm Xử Lý
       if (targetStatus === 'processed') {
         const hasApprove = Object.values(itemActions).some(v => v === 'approve');
         hasRevise = Object.values(itemActions).some(v => v === 'revise');
-        
+
         if (hasRevise) {
           finalTargetStatus = 'Yêu Cầu Sửa';
         } else if (hasApprove) {
@@ -382,68 +492,68 @@ function ProcurementPage() {
       }
 
       if (targetStatus === 'processed') {
-          // Use batch approval endpoint to process everything at once
-          const batchPayload = {
-              macTPNDuyet: Object.keys(itemActions).filter(k => itemActions[k] === 'approve').map(Number),
-              macTPNSua:   Object.keys(itemActions).filter(k => itemActions[k] === 'revise').map(Number),
-              macTPNTuChoi: Object.keys(itemActions).filter(k => itemActions[k] === 'reject').map(Number),
-              chiTietUpdate: viewDialog.chiTiet
-                .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
-                .map(c => ({
-                  maCTPN: c.maCTPN,
-                  maSanPham: c.maSanPham,
-                  soLuong: Number(c.soLuong),
-                  donGia: Number(c.donGia),
-                  maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
-                  maKhoHang: c.maKhoHang || 1,
-                  ghiChu: c.ghiChu
-                })),
-              userId: userId
-          };
-          await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve-items`, batchPayload);
+        // Use batch approval endpoint to process everything at once
+        const batchPayload = {
+          macTPNDuyet: Object.keys(itemActions).filter(k => itemActions[k] === 'approve').map(Number),
+          macTPNSua: Object.keys(itemActions).filter(k => itemActions[k] === 'revise').map(Number),
+          macTPNTuChoi: Object.keys(itemActions).filter(k => itemActions[k] === 'reject').map(Number),
+          chiTietUpdate: viewDialog.chiTiet
+            .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+            .map(c => ({
+              maCTPN: c.maCTPN,
+              maSanPham: c.maSanPham,
+              soLuong: Number(c.soLuong),
+              donGia: Number(c.donGia),
+              maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
+              maKhoHang: c.maKhoHang || 1,
+              ghiChu: c.ghiChu
+            })),
+          userId: userId
+        };
+        await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve-items`, batchPayload);
       } else {
-          // Standard update (for warehouse staff re-submitting or simple edits)
-          const payload = {
-            maNhanVien: userId || 1, 
-            ghiChu: viewDialog.ghiChu,
-            ngayNhap: viewDialog.ngayNhap,
-            targetStatus: finalTargetStatus, 
-            chiTiet: viewDialog.chiTiet
-              .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
-              .map(c => ({
-                maCTPN: c.maCTPN,
-                maSanPham: c.maSanPham,
-                soLuong: Number(c.soLuong),
-                donGia: Number(c.donGia),
-                maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
-                maKhoHang: c.maKhoHang || 1,
-                ghiChu: c.ghiChu,
-                trangThai: c.trangThai
-              }))
-          };
-          await api.put(`/procurement/${viewDialog.maPhieuNhap}`, payload);
+        // Standard update (for warehouse staff re-submitting or simple edits)
+        const payload = {
+          maNhanVien: userId || 1,
+          ghiChu: viewDialog.ghiChu,
+          ngayNhap: viewDialog.ngayNhap,
+          targetStatus: finalTargetStatus,
+          chiTiet: viewDialog.chiTiet
+            .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+            .map(c => ({
+              maCTPN: c.maCTPN,
+              maSanPham: c.maSanPham,
+              soLuong: Number(c.soLuong),
+              donGia: Number(c.donGia),
+              maNhaCungCap: Number(c.maNhaCungCap) || viewDialog.maNhaCungCap || 0,
+              maKhoHang: c.maKhoHang || 1,
+              ghiChu: c.ghiChu,
+              trangThai: c.trangThai
+            }))
+        };
+        await api.put(`/procurement/${viewDialog.maPhieuNhap}`, payload);
 
-          if (isApproveAction && !hasRevise) {
-              await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve`, { userId: userId || 1 });
-          } else if (isRejectAction && !hasRevise && !isApproveAction) {
-              await api.put(`/procurement/${viewDialog.maPhieuNhap}/reject`, { lyDo: "Quản lý từ chối phiếu đề xuất", userId: userId || 1 });
-          }
+        if (isApproveAction && !hasRevise) {
+          await api.put(`/procurement/${viewDialog.maPhieuNhap}/approve`, { userId: userId || 1 });
+        } else if (isRejectAction && !hasRevise && !isApproveAction) {
+          await api.put(`/procurement/${viewDialog.maPhieuNhap}/reject`, { lyDo: "Quản lý từ chối phiếu đề xuất", userId: userId || 1 });
+        }
       }
 
       // Chỉ hiển thị gửi mail nếu có sản phẩm MỚI được duyệt (chưa bị tách)
-      const newlyApprovedItems = viewDialog.chiTiet.filter(c => 
-          itemActions[c.maCTPN] === 'approve' && 
-          (!c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
+      const newlyApprovedItems = viewDialog.chiTiet.filter(c =>
+        itemActions[c.maCTPN] === 'approve' &&
+        (!c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
       );
-      
+
       if (isQuanLy) {
-          if (newlyApprovedItems.length > 0 && targetStatus === 'processed') {
-             alert('Xử lý phiếu thành công! Đã phê duyệt và tự động gửi đơn hàng qua Email cho (các) nhà cung cấp.');
-          } else {
-             alert('Cập nhật trạng thái các sản phẩm thành công!');
-          }
+        if (newlyApprovedItems.length > 0 && targetStatus === 'processed') {
+          alert('Xử lý phiếu thành công! Đã phê duyệt và tự động gửi đơn hàng qua Email cho (các) nhà cung cấp.');
+        } else {
+          alert('Cập nhật trạng thái các sản phẩm thành công!');
+        }
       } else {
-          alert('Cập nhật phiếu thành công!');
+        alert('Cập nhật phiếu thành công!');
       }
 
       loadData();
@@ -533,8 +643,8 @@ function ProcurementPage() {
 
     // Items with no explicit action default to 'approve'
     const approveIds = allIds.filter(id2 => !itemActions[id2] || itemActions[id2] === 'approve');
-    const reviseIds  = allIds.filter(id2 => itemActions[id2] === 'revise');
-    const rejectIds  = allIds.filter(id2 => itemActions[id2] === 'reject');
+    const reviseIds = allIds.filter(id2 => itemActions[id2] === 'revise');
+    const rejectIds = allIds.filter(id2 => itemActions[id2] === 'reject');
 
     const confirmMsg = `Xác nhận xử lý phiếu: Duyệt ${approveIds.length}, Sửa ${reviseIds.length}, Từ chối ${rejectIds.length}?`;
     if (!window.confirm(confirmMsg)) return;
@@ -543,7 +653,7 @@ function ProcurementPage() {
     try {
       const res = await api.put(`/procurement/${id}/approve-items`, {
         macTPNDuyet: approveIds,
-        macTPNSua:   reviseIds,
+        macTPNSua: reviseIds,
         macTPNTuChoi: rejectIds,
         chiTietUpdate: viewDialog.chiTiet
           .filter(c => !c.maPhieuHienTai || c.maPhieuHienTai === viewDialog.maPhieuNhap)
@@ -651,10 +761,10 @@ function ProcurementPage() {
       const detail = await api.get(`/procurement/${p.maPhieuNhap}`);
       setViewDialog({ ...detail.data, mode: 'view' });
       loadHistory(p.maPhieuNhap);
-      
+
       // Nếu là NV kho đang vào phiếu Yêu Cầu Sửa => Auto load price cho SP đầu tiên để hiện bảng chọn
       if (detail.data.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && detail.data.chiTiet?.length > 0) {
-         handleProductSelect(detail.data.chiTiet[0]);
+        handleProductSelect(detail.data.chiTiet[0]);
       }
 
       // Initialize actions from database status
@@ -676,10 +786,10 @@ function ProcurementPage() {
     if (!window.confirm('Xác nhận đã nhận hàng thực tế và Cộng Tồn Kho? Lưu ý hành động này không thể hoàn tác!')) return;
     setActionLoading(true);
     try {
-      const payload = receiveData.map(r => ({ 
-          ...r, 
-          userId: userId,
-          soLuongDaNhan: r.soLuongDaNhan === '' ? 0 : Number(r.soLuongDaNhan)
+      const payload = receiveData.map(r => ({
+        ...r,
+        userId: userId,
+        soLuongDaNhan: r.soLuongDaNhan === '' ? 0 : Number(r.soLuongDaNhan)
       }));
       const res = await api.put(`/procurement/${id}/receive`, payload);
       alert(res.data.message);
@@ -695,8 +805,8 @@ function ProcurementPage() {
   const handleReceiveChange = (maCTPN, field, value) => {
     let val = value;
     if (field === 'soLuongDaNhan') {
-       val = value === '' ? '' : Number(value);
-       if (val !== '' && val < 0) val = 0;
+      val = value === '' ? '' : Number(value);
+      if (val !== '' && val < 0) val = 0;
     }
     setReceiveData(prev => prev.map(p => p.maCTPN === maCTPN ? { ...p, [field]: val } : p));
   };
@@ -769,21 +879,21 @@ function ProcurementPage() {
   const getItemStatusChip = (row) => {
     if (!row.trangThai) return null;
     const isSplit = row.maPhieuHienTai && row.maPhieuHienTai !== viewDialog?.maPhieuNhap;
-    
+
     switch (row.trangThai) {
-      case 'Đã Duyệt': 
+      case 'Đã Duyệt':
         return (
           <Tooltip title={isSplit ? `Đã tách sang phiếu nhập #${row.maPhieuHienTai}` : ""}>
-            <Chip 
-              label={isSplit ? "Đã Tách" : "Đã Duyệt"} 
-              color="success" size="small" variant={isSplit ? "outlined" : "filled"} 
+            <Chip
+              label={isSplit ? "Đã Tách" : "Đã Duyệt"}
+              color="success" size="small" variant={isSplit ? "outlined" : "filled"}
             />
           </Tooltip>
         );
       case 'Yêu Cầu Sửa': return <Chip label="Sửa" color="warning" size="small" variant="filled" />;
       case 'Từ Chối': return <Chip label="Từ Chối" color="error" size="small" variant="filled" />;
-      case 'Đề Xuất': 
-      case 'Chờ Duyệt': 
+      case 'Đề Xuất':
+      case 'Chờ Duyệt':
         return <Chip label="Đề Xuất" color="info" size="small" variant="outlined" />;
       default: return <Chip label={row.trangThai} size="small" variant="outlined" />;
     }
@@ -807,7 +917,7 @@ function ProcurementPage() {
               const res = await api.get(`/procurement/price-compare/${row.maSanPham}`);
               setPriceHistory(res.data);
               setEditingProductId(row.maSanPham);
-              
+
               if (viewDialog?.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho) {
                 setShowInlineSuppliers(true);
               } else {
@@ -835,34 +945,34 @@ function ProcurementPage() {
         </DialogTitle>
         <DialogContent dividers sx={{ p: 0 }}>
           <Box sx={{ height: 400 }}>
-            <DataTable 
+            <DataTable
               rows={priceHistory}
               getRowId={(row) => row.maNCC + row.loai}
               loading={priceLoading}
               pageSize={5}
               columns={[
-                { 
-                  field: 'tenNCC', 
-                  headerName: 'Nhà Cung Cấp', 
+                {
+                  field: 'tenNCC',
+                  headerName: 'Nhà Cung Cấp',
                   flex: 1.5,
                   renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value}</Typography>
                 },
-                { 
-                  field: 'loai', 
-                  headerName: 'Loại', 
+                {
+                  field: 'loai',
+                  headerName: 'Loại',
                   width: 140,
                   renderCell: (params) => (
-                    <Chip 
-                      label={params.value} 
-                      size="small" 
-                      variant="outlined" 
-                      color={params.value === "Giá chào hàng" ? "primary" : "default"} 
+                    <Chip
+                      label={params.value}
+                      size="small"
+                      variant="outlined"
+                      color={params.value === "Giá chào hàng" ? "primary" : "default"}
                     />
                   )
                 },
-                { 
-                  field: 'giaHienTai', 
-                  headerName: 'Đơn Giá', 
+                {
+                  field: 'giaHienTai',
+                  headerName: 'Đơn Giá',
                   width: 130,
                   renderCell: (params) => (
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
@@ -870,9 +980,9 @@ function ProcurementPage() {
                     </Typography>
                   )
                 },
-                { 
-                  field: 'ngayCapNhat', 
-                  headerName: 'Cập Nhật', 
+                {
+                  field: 'ngayCapNhat',
+                  headerName: 'Cập Nhật',
                   width: 130,
                   valueFormatter: (params) => new Date(params.value).toLocaleDateString('vi-VN')
                 },
@@ -885,9 +995,9 @@ function ProcurementPage() {
                   renderCell: (params) => {
                     const isSửaMode = viewDialog?.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho;
                     if (!isSửaMode && !isApprovalMode) return null;
-                    
+
                     return (
-                      <Button 
+                      <Button
                         variant="contained" size="small" color="success"
                         onClick={() => {
                           const h = params.row;
@@ -895,8 +1005,8 @@ function ProcurementPage() {
                             const updated = [...prev.chiTiet];
                             const itemIdx = updated.findIndex(x => x.maSanPham === editingProductId);
                             if (itemIdx > -1) {
-                              updated[itemIdx] = { 
-                                ...updated[itemIdx], 
+                              updated[itemIdx] = {
+                                ...updated[itemIdx],
                                 donGia: h.giaHienTai,
                                 maNhaCungCap: h.maNCC,
                                 tenNhaCungCap: h.tenNCC
@@ -922,12 +1032,26 @@ function ProcurementPage() {
         </DialogActions>
       </Dialog>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 'bold' }}>📥 Quản Lý Nhập Hàng</Typography>
           <Typography color="textSecondary">Quy trình cấp phép và đối soát kho theo chuẩn ERP</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+            sx={{ mr: 2 }}
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
           {isQuanLy && (
             <Button
               variant="outlined"
@@ -1025,62 +1149,135 @@ function ProcurementPage() {
         </Card>
       )}
 
-      <DataTable 
-        rows={procurements}
-        columns={[
-          { 
-            field: 'maPN', 
-            headerName: 'Mã Phiếu', 
-            width: 120,
-            renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#667eea' }}>{params.value}</Typography>
-          },
-          { 
-            field: 'ngayNhap', 
-            headerName: 'Ngày Lập', 
-            width: 150,
-            valueFormatter: (params) => new Date(params.value).toLocaleDateString('vi-VN')
-          },
-          { field: 'tenNhaCungCap', headerName: 'Nhà Cung Cấp', flex: 1.5, minWidth: 200 },
-          { 
-            field: 'tongTien', 
-            headerName: 'Tổng Tiền', 
-            width: 150,
-            renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value?.toLocaleString('vi-VN')} đ</Typography>
-          },
-          { field: 'tenNhanVien', headerName: 'Người Lập', flex: 1 },
-          { 
-            field: 'trangThai', 
-            headerName: 'Trạng Thái', 
-            width: 180,
-            renderCell: (params) => <Chip label={params.value} color={getStatusColor(params.value)} size="small" />
-          },
-          {
-            field: 'actions',
-            headerName: 'Tác Vụ',
-            width: 120,
-            sortable: false,
-            filterable: false,
-            renderCell: (params) => (
-              <Box>
-                <Tooltip title="Xem Chi Tiết">
-                  <IconButton color="info" onClick={() => handleOpenView(params.row)}><VisibilityIcon /></IconButton>
-                </Tooltip>
-                {params.row.trangThai === 'Đã Duyệt' && isNhanVienKho && (
-                  <Tooltip title="Nhập Kho (Nghiệm thu)">
-                    <IconButton color="success" onClick={() => handleOpenReceive(params.row)}><LocalShippingIcon /></IconButton>
+      {mainViewMode === 'table' ? (
+        <DataTable
+          rows={procurements}
+          columns={[
+            {
+              field: 'maPN',
+              headerName: 'Mã Phiếu',
+              width: 120,
+              renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#667eea' }}>{params.value}</Typography>
+            },
+            {
+              field: 'ngayNhap',
+              headerName: 'Ngày Lập',
+              width: 150,
+              valueFormatter: (params) => new Date(params.value).toLocaleDateString('vi-VN')
+            },
+            { field: 'tenNhaCungCap', headerName: 'Nhà Cung Cấp', flex: 1.5, minWidth: 200 },
+            {
+              field: 'tongTien',
+              headerName: 'Tổng Tiền',
+              width: 150,
+              renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value?.toLocaleString('vi-VN')} đ</Typography>
+            },
+            { field: 'tenNhanVien', headerName: 'Người Lập', flex: 1 },
+            {
+              field: 'trangThai',
+              headerName: 'Trạng Thái',
+              width: 180,
+              renderCell: (params) => <Chip label={params.value} color={getStatusColor(params.value)} size="small" />
+            },
+            {
+              field: 'actions',
+              headerName: 'Tác Vụ',
+              width: 120,
+              sortable: false,
+              filterable: false,
+              renderCell: (params) => (
+                <Box>
+                  <Tooltip title="Xem Chi Tiết">
+                    <IconButton color="info" onClick={() => handleOpenView(params.row)}><VisibilityIcon /></IconButton>
                   </Tooltip>
-                )}
-              </Box>
-            )
-          }
-        ]}
-        getRowId={(row) => row.maPhieuNhap}
-        loading={loading}
-        dateField="ngayNhap"
-      />
+                  {params.row.trangThai === 'Đã Duyệt' && isNhanVienKho && (
+                    <Tooltip title="Nhập Kho (Nghiệm thu)">
+                      <IconButton color="success" onClick={() => handleOpenReceive(params.row)}><LocalShippingIcon /></IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+              )
+            }
+          ]}
+          getRowId={(row) => row.maPhieuNhap}
+          loading={loading}
+          dateField="ngayNhap"
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {procurements.map((item, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={item.maPhieuNhap || idx}>
+              <Card sx={{
+                borderRadius: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+              }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                        {item.maPN}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                        {item.ngayNhap ? new Date(item.ngayNhap).toLocaleString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={item.trangThai}
+                      size="small"
+                      color={getStatusColor(item.trangThai)}
+                      variant="filled"
+                      sx={{ fontWeight: 'bold' }}
+                    />
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="textSecondary" display="block">Nhà Cung Cấp</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        🏢 {item.tenNhaCungCap}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Người Lập</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        👤 {item.tenNhanVien}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Tổng Tiền</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                        💰 {item.tongTien?.toLocaleString('vi-VN')} đ
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                    <Tooltip title="Xem Chi Tiết">
+                      <IconButton color="info" size="small" onClick={() => handleOpenView(item)}>
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {item.trangThai === 'Đã Duyệt' && isNhanVienKho && (
+                      <Tooltip title="Nhập Kho (Nghiệm thu)">
+                        <IconButton color="success" size="small" onClick={() => handleOpenReceive(item)}>
+                          <LocalShippingIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       {/* DIALOG: LẬP ĐỀ XUẤT */}
-      <Dialog open={createDialog} onClose={() => setCreateDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={createDialog} onClose={() => { setCreateDialog(false); setNewProposal({ note: '', items: [] }); }} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 'bold' }}>Tạo Phiếu Đề Xuất Nhập Hàng Mới</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ mb: 3 }}>
@@ -1115,19 +1312,19 @@ function ProcurementPage() {
                 onChange={(e, val) => handleProductSelect(val)}
                 renderInput={(params) => (
                   <Box sx={{ position: 'relative' }}>
-                    <TextField 
-                      {...params} 
-                      label="2. Chọn sản phẩm cụ thể" 
-                      size="small" 
+                    <TextField
+                      {...params}
+                      label="2. Chọn sản phẩm cụ thể"
+                      size="small"
                     />
                     {productSelect && (
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          position: 'absolute', 
-                          bottom: -20, 
-                          left: 0, 
-                          color: 'primary.main', 
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          position: 'absolute',
+                          bottom: -20,
+                          left: 0,
+                          color: 'primary.main',
                           fontWeight: 'bold',
                           whiteSpace: 'nowrap'
                         }}
@@ -1165,23 +1362,23 @@ function ProcurementPage() {
                 <DataTable
                   rows={priceHistory.map((h, idx) => ({ ...h, id: idx }))}
                   columns={[
-                    { 
-                      field: 'tenNCC', 
-                      headerName: 'Nhà Cung Cấp', 
+                    {
+                      field: 'tenNCC',
+                      headerName: 'Nhà Cung Cấp',
                       flex: 1,
                       renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{params.value}</Typography>
                     },
-                    { 
-                      field: 'loai', 
-                      headerName: 'Loại dữ liệu', 
+                    {
+                      field: 'loai',
+                      headerName: 'Loại dữ liệu',
                       width: 150,
                       renderCell: (params) => (
                         <Chip label={params.value} size="small" variant="outlined" color={params.value === "Giá chào hàng" ? "primary" : "default"} />
                       )
                     },
-                    { 
-                      field: 'giaHienTai', 
-                      headerName: 'Đơn Giá', 
+                    {
+                      field: 'giaHienTai',
+                      headerName: 'Đơn Giá',
                       width: 150,
                       align: 'right',
                       headerAlign: 'right',
@@ -1191,9 +1388,9 @@ function ProcurementPage() {
                         </Typography>
                       )
                     },
-                    { 
-                      field: 'ngayCapNhat', 
-                      headerName: 'Cập nhật cuối', 
+                    {
+                      field: 'ngayCapNhat',
+                      headerName: 'Cập nhật cuối',
                       width: 150,
                       valueFormatter: (params) => new Date(params.value).toLocaleDateString('vi-VN')
                     },
@@ -1209,8 +1406,8 @@ function ProcurementPage() {
                         const h = params.row;
                         const isActive = supplierSelect?.maNCC === h.maNCC && priceSelect === h.giaHienTai;
                         return (
-                          <Button 
-                            variant={isActive ? "outlined" : "contained"} 
+                          <Button
+                            variant={isActive ? "outlined" : "contained"}
                             size="small"
                             color={isActive ? "success" : "primary"}
                             sx={{ fontWeight: 'bold' }}
@@ -1293,7 +1490,7 @@ function ProcurementPage() {
           </Table>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialog(false)}>Hủy</Button>
+          <Button onClick={() => { setCreateDialog(false); setNewProposal({ note: '', items: [] }); }}>Hủy</Button>
           <Button variant="contained" onClick={handleSubmitProposal} disabled={actionLoading}>GỬI ĐỀ XUẤT CHO QUẢN LÝ</Button>
         </DialogActions>
       </Dialog>
@@ -1340,14 +1537,14 @@ function ProcurementPage() {
                     getOptionLabel={(opt) => opt.tenNCC}
                     value={suppliers.find(s => Number(s.maNhaCungCap || s.maNCC) === Number(viewDialog.maNhaCungCap)) || null}
                     onChange={(e, val) => {
-                       if (val) setViewDialog({ ...viewDialog, maNhaCungCap: Number(val.maNhaCungCap || val.maNCC), tenNhaCungCap: val.tenNCC });
+                      if (val) setViewDialog({ ...viewDialog, maNhaCungCap: Number(val.maNhaCungCap || val.maNCC), tenNhaCungCap: val.tenNCC });
                     }}
                     size="small" sx={{ minWidth: 220 }}
                     renderInput={(params) => <TextField {...params} label="Chọn Lại Nhà Cung Cấp" />}
                   />
-                  <TextField 
+                  <TextField
                     label="Ghi chú chỉnh sửa" size="small" sx={{ flex: 1, minWidth: 200 }}
-                    value={viewDialog.ghiChu} 
+                    value={viewDialog.ghiChu}
                     onChange={(e) => setViewDialog({ ...viewDialog, ghiChu: e.target.value })}
                   />
                 </Box>
@@ -1374,25 +1571,25 @@ function ProcurementPage() {
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '3fr 280px' }, gap: 2, minHeight: 0 }}>
               <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
-                <Paper 
-                  elevation={0} 
-                  sx={{ 
-                    height: 380, 
-                    borderRadius: '12px', 
-                    border: '1px solid #eef2f6', 
+                <Paper
+                  elevation={0}
+                  sx={{
+                    height: 380,
+                    borderRadius: '12px',
+                    border: '1px solid #eef2f6',
                     overflow: 'auto',
                   }}
                 >
-                  <DataTable 
+                  <DataTable
                     rows={viewDialog.chiTiet.filter(c => {
                       const matchSearch = (c.tenSanPham + (c.maSanPham || '')).toLowerCase().includes(itemSearch.toLowerCase());
                       return matchSearch;
                     }).map((c, idx) => ({ ...c, id: c.maCTPN || `item-${idx}`, stt: idx + 1 }))}
                     columns={[
                       { field: 'stt', headerName: '#', width: 48 },
-                      { 
-                        field: 'tenSanPham', 
-                        headerName: 'Tên Sản Phẩm', 
+                      {
+                        field: 'tenSanPham',
+                        headerName: 'Tên Sản Phẩm',
                         flex: 1,
                         minWidth: 160,
                         renderCell: (params) => (
@@ -1402,59 +1599,59 @@ function ProcurementPage() {
                           </Box>
                         )
                       },
-                      { 
-                        field: 'tenNhaCungCap', 
-                        headerName: 'Nhà Cung Cấp', 
+                      {
+                        field: 'tenNhaCungCap',
+                        headerName: 'Nhà Cung Cấp',
                         width: 180,
                         renderCell: (params) => (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip 
-                              label={params.value || '---'} 
-                              size="small" 
-                              variant="outlined" 
-                              sx={{ borderRadius: '8px', fontWeight: 700, border: '1px solid #e2e8f0', color: '#334155' }} 
+                            <Chip
+                              label={params.value || '---'}
+                              size="small"
+                              variant="outlined"
+                              sx={{ borderRadius: '8px', fontWeight: 700, border: '1px solid #e2e8f0', color: '#334155' }}
                             />
                             {isApprovalMode && (
-                               <Tooltip title="Chọn nhà cung cấp khác">
-                                 <IconButton size="small" onClick={async () => {
-                                     setPriceLoading(true); 
-                                     try { 
-                                       const res = await api.get(`/procurement/price-compare/${params.row.maSanPham}`); 
-                                       setPriceHistory(res.data); 
-                                       setEditingProductId(params.row.maSanPham); 
-                                       setShowPriceCompare(true); 
-                                     } catch (e) { console.error(e); } 
-                                     finally { setPriceLoading(false); } 
-                                 }}>
-                                    <FilterListIcon fontSize="inherit" />
-                                 </IconButton>
-                               </Tooltip>
+                              <Tooltip title="Chọn nhà cung cấp khác">
+                                <IconButton size="small" onClick={async () => {
+                                  setPriceLoading(true);
+                                  try {
+                                    const res = await api.get(`/procurement/price-compare/${params.row.maSanPham}`);
+                                    setPriceHistory(res.data);
+                                    setEditingProductId(params.row.maSanPham);
+                                    setShowPriceCompare(true);
+                                  } catch (e) { console.error(e); }
+                                  finally { setPriceLoading(false); }
+                                }}>
+                                  <FilterListIcon fontSize="inherit" />
+                                </IconButton>
+                              </Tooltip>
                             )}
                           </Box>
                         )
                       },
-                      { 
-                        field: 'donGia', 
-                        headerName: 'Đơn Giá', 
+                      {
+                        field: 'donGia',
+                        headerName: 'Đơn Giá',
                         width: 160,
                         renderCell: (params) => (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 800, color: '#0ea5e9' }}>
-                               {params.value?.toLocaleString('vi-VN')} đ
+                              {params.value?.toLocaleString('vi-VN')} đ
                             </Typography>
                             {(isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa')) && (
-                              <IconButton 
-                                size="small" 
+                              <IconButton
+                                size="small"
                                 sx={{ bgcolor: '#f0f9ff', color: '#0ea5e9', '&:hover': { bgcolor: '#e0f2fe' } }}
-                                onClick={async () => { 
-                                  setPriceLoading(true); 
-                                  try { 
-                                    const res = await api.get(`/procurement/price-compare/${params.row.maSanPham}`); 
-                                    setPriceHistory(res.data); 
-                                    setEditingProductId(params.row.maSanPham); 
-                                    setShowPriceCompare(true); 
-                                  } catch (e) { console.error(e); } 
-                                  finally { setPriceLoading(false); } 
+                                onClick={async () => {
+                                  setPriceLoading(true);
+                                  try {
+                                    const res = await api.get(`/procurement/price-compare/${params.row.maSanPham}`);
+                                    setPriceHistory(res.data);
+                                    setEditingProductId(params.row.maSanPham);
+                                    setShowPriceCompare(true);
+                                  } catch (e) { console.error(e); }
+                                  finally { setPriceLoading(false); }
                                 }}
                               >
                                 <CompareArrowsIcon fontSize="small" />
@@ -1505,7 +1702,7 @@ function ProcurementPage() {
                           if (!isApprovalMode) return getItemStatusChip(params.row);
                           const maCTPN = params.row.maCTPN;
                           const currentAction = itemActions[maCTPN];
-                          
+
                           // Nếu món này đã được tách sang phiếu khác, không cho chọn lại hành động
                           const isSplit = params.row.maPhieuHienTai && params.row.maPhieuHienTai !== viewDialog?.maPhieuNhap;
                           if (isSplit) return getItemStatusChip(params.row);
@@ -1513,7 +1710,7 @@ function ProcurementPage() {
                           return (
                             <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', width: '100%' }}>
                               <Tooltip title="Duyệt">
-                                <Button 
+                                <Button
                                   size="small" variant={currentAction === 'approve' ? 'contained' : 'outlined'}
                                   color="success" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
                                   onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'approve' }))}
@@ -1522,7 +1719,7 @@ function ProcurementPage() {
                                 </Button>
                               </Tooltip>
                               <Tooltip title="Yêu cầu sửa">
-                                <Button 
+                                <Button
                                   size="small" variant={currentAction === 'revise' ? 'contained' : 'outlined'}
                                   color="warning" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
                                   onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'revise' }))}
@@ -1531,7 +1728,7 @@ function ProcurementPage() {
                                 </Button>
                               </Tooltip>
                               <Tooltip title="Từ chối">
-                                <Button 
+                                <Button
                                   size="small" variant={currentAction === 'reject' ? 'contained' : 'outlined'}
                                   color="error" sx={{ minWidth: 44, borderRadius: '10px', p: 1 }}
                                   onClick={() => setItemActions(prev => ({ ...prev, [maCTPN]: 'reject' }))}
@@ -1550,14 +1747,14 @@ function ProcurementPage() {
                         renderCell: (params) => {
                           const isItemEditable = (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa');
                           if (!isApprovalMode && !isItemEditable) return <Typography variant="caption">{params.value || params.row.ghiChu || '---'}</Typography>;
-                          
+
                           const maCTPN = params.row.maCTPN;
                           const action = isApprovalMode ? itemActions[maCTPN] : 'revise'; // NV kho mặc định là sửa nếu được cho phép
                           const isRequired = isApprovalMode && (action === 'revise' || action === 'reject');
                           const idx = viewDialog.chiTiet.findIndex(x => x.maCTPN === maCTPN);
-                          
+
                           return (
-                            <NoteInput 
+                            <NoteInput
                               value={params.row.ghiChu || ''}
                               action={action}
                               isRequired={isRequired}
@@ -1566,22 +1763,22 @@ function ProcurementPage() {
                           );
                         }
                       },
-                      { 
-                        field: 'soLuong', 
-                        headerName: 'S.Lượng', 
+                      {
+                        field: 'soLuong',
+                        headerName: 'S.Lượng',
                         width: 100,
                         renderCell: (params) => {
                           const isEditable = isApprovalMode || (viewDialog.trangThai === 'Yêu Cầu Sửa' && isNhanVienKho && params.row.trangThai === 'Yêu Cầu Sửa');
                           if (isEditable) {
                             return (
-                              <TextField 
-                                type="number" size="small" 
+                              <TextField
+                                type="number" size="small"
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', bgcolor: '#f8fafc' } }}
-                                value={params.value} 
+                                value={params.value}
                                 onChange={(e) => {
                                   const idx = viewDialog.chiTiet.findIndex(x => x.maCTPN === params.row.maCTPN);
                                   handleEditItemValue(idx, 'soLuong', Number(e.target.value));
-                                }} 
+                                }}
                                 onKeyDown={(e) => e.stopPropagation()}
                               />
                             );
@@ -1609,10 +1806,10 @@ function ProcurementPage() {
                         width: 120,
                         hide: isApprovalMode || viewDialog.mode === 'receive' || viewDialog.trangThai === 'Yêu Cầu Sửa',
                         renderCell: (params) => (
-                          <Chip 
-                            label={params.row.soLuongDaNhan || 0} 
-                            color={(params.row.soLuongDaNhan || 0) < params.row.soLuong ? 'error' : 'success'} 
-                            size="small" variant="outlined" 
+                          <Chip
+                            label={params.row.soLuongDaNhan || 0}
+                            color={(params.row.soLuongDaNhan || 0) < params.row.soLuong ? 'error' : 'success'}
+                            size="small" variant="outlined"
                           />
                         )
                       },
@@ -1626,8 +1823,8 @@ function ProcurementPage() {
                           if (isSplit) return <Typography variant="caption" color="error">Đã tách ra phiếu: {params.row.maPhieuHienTai}</Typography>;
                           return (
                             <TextField
-                              size="small" type="number" 
-                              sx={{ 
+                              size="small" type="number"
+                              sx={{
                                 width: 80,
                                 filter: viewDialog.mode !== 'receive' ? 'blur(3px)' : 'none',
                                 opacity: viewDialog.mode !== 'receive' ? 0.3 : 1,
@@ -1650,8 +1847,8 @@ function ProcurementPage() {
                   <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mt: 1, p: 1.5, bgcolor: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
                     {(() => {
                       const approveCount = Object.values(itemActions).filter(v => v === 'approve').length;
-                      const reviseCount  = Object.values(itemActions).filter(v => v === 'revise').length;
-                      const rejectCount  = Object.values(itemActions).filter(v => v === 'reject').length;
+                      const reviseCount = Object.values(itemActions).filter(v => v === 'revise').length;
+                      const rejectCount = Object.values(itemActions).filter(v => v === 'reject').length;
                       return (
                         <>
                           <Box sx={{ textAlign: 'center' }}>
@@ -1687,9 +1884,9 @@ function ProcurementPage() {
                         {i !== statusHistory.length - 1 && (
                           <Box sx={{ position: 'absolute', left: 8, top: 22, bottom: -20, width: 2, bgcolor: '#f1f5f9' }} />
                         )}
-                        <Box sx={{ 
-                          position: 'absolute', left: 0, top: 4, width: 18, height: 18, 
-                          borderRadius: '50%', bgcolor: i === 0 ? '#6366f1' : '#fff', 
+                        <Box sx={{
+                          position: 'absolute', left: 0, top: 4, width: 18, height: 18,
+                          borderRadius: '50%', bgcolor: i === 0 ? '#6366f1' : '#fff',
                           border: `3px solid ${i === 0 ? '#6366f1' : '#e2e8f0'}`,
                           boxShadow: i === 0 ? '0 0 0 4px rgba(99, 102, 241, 0.15)' : 'none'
                         }} />
@@ -1701,7 +1898,7 @@ function ProcurementPage() {
                             {new Date(h.ngayThayDoi).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · {new Date(h.ngayThayDoi).toLocaleDateString('vi-VN')}
                           </Typography>
                         </Box>
-                        
+
                         <Box sx={{ bgcolor: i === 0 ? '#f5f3ff' : '#f8fafc', p: 1.5, borderRadius: '12px', border: `1px solid ${i === 0 ? '#ddd6fe' : '#f1f5f9'}` }}>
                           <Typography variant="body2" sx={{ fontWeight: 700, color: i === 0 ? '#5b21b6' : '#334155', fontSize: '0.85rem' }}>
                             {h.trangThaiCu ? `${h.trangThaiCu} -> ` : ''} {h.trangThaiMoi}
@@ -1725,8 +1922,8 @@ function ProcurementPage() {
               <Box sx={{ display: 'flex', gap: 3 }}>
                 {(() => {
                   const approveCount = Object.values(itemActions).filter(v => v === 'approve').length;
-                  const reviseCount  = Object.values(itemActions).filter(v => v === 'revise').length;
-                  const rejectCount  = Object.values(itemActions).filter(v => v === 'reject').length;
+                  const reviseCount = Object.values(itemActions).filter(v => v === 'revise').length;
+                  const rejectCount = Object.values(itemActions).filter(v => v === 'reject').length;
                   return (
                     <>
                       <Box sx={{ textAlign: 'center' }}>
@@ -1762,7 +1959,7 @@ function ProcurementPage() {
               {isApprovalMode && (
                 <Button
                   variant="contained"
-                  sx={{ 
+                  sx={{
                     borderRadius: '10px', fontWeight: 800,
                     background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
                   }}
@@ -1812,9 +2009,9 @@ function ProcurementPage() {
               value={quickCategory}
               onChange={(e, val) => { setQuickCategory(val); setQuickPage(0); }}
               renderInput={(params) => (
-                <TextField 
-                  {...params} 
-                  label="Lọc theo Nhóm hàng" 
+                <TextField
+                  {...params}
+                  label="Lọc theo Nhóm hàng"
                   InputProps={{
                     ...params.InputProps,
                     startAdornment: (
@@ -1827,12 +2024,12 @@ function ProcurementPage() {
               )}
             />
           </Box>
-          
+
           <Box sx={{ height: 500, mt: 2 }}>
-            <DataTable 
+            <DataTable
               rows={inventoryAlerts.filter(a => {
-                const matchSearch = a.tenSP.toLowerCase().includes(quickSearch.toLowerCase()) || 
-                                  a.maSP.toLowerCase().includes(quickSearch.toLowerCase());
+                const matchSearch = a.tenSP.toLowerCase().includes(quickSearch.toLowerCase()) ||
+                  a.maSP.toLowerCase().includes(quickSearch.toLowerCase());
                 const product = products.find(p => p.maSP === a.maSP);
                 const matchCat = !quickCategory || (product && product.maLoaiSP === quickCategory.maLoaiSanPham);
                 return matchSearch && matchCat;
@@ -1842,9 +2039,9 @@ function ProcurementPage() {
               rowSelectionModel={Array.from(selectedAlertIds)}
               onRowSelectionModelChange={(newSelection) => setSelectedAlertIds(new Set(newSelection))}
               columns={[
-                { 
-                  field: 'tenSP', 
-                  headerName: 'Sản Phẩm', 
+                {
+                  field: 'tenSP',
+                  headerName: 'Sản Phẩm',
                   flex: 1,
                   renderCell: (params) => (
                     <Box>
@@ -1853,15 +2050,15 @@ function ProcurementPage() {
                     </Box>
                   )
                 },
-                { 
-                  field: 'soLuongTon', 
-                  headerName: 'Tồn Kho', 
+                {
+                  field: 'soLuongTon',
+                  headerName: 'Tồn Kho',
                   width: 120,
                   renderCell: (params) => (
-                    <Chip 
-                      label={`Tồn: ${params.value}`} 
-                      size="small" 
-                      color={params.value <= 0 ? 'error' : 'warning'} 
+                    <Chip
+                      label={`Tồn: ${params.value}`}
+                      size="small"
+                      color={params.value <= 0 ? 'error' : 'warning'}
                       variant="outlined"
                     />
                   )
@@ -1876,13 +2073,13 @@ function ProcurementPage() {
                     const alert = params.row;
                     const isSelected = selectedAlertIds.has(alert.maSP);
                     if (!isSelected) return <Typography variant="caption" color="textSecondary">Tích chọn để cấu hình</Typography>;
-                    
+
                     const config = alertConfigs[alert.maSP] || {};
                     if (config.loading) return <CircularProgress size={20} />;
-                    
+
                     return (
                       <Box sx={{ display: 'flex', gap: 1, p: 1, width: '100%', alignItems: 'center' }}>
-                        <TextField 
+                        <TextField
                           label="SL nhập" size="small" type="number" sx={{ width: 100 }}
                           value={config.qty || ''}
                           onChange={(e) => setAlertConfigs(prev => ({
@@ -1904,7 +2101,7 @@ function ProcurementPage() {
                             const product = products.find(p => p.maSP === alert.maSP);
                             const quoted = (config.prices || []).find(p => p.maNCC === val.maNCC || p.maNCC === val.maNhaCungCap);
                             const supplierToSet = { ...val, giaHienTai: quoted ? quoted.giaHienTai : (product?.giaNhap || 0) };
-                            
+
                             setAlertConfigs(prev => ({
                               ...prev,
                               [alert.maSP]: { ...prev[alert.maSP], supplier: supplierToSet }
@@ -1927,7 +2124,7 @@ function ProcurementPage() {
                             );
                           }}
                         />
-                        <TextField 
+                        <TextField
                           label="Đơn giá" size="small" type="text" sx={{ width: 140 }}
                           value={config.supplier?.giaHienTai ? `${config.supplier.giaHienTai.toLocaleString('vi-VN')} đ` : ''}
                           disabled
@@ -1943,8 +2140,8 @@ function ProcurementPage() {
         </DialogContent>
         <DialogActions sx={{ p: 2, background: '#f8f9fa' }}>
           <Button onClick={() => setQuickProposalDialog(false)}>Hủy</Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             color="primary"
             disabled={selectedAlertIds.size === 0 || actionLoading}
             onClick={handleSubmitQuickProposal}
@@ -1955,17 +2152,18 @@ function ProcurementPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={aiOcrOpen} onClose={() => setAiOcrOpen(false)} maxWidth="lg" fullWidth>
+      <Dialog open={aiOcrOpen} onClose={() => setAiOcrOpen(false)} maxWidth="xl" fullWidth sx={{ '& .MuiDialog-paper': { height: '85vh', maxHeight: '85vh' } }}>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%)', color: '#fff', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>📸 AI TỰ ĐỘNG BÓC TÁCH HÓA ĐƠN (OCR INVOICE PROCESSING)</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>📸 AI TỰ ĐỘNG PHÂN TÍCH HÓA ĐƠN (OCR INVOICE PROCESSING)</Typography>
           </Box>
           <Chip label="Vision AI & LLM Extraction" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 'bold' }} />
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 3, bgcolor: '#f8f9fa' }}>
-          <Box sx={{ mb: 3, p: 2, bgcolor: '#fff', borderRadius: 2, border: '1px dashed #cb2d3e', textAlign: 'center' }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              💡 Hướng dẫn: Tải lên hình ảnh hóa đơn giấy hoặc ảnh chụp từ điện thoại để AI tự động bóc tách tên nhà cung cấp, mặt hàng, số lượng và đơn giá.
+        <DialogContent dividers sx={{ p: 0, bgcolor: '#f8f9fa', display: 'flex', flexDirection: { xs: 'column', lg: 'row' } }}>
+          {/* Left Panel: Upload & View Image */}
+          <Box sx={{ width: { xs: '100%', lg: '40%' }, p: 3, borderRight: '1px solid #e0e0e0', bgcolor: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+              💡 Tải lên hình ảnh hóa đơn giấy hoặc ảnh chụp để AI tự động phân tích.
             </Typography>
             <input
               type="file"
@@ -1976,106 +2174,162 @@ function ProcurementPage() {
                 const file = e.target.files[0];
                 if (file) {
                   const reader = new FileReader();
-                  reader.onload = () => setAiOcrImage(reader.result);
+                  reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const MAX_WIDTH = 1200;
+                      const MAX_HEIGHT = 1200;
+                      let width = img.width;
+                      let height = img.height;
+                      if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                      } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                      }
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx = canvas.getContext('2d');
+                      ctx.drawImage(img, 0, 0, width, height);
+                      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                      setAiOcrImage(compressedBase64);
+                    };
+                    img.src = event.target.result;
+                  };
                   reader.readAsDataURL(file);
                 }
               }}
             />
             <label htmlFor="ocr-upload-input">
-              <Button variant="outlined" component="span" sx={{ color: '#cb2d3e', borderColor: '#cb2d3e', '&:hover': { borderColor: '#ef473a', bgcolor: 'rgba(203,45,62,0.05)' } }}>
+              <Button fullWidth variant="outlined" component="span" sx={{ mb: 2, color: '#cb2d3e', borderColor: '#cb2d3e', '&:hover': { borderColor: '#ef473a', bgcolor: 'rgba(203,45,62,0.05)' } }}>
                 📁 Chọn File Ảnh Hóa Đơn
               </Button>
             </label>
-            {aiOcrImage && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>✅ Đã tải ảnh lên thành công. Bấm nút Quét bên dưới để phân tích.</Typography>
-                <img src={aiOcrImage} alt="Hóa đơn tải lên" style={{ maxHeight: 180, borderRadius: 8, border: '1px solid #ddd' }} />
-              </Box>
-            )}
-            <Box sx={{ mt: 2 }}>
-              <Button variant="contained" onClick={handleRunAiOcr} disabled={aiOcrLoading} sx={{ background: 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)', color: '#fff', fontWeight: 'bold', px: 4 }}>
-                {aiOcrLoading ? 'AI ĐANG BỐC TÁCH DỮ LIỆU...' : '🚀 BẮT ĐẦU QUÉT & PHÂN TÍCH OCR AI'}
-              </Button>
+
+            <Box sx={{ flex: 1, minHeight: 300, border: '1px dashed #cb2d3e', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 1, bgcolor: '#fafafa', overflow: 'auto' }}>
+              {aiOcrImage ? (
+                <img src={aiOcrImage} alt="Hóa đơn" style={{ maxWidth: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Typography color="text.secondary">Chưa có ảnh tải lên</Typography>
+              )}
             </Box>
+
+            <Button fullWidth variant="contained" onClick={handleRunAiOcr} disabled={aiOcrLoading || !aiOcrImage} sx={{ mt: 2, background: 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)', color: '#fff', fontWeight: 'bold' }}>
+              {aiOcrLoading ? 'AI ĐANG BỐC TÁCH DỮ LIỆU...' : '🚀 BẮT ĐẦU QUÉT & PHÂN TÍCH OCR AI'}
+            </Button>
           </Box>
 
-          {aiOcrLoading ? (
-            <Box sx={{ py: 8, textAlign: 'center' }}>
-              <CircularProgress sx={{ color: '#ef473a', mb: 3 }} size={48} />
-              <Typography variant="h6" color="text.secondary" sx={{ animation: 'pulse 1.5s infinite' }}>
-                AI đang nhận diện ký tự quang học (OCR), đối chiếu danh mục nhà cung cấp và khớp mã vật tư...
-              </Typography>
-            </Box>
-          ) : aiOcrData ? (
-            <Box>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #cb2d3e', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Nhà Cung Cấp</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#cb2d3e', mt: 0.5 }}>{aiOcrData.tenNhaCungCap}</Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #f5af19', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Số Hóa Đơn & Ngày</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333', mt: 0.5 }}>HĐ: {aiOcrData.soHoaDon} ({aiOcrData.ngayHoaDon})</Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #2ed573', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Tiền Hóa Đơn</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2ed573', mt: 0.5 }}>{aiOcrData.tongTienHoaDon?.toLocaleString('vi-VN')} đ</Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
-                📦 Danh Sách Mặt Hàng Bóc Tách Được
-              </Typography>
-
-              <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-                <Table>
-                  <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>STT</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Tên Mặt Hàng (Trên Hóa Đơn)</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Số Lượng</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="right">Đơn Giá</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="right">Thành Tiền</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {aiOcrData.danhSachMatHang?.map((item, idx) => (
-                      <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: '#cb2d3e' }}>{idx + 1}</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>{item.tenMatHang}</TableCell>
-                        <TableCell align="center">
-                          <Chip label={item.soLuong} size="small" color="primary" sx={{ fontWeight: 'bold' }} />
-                        </TableCell>
-                        <TableCell align="right"><Typography variant="body2">{item.donGia?.toLocaleString('vi-VN')} đ</Typography></TableCell>
-                        <TableCell align="right"><Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>{item.thanhTien?.toLocaleString('vi-VN')} đ</Typography></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-
-              <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(46, 213, 115, 0.1)', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="success.main" sx={{ fontWeight: 'bold' }}>
-                  💡 Hệ thống tự động khớp mã vật tư và nhà cung cấp. Bạn có thể chuyển ngay dữ liệu này thành Phiếu Đề Xuất Nhập Hàng mới!
+          {/* Right Panel: OCR Results */}
+          <Box sx={{ width: { xs: '100%', lg: '60%' }, p: 3, overflowY: 'auto' }}>
+            {aiOcrLoading ? (
+              <Box sx={{ py: 10, textAlign: 'center' }}>
+                <CircularProgress sx={{ color: '#ef473a', mb: 3 }} size={48} />
+                <Typography variant="h6" color="text.secondary" sx={{ animation: 'pulse 1.5s infinite' }}>
+                  AI đang nhận diện ký tự quang học (OCR), đối chiếu danh mục nhà cung cấp và khớp mã vật tư...
                 </Typography>
-                <Button variant="contained" color="success" onClick={handleApplyOcrToProposal} sx={{ fontWeight: 'bold', px: 3, boxShadow: '0 4px 15px rgba(46,213,115,0.3)' }}>
-                  ✨ Tạo Phiếu Đề Xuất Nhập Hàng
-                </Button>
               </Box>
-            </Box>
-          ) : (
-            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>Chưa có dữ liệu bóc tách. Vui lòng chọn file ảnh và bấm nút Quét.</Typography>
-          )}
+            ) : aiOcrData ? (
+              <Box>
+                {aiOcrData.isDemo && (
+                  <Box sx={{ mb: 2, p: 2, bgcolor: '#fff3cd', borderRadius: 2, border: '1px solid #ffc107', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#856404' }}>
+                      ⚠️ AI Vision tạm thời không khả dụng (giới hạn API). Dữ liệu bên dưới là MẪU DEMO. Vui lòng bấm "Quét" lại sau 30 giây.
+                    </Typography>
+                    <Button size="small" variant="outlined" color="warning" onClick={handleRunAiOcr} disabled={aiOcrLoading} sx={{ ml: 'auto', whiteSpace: 'nowrap' }}>
+                      🔄 Thử lại
+                    </Button>
+                  </Box>
+                )}
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #2ed573', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', height: '100%' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Tiền Trên Hóa Đơn</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2ed573', mt: 1 }}>{aiOcrData.tongTien?.toLocaleString('vi-VN')} đ</Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
+                  📦 Danh Sách Mặt Hàng Phân Tích Được
+                </Typography>
+
+                <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
+                  <Table size="small" sx={{ minWidth: 900 }}>
+                    <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 50 }}>STT</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', minWidth: 220 }}>Tên Mặt Hàng (Khớp mã hệ thống)</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', minWidth: 220 }}>Nhà Cung Cấp Tốt Nhất</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 90 }} align="center">S.Lượng</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 120 }} align="right">Đơn Giá</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', minWidth: 120 }} align="right">Thành Tiền</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {aiOcrData.danhSachSanPham?.map((item, idx) => (
+                        <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#cb2d3e', pt: 2 }}>{idx + 1}</TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', display: 'block', mb: 0.5 }}>OCR: {item.tenSP}</Typography>
+                            <Autocomplete
+                              size="small"
+                              options={products}
+                              getOptionLabel={(opt) => `${opt.maSP} - ${opt.tenSP}`}
+                              value={item.matchedProduct || null}
+                              onChange={(e, val) => {
+                                const newData = { ...aiOcrData };
+                                newData.danhSachSanPham[idx].matchedProduct = val;
+                                setAiOcrData(newData);
+                              }}
+                              renderInput={(params) => <TextField {...params} placeholder="Khớp mã SP..." variant="standard" />}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Autocomplete
+                              size="small"
+                              options={suppliers}
+                              getOptionLabel={(opt) => `${opt.tenNCC || opt.tenNhaCungCap}`}
+                              value={item.matchedSupplier || null}
+                              onChange={(e, val) => {
+                                const newData = { ...aiOcrData };
+                                newData.danhSachSanPham[idx].matchedSupplier = val;
+                                setAiOcrData(newData);
+                              }}
+                              renderInput={(params) => <TextField {...params} placeholder="Chọn NCC tốt nhất..." variant="standard" />}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <TextField type="number" size="small" value={item.soLuong} onChange={(e) => handleOcrItemChange(idx, 'soLuong', Number(e.target.value))} sx={{ width: 70 }} variant="standard" />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" sx={{ fontWeight: '500' }}>{item.donGia?.toLocaleString('vi-VN')} đ</Typography>
+                          </TableCell>
+                          <TableCell align="right" sx={{ pt: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.main' }}>{item.thanhTien?.toLocaleString('vi-VN')} đ</Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(46, 213, 115, 0.1)', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexWrap: 'wrap', gap: 2 }}>
+                  <Typography variant="body2" color="success.main" sx={{ fontWeight: 'bold', flex: 1, minWidth: 250 }}>
+                    💡 Kiểm tra lại thông tin. Bạn có thể sửa trực tiếp số lượng và khớp lại mã vật tư nếu AI nhận diện chưa chính xác. Đơn giá được hệ thống tự động chốt giá tốt nhất.
+                  </Typography>
+                  <Button variant="contained" color="success" onClick={handleApplyOcrToProposal} sx={{ fontWeight: 'bold', px: 3, py: 1.5, boxShadow: '0 4px 15px rgba(46,213,115,0.3)', whiteSpace: 'nowrap', minWidth: 200, alignSelf: { xs: 'center', md: 'auto' } }}>
+                    ✨ TẠO PHIẾU ĐỀ XUẤT
+                  </Button>
+                </Box>
+              </Box>
+            ) : (
+              <Typography color="text.secondary" sx={{ textAlign: 'center', py: 20 }}>Chưa có dữ liệu phân tích. Vui lòng chọn file ảnh và bấm nút Quét.</Typography>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2.5, bgcolor: '#fff' }}>
           <Button variant="contained" onClick={() => setAiOcrOpen(false)} sx={{ background: 'linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%)' }}>
-            Đóng Giao Diện AI
+            Đóng
           </Button>
         </DialogActions>
       </Dialog>
@@ -2093,13 +2347,13 @@ const NoteInput = ({ value, action, isRequired, onChange }) => {
   }, [value]);
 
   return (
-    <TextField 
-      size="small" fullWidth 
+    <TextField
+      size="small" fullWidth
       placeholder={isRequired ? "Bắt buộc nhập lý do..." : "Không cần ghi chú"}
       value={localValue || ''}
       disabled={action === 'approve'}
       error={isRequired && !localValue}
-      sx={{ 
+      sx={{
         '& .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: action === 'approve' ? '#f1f5f9' : '#fff' },
         filter: action === 'approve' ? 'grayscale(1) opacity(0.5)' : 'none'
       }}

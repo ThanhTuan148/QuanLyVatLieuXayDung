@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Paper, Button, Chip, IconButton, Tooltip, Dialog, DialogTitle, 
   DialogContent, DialogActions, TextField, Autocomplete, Tabs, Tab, CircularProgress,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Card, CardContent, Grid, Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import api from '../services/api';
@@ -22,6 +25,7 @@ export default function ReturnsPage() {
 
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const currentTab = visibleTabs[activeTabIdx];
+  const [mainViewMode, setMainViewMode] = useState('table');
 
   const [loading, setLoading] = useState(false);
   const [supplierReturns, setSupplierReturns] = useState([]);
@@ -326,12 +330,25 @@ export default function ReturnsPage() {
         <Typography color="textSecondary">Xử lý bù trừ hàng với nhà cung cấp và nhận lại hàng lỗi từ khách</Typography>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Tabs value={activeTabIdx} onChange={(e, v) => setActiveTabIdx(v)} textColor="secondary" indicatorColor="secondary">
           {visibleTabs.map((tab, idx) => (
             <Tab key={idx} label={tab.label} />
           ))}
         </Tabs>
+        <ToggleButtonGroup
+          value={mainViewMode}
+          exclusive
+          onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+          size="small"
+        >
+          <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+            <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+          </ToggleButton>
+          <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+            <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+          </ToggleButton>
+        </ToggleButtonGroup>
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
@@ -342,12 +359,120 @@ export default function ReturnsPage() {
         )}
       </Box>
 
-      <DataTable 
-        rows={currentTab?.type === 'supplier' ? supplierReturns : customerReturns}
-        columns={currentTab?.type === 'supplier' ? supplierColumns : customerColumns}
-        getRowId={(row) => row.maPhieuTra || row.maPhieuDT}
-        loading={loading}
-      />
+      {mainViewMode === 'table' ? (
+        <DataTable 
+          rows={currentTab?.type === 'supplier' ? supplierReturns : customerReturns}
+          columns={currentTab?.type === 'supplier' ? supplierColumns : customerColumns}
+          getRowId={(row) => row.maPhieuTra || row.maPhieuDT}
+          loading={loading}
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {(currentTab?.type === 'supplier' ? supplierReturns : customerReturns).map((item, idx) => {
+            const isSupplier = currentTab?.type === 'supplier';
+            return (
+              <Grid item xs={12} sm={6} md={4} key={isSupplier ? item.maPhieuTra : item.maPhieuDT || idx}>
+                <Card sx={{
+                  borderRadius: 2,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#667eea' }}>
+                          {isSupplier ? item.maPT : item.maDT}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                          {isSupplier ? `Phiếu Nhập: ${item.maPN}` : `Hóa Đơn: ${item.maHD}`}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
+                        <Chip 
+                          label={item.trangThai} 
+                          size="small" 
+                          color={item.trangThai === 'Hoàn Tất' ? 'success' : item.trangThai?.includes('Đã Duyệt') ? 'info' : 'warning'} 
+                          variant="filled"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                        {!isSupplier && (
+                           <Chip label={item.trangThaiNhapKho || 'Chưa nhập kho'} variant="outlined" size="small" />
+                        )}
+                      </Box>
+                    </Box>
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="textSecondary" display="block">{isSupplier ? 'Nhà Cung Cấp' : 'Khách Hàng'}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {isSupplier ? `🏢 ${item.tenNhaCungCap}` : `👤 ${item.tenKhachHang}`}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">{isSupplier ? 'Giá Trị' : 'Tiền Hoàn'}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                          💰 {formatVND(item.tongTienHoan)}
+                        </Typography>
+                      </Grid>
+                      {!isSupplier && (
+                         <Grid item xs={6}>
+                            <Typography variant="caption" color="textSecondary" display="block">Loại</Typography>
+                            <Chip label={item.loai || 'Trả hàng'} size="small" color={item.loai === 'Đổi hàng' ? 'info' : 'warning'} variant="outlined" />
+                         </Grid>
+                      )}
+                      {isSupplier && (
+                         <Grid item xs={12}>
+                            <Typography variant="caption" color="textSecondary" display="block">Lý Do</Typography>
+                            <Typography variant="body2" sx={{ fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {item.lyDo || '—'}
+                            </Typography>
+                         </Grid>
+                      )}
+                    </Grid>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                      {isSupplier ? (
+                        <>
+                          {(permissions?.returns?.coTheSua || isQuanLy) && item.trangThai === 'Chờ Duyệt Trả' && (
+                            <Button size="small" variant="contained" onClick={() => handleApproveSupp(item.maPhieuTra)}>Duyệt</Button>
+                          )}
+                          {item.trangThai === 'Đang Chờ Hàng Về' && (
+                            <>
+                              {(permissions?.returns?.coTheTao || isNhanVien) && (
+                                <Button size="small" variant="contained" color="success" onClick={() => handleReceiveSupp(item.maPhieuTra)}>Nhập Kho</Button>
+                              )}
+                              {(permissions?.returns?.coTheSua || isNhanVien) && (
+                                <Tooltip title="Chuyển sang NCC khác">
+                                  <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => handleOpenPivotDialog(item)}>Chuyển</Button>
+                                </Tooltip>
+                              )}
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                           <Button size="small" variant="outlined" onClick={() => { setViewingItems(item); setSelectedCTDTs(new Set()); }}>
+                               {item.items?.length || 0} mục
+                           </Button>
+                           {(permissions?.returns_customer?.coTheSua || isQuanLy) && (item.trangThai === 'Chờ Xử Lý' || item.trangThai.includes('Duyệt một phần')) && (
+                             <Button size="small" variant="contained" onClick={() => handleApproveCust(item)}>Duyệt Hết</Button>
+                           )}
+                           {(permissions?.returns_customer?.coTheTao || isNhanVien) && (item.trangThai.includes('Đã Duyệt') || item.trangThai.includes('một phần')) && item.trangThaiNhapKho !== 'Đã nhập kho' && (item.loai === 'Trả hàng' || item.loai === 'Hỗn hợp') && (
+                             <Button size="small" variant="contained" color="success" onClick={() => handleReceiveCust(item.maPhieuDT)}>Nhập Kho</Button>
+                           )}
+                        </>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
+      )}
 
       {/* MODALS remain largely similar but with some cleanup */}
       <Dialog open={suppDialogOpen} onClose={() => setSuppDialogOpen(false)} maxWidth="sm" fullWidth>

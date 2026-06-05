@@ -13,7 +13,9 @@ import {
   SmartToyOutlined as SmartToyIcon,
   SupportAgentOutlined as SupportAgentIcon,
   ShoppingCartOutlined as ShoppingCartIcon,
-  Circle as CircleIcon
+  Circle as CircleIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon
 } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import api from '../services/api';
@@ -21,6 +23,7 @@ import cartService from '../services/cartService';
 
 const FloatingChat = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -262,20 +265,25 @@ const FloatingChat = () => {
   };
 
   // Draggable logic
+  const dragState = useRef({ hasMoved: false });
+
   const handleMouseDown = (e) => {
     if (e.button !== 0) return; // Only left click
-    // Don't drag if clicking buttons
-    if (e.target.closest('button') || e.target.closest('svg')) return;
+    // Don't drag if clicking specifically on the minimize/close buttons
+    if (e.target.closest('.no-drag')) return;
+    
     setIsDragging(true);
+    dragState.current.hasMoved = false;
     setDragOffset({
       x: e.clientX - position.x,
-      y: e.clientY - dragOffset.y
+      y: e.clientY - position.y
     });
   };
 
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isDragging) {
+        dragState.current.hasMoved = true;
         // Enforce boundary limits to keep it visible inside viewport
         const newX = Math.max(10, Math.min(e.clientX - dragOffset.x, window.innerWidth - 90));
         const newY = Math.max(10, Math.min(e.clientY - dragOffset.y, window.innerHeight - 90));
@@ -303,7 +311,13 @@ const FloatingChat = () => {
   if (!user) return null;
 
   return (
-    <Box sx={{ position: 'fixed', left: position.x, top: position.y, zIndex: 9999 }}>
+    <Box sx={{ 
+      position: 'fixed', 
+      zIndex: 9999,
+      ...(isFullScreen && isOpen
+        ? { left: 0, top: 0, width: '100vw', height: '100vh' }
+        : { left: position.x, top: position.y })
+    }}>
       {!isOpen ? (
         <Badge
           badgeContent={unreadCount}
@@ -322,8 +336,8 @@ const FloatingChat = () => {
           <Fab
             color="primary"
             onMouseDown={handleMouseDown}
-            onClick={() => {
-              if (!isDragging) {
+            onClick={(e) => {
+              if (!dragState.current.hasMoved) {
                 setIsOpen(true);
                 setUnreadCount(0);
               }
@@ -334,12 +348,12 @@ const FloatingChat = () => {
               color: 'white',
               width: 60,
               height: 60,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              animation: 'pulseGlow 2s infinite ease-in-out',
+              transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              animation: isDragging ? 'none' : 'pulseGlow 2s infinite ease-in-out',
               cursor: isDragging ? 'grabbing' : 'pointer',
               '&:hover': {
                 background: 'linear-gradient(135deg, #d47b44 0%, #e68c55 100%)',
-                transform: 'scale(1.08) rotate(5deg)',
+                transform: isDragging ? 'none' : 'scale(1.08) rotate(5deg)',
                 boxShadow: '0 12px 30px rgba(230,140,85,0.5)'
               }
             }}
@@ -351,15 +365,15 @@ const FloatingChat = () => {
         <Paper
           elevation={12}
           sx={{
-            width: 360,
-            height: 520,
+            width: isFullScreen ? '100%' : 360,
+            height: isFullScreen ? '100%' : 520,
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: '24px',
+            borderRadius: isFullScreen ? 0 : '24px',
             overflow: 'hidden',
-            position: 'absolute',
-            bottom: 0,
-            right: 0,
+            position: isFullScreen ? 'relative' : 'absolute',
+            bottom: isFullScreen ? 'auto' : 0,
+            right: isFullScreen ? 'auto' : 0,
             border: '1px solid rgba(230, 140, 85, 0.12)',
             boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
             background: '#ffffff',
@@ -368,7 +382,7 @@ const FloatingChat = () => {
         >
           {/* Header */}
           <Box
-            onMouseDown={handleMouseDown}
+            onMouseDown={isFullScreen ? undefined : handleMouseDown}
             sx={{
               p: 2,
               background: 'linear-gradient(135deg, #e68c55 0%, #d47b44 100%)',
@@ -376,7 +390,7 @@ const FloatingChat = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              cursor: 'move',
+              cursor: isFullScreen ? 'default' : 'move',
               boxShadow: '0 4px 12px rgba(230,140,85,0.15)',
               zIndex: 10
             }}
@@ -397,7 +411,10 @@ const FloatingChat = () => {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <IconButton size="small" onClick={() => setIsOpen(false)} sx={{ color: 'white', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+              <IconButton className="no-drag" size="small" onClick={() => setIsFullScreen(!isFullScreen)} sx={{ color: 'white', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+                {isFullScreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+              </IconButton>
+              <IconButton className="no-drag" size="small" onClick={() => setIsOpen(false)} sx={{ color: 'white', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
                 <MinimizeIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Box>

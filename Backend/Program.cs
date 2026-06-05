@@ -439,6 +439,8 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 app.UseRouting();
 app.UseCors("AllowReact");
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseStaticFiles(); // Serve files from wwwroot
 app.MapControllers();
 app.MapHub<BuildingMaterialAPI.Hubs.NotificationHub>("/hubs/notifications");

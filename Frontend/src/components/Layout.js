@@ -25,6 +25,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import authService from '../services/authService';
 import { usePermissions } from '../contexts/PermissionContext';
 import NotificationCenter from './NotificationCenter';
+import StaffAIAssistant from './StaffAIAssistant';
 
 const drawerWidth = 280;
 
@@ -276,6 +277,7 @@ function Layout({ children }) {
       <Snackbar anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} open={globalSnackbar.open} autoHideDuration={3000} onClose={handleCloseGlobalSnackbar}>
         <Alert onClose={handleCloseGlobalSnackbar} severity={globalSnackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>{globalSnackbar.message}</Alert>
       </Snackbar>
+      <StaffAIAssistant />
     </Box>
   );
 }

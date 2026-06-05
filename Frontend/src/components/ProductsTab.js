@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Typography, Paper, Chip, LinearProgress, TextField, InputAdornment, Card, CardContent, Grid,
-  Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Tooltip
+  Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
 import AddIcon from '@mui/icons-material/Add';
@@ -25,6 +27,7 @@ function ProductsTab({ showGiftsOnly = false }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewImages, setViewImages] = useState(null);
+  const [mainViewMode, setMainViewMode] = useState('table');
   const fileInputRef = useRef(null);
 
   const { permissions } = usePermissions();
@@ -229,12 +232,26 @@ function ProductsTab({ showGiftsOnly = false }) {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', mb: 3, gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{showGiftsOnly ? '🎁 Quản Lý Quà Tặng' : '📦 Quản Lý Sản Phẩm'}</Typography>
           <Typography variant="body2" color="textSecondary">{showGiftsOnly ? 'Danh sách sản phẩm quà tặng cho khách hàng' : 'Cơ sở dữ liệu vật liệu xây dựng'}</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
           {canCreate && (
             <>
               <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
@@ -269,13 +286,100 @@ function ProductsTab({ showGiftsOnly = false }) {
         ))}
       </Grid>
 
-      <DataTable 
-        rows={filtered} 
-        columns={columns} 
-        getRowId={(row) => row.maSanPham} 
-        loading={loading}
-        showDateFilter={false}
-      />
+      {mainViewMode === 'table' ? (
+        <DataTable 
+          rows={filtered} 
+          columns={columns} 
+          getRowId={(row) => row.maSanPham} 
+          loading={loading}
+          showDateFilter={false}
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {filtered.map((item, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={item.maSanPham || idx}>
+              <Card sx={{
+                borderRadius: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      {item.hinhAnh ? (
+                        <img src={item.hinhAnh} alt={item.tenSP}
+                          style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 8, border: '1px solid #efefef', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                        />
+                      ) : (
+                        <Box sx={{ width: 50, height: 50, borderRadius: 2, background: '#f5f6fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', border: '1px solid #eee' }}>📦</Box>
+                      )}
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#667eea', lineHeight: 1.2, mb: 0.5 }}>
+                          {item.tenSP}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                          Mã SP: {item.maSP}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Chip 
+                      label={item.trangThai ? 'Hoạt động' : 'Ngừng'} 
+                      size="small" 
+                      color={item.trangThai ? 'success' : 'error'} 
+                      variant="outlined"
+                      sx={{ fontWeight: 'bold', bgcolor: '#fff' }}
+                    />
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Thương Hiệu</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {item.thuongHieu || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Đơn Vị Tính</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {item.donViTinh || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Giá Nhập</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                        {formatVND(item.giaNhap)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="textSecondary" display="block">Giá Bán</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                        {formatVND(item.giaBan)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="textSecondary" display="block">Mô Tả</Typography>
+                      <Typography variant="body2" sx={{ color: '#555', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {item.moTa || '—'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 'auto', pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                    {canEdit && <Button size="small" variant="outlined" onClick={() => { setEditing(item); setFormOpen(true); }}>Sửa</Button>}
+                    {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(item.maSanPham)}>Xóa</Button>}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       <ProductForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
 

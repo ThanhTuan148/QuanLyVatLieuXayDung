@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Paper, Chip, TextField, InputAdornment, Card, CardContent, Grid, Tabs, Tab, Button, IconButton, Tooltip
+  Box, Typography, Paper, Chip, TextField, InputAdornment, Card, CardContent, Grid, Tabs, Tab, Button, IconButton, Tooltip,
+  Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -27,6 +30,7 @@ export default function DebtsPage() {
   const [tab, setTab] = useState(0); // 0: Customers, 1: Suppliers
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mainViewMode, setMainViewMode] = useState('table');
   const [stats, setStats] = useState({
     tongNoPhaiThu: 0,
     soKhachNo: 0,
@@ -261,20 +265,114 @@ export default function DebtsPage() {
       )}
 
       <Paper sx={{ p: 2 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Tabs value={tab} onChange={(e, v) => setTab(v)} textColor="secondary" indicatorColor="secondary">
             <Tab label="Phải thu (Khách hàng)" icon={<GroupsIcon />} iconPosition="start" />
             <Tab label="Phải trả (Nhà cung cấp)" icon={<BusinessIcon />} iconPosition="start" />
           </Tabs>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
         </Box>
 
-        <DataTable 
-          rows={debts}
-          columns={columns}
-          getRowId={(row) => row.maCongNo}
-          loading={loading}
-          dateField="hanThanhToan"
-        />
+        {mainViewMode === 'table' ? (
+          <DataTable 
+            rows={debts}
+            columns={columns}
+            getRowId={(row) => row.maCongNo}
+            loading={loading}
+            dateField="hanThanhToan"
+          />
+        ) : (
+          <Grid container spacing={3}>
+            {debts.map((item, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={item.maCongNo || idx}>
+                <Card sx={{
+                  borderRadius: 2,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#667eea' }}>
+                          {item.maCN}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                          Chứng Từ: {tab === 0 ? item.maHD : item.maPN}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={item.trangThai} 
+                        size="small" 
+                        color={getStatusColor(item.trangThai)} 
+                        variant="contained"
+                        sx={{ fontWeight: 'bold', fontSize: '0.65rem' }}
+                      />
+                    </Box>
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="textSecondary" display="block">{tab === 0 ? 'Khách Hàng' : 'Nhà Cung Cấp'}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          🏢 {tab === 0 ? item.tenKhachHang : item.tenNCC}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Tổng Nợ</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {formatCurrency(item.soTienNo)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Đã Trả</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                          {formatCurrency(item.soTienDaTra)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Còn Lại</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.soTienConLai > 0 ? '#d32f2f' : '#2e7d32' }}>
+                          {formatCurrency(item.soTienConLai)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Hạn Trả</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {item.hanThanhToan ? new Date(item.hanThanhToan).toLocaleDateString('vi-VN') : '—'}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                      <Tooltip title="Xem chi tiết">
+                        <IconButton size="small" color="primary" onClick={() => { setSelectedDebt(item); setDetailOpen(true); }}><VisibilityIcon fontSize="small" /></IconButton>
+                      </Tooltip>
+                      {item.soTienConLai > 0 && (
+                        <Tooltip title="Thanh toán">
+                          <IconButton size="small" color="success" onClick={() => { setSelectedDebt(item); setPaymentOpen(true); }}><PaymentIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Paper>
 
       {selectedDebt && (

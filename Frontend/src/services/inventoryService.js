@@ -5,9 +5,7 @@ let warehousesCache = null;
 
 const inventoryService = {
   getAll: async () => {
-    if (inventoryCache) return inventoryCache;
     const res = await api.get('/inventory');
-    inventoryCache = res;
     return res;
   },
   getById: (id) => api.get(`/inventory/${id}`),
@@ -16,9 +14,7 @@ const inventoryService = {
   delete: (id) => api.delete(`/inventory/${id}`),
 
   getWarehouses: async () => {
-    if (warehousesCache) return warehousesCache;
     const res = await api.get('/inventory/warehouses');
-    warehousesCache = res;
     return res;
   },
   createWarehouse: (payload) => api.post('/inventory/warehouses', payload),

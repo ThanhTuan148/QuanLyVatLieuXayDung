@@ -793,7 +793,9 @@ namespace BuildingMaterialAPI.Controllers
             {
                 maHoaDon = o.MaHoaDon,
                 maHD = o.MaHD,
-                diaChi = o.DiaChiGiaoHang ?? "",
+                diaChi = o.DiaChiGiaoHang == "Giao hàng nhiều địa chỉ" && o.CTHDs != null 
+                         ? string.Join(" và ", o.CTHDs.Select(ct => ct.DiaChiGiaoHang).Where(d => !string.IsNullOrEmpty(d) && d != "Giao hàng nhiều địa chỉ").Distinct()) + " (Giao nhiều điểm)"
+                         : (o.DiaChiGiaoHang ?? ""),
                 tenKhachHang = o.KhachHang?.TenKH ?? "Khách lẻ"
             }).ToList();
 
@@ -807,7 +809,9 @@ namespace BuildingMaterialAPI.Controllers
                     maHoaDon = o.MaHoaDon,
                     maHD = o.MaHD,
                     tenKhachHang = o.KhachHang?.TenKH ?? "Khách lẻ",
-                    diaChi = o.DiaChiGiaoHang,
+                    diaChi = o.DiaChiGiaoHang == "Giao hàng nhiều địa chỉ" && o.CTHDs != null 
+                             ? string.Join(" và ", o.CTHDs.Select(ct => ct.DiaChiGiaoHang).Where(d => !string.IsNullOrEmpty(d) && d != "Giao hàng nhiều địa chỉ").Distinct()) 
+                             : o.DiaChiGiaoHang,
                     ngayLap = o.NgayLap,
                     tongSanPham = o.CTHDs?.Sum(ct => ct.SoLuong) ?? 0
                 }).ToList();
@@ -824,7 +828,9 @@ namespace BuildingMaterialAPI.Controllers
                     maHoaDon = o.MaHoaDon,
                     maHD = o.MaHD,
                     tenKhachHang = o.KhachHang?.TenKH ?? "Khách lẻ",
-                    diaChi = o.DiaChiGiaoHang,
+                    diaChi = o.DiaChiGiaoHang == "Giao hàng nhiều địa chỉ" && o.CTHDs != null 
+                             ? string.Join(" và ", o.CTHDs.Select(ct => ct.DiaChiGiaoHang).Where(d => !string.IsNullOrEmpty(d) && d != "Giao hàng nhiều địa chỉ").Distinct()) 
+                             : o.DiaChiGiaoHang,
                     ngayLap = o.NgayLap,
                     tongSanPham = o.CTHDs?.Sum(ct => ct.SoLuong) ?? 0
                 }).ToList()

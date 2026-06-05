@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Box, Button, Typography, Paper, LinearProgress
+  Box, Button, Typography, Paper, LinearProgress, Card, CardContent, Grid, Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import AddIcon from '@mui/icons-material/Add';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
@@ -15,6 +17,7 @@ let cachedCategories = null;
 function CategoriesTab() {
   const [categories, setCategories] = useState(cachedCategories || []);
   const [loading, setLoading] = useState(!cachedCategories);
+  const [mainViewMode, setMainViewMode] = useState('table');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const fileInputRef = useRef(null);
@@ -133,12 +136,26 @@ function CategoriesTab() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', mb: 3, gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Quản Lý Danh Mục (Loại Sản Phẩm)</Typography>
           <Typography variant="body2" color="textSecondary">Phân loại các nhóm vật liệu xây dựng</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
           <input type="file" ref={fileInputRef} accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImport} />
           <Button variant="outlined" startIcon={<FileUploadIcon />} color="success" onClick={() => fileInputRef.current.click()}>
             Nhập Excel
@@ -157,13 +174,59 @@ function CategoriesTab() {
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
 
-      <DataTable 
-        rows={categories}
-        columns={columns}
-        getRowId={(row) => row.maLoai}
-        loading={loading}
-        showDateFilter={false}
-      />
+      {mainViewMode === 'table' ? (
+        <DataTable 
+          rows={categories}
+          columns={columns}
+          getRowId={(row) => row.maLoai}
+          loading={loading}
+          showDateFilter={false}
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {categories.map((item, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={item.maLoai || idx}>
+              <Card sx={{
+                borderRadius: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+              }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                    {item.hinhAnh ? (
+                      <img src={item.hinhAnh} alt={item.tenLoai}
+                        style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: '1px solid #efefef', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                      />
+                    ) : (
+                      <Box sx={{ width: 60, height: 60, borderRadius: 2, background: '#f5f6fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', border: '1px solid #eee' }}>🖼️</Box>
+                    )}
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                        {item.tenLoai}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#11998e', fontWeight: 'bold' }}>
+                        ID: {item.maLoai}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  <Typography variant="body2" sx={{ color: '#555', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 60 }}>
+                    {item.moTa || 'Chưa có mô tả'}
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                    {canEdit && <Button size="small" variant="outlined" onClick={() => { setEditing(item); setFormOpen(true); }}>Sửa</Button>}
+                    {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(item.maLoaiSanPham)}>Xóa</Button>}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
       <CategoryForm open={formOpen} onClose={() => setFormOpen(false)} onSaved={handleSave} initial={editing || {}} />
     </Box>

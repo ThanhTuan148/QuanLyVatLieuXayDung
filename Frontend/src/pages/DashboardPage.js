@@ -39,7 +39,7 @@ function DashboardPage() {
   const [debtPage, setDebtPage] = useState(0);
   const [debtRowsPerPage, setDebtRowsPerPage] = useState(5);
   
-  const [topProductsChart, setTopProductsChart] = useState('bar'); // bar, line, area
+  const [topProductsChart, setTopProductsChart] = useState('line'); // bar, line, area
   const [salesRatioChart, setSalesRatioChart] = useState('pie'); // pie, bar
 
   const handleChangeAlertPage = (event, newPage) => setAlertPage(newPage);

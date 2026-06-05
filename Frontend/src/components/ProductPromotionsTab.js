@@ -3,8 +3,11 @@ import {
   Box, Typography, Button, Paper, Chip, LinearProgress, Grid, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, Switch, FormControlLabel,
   IconButton, Alert, Tab, Tabs, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Card, CardContent, Divider, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import promotionService from '../services/promotionService';
@@ -303,6 +306,7 @@ export default function ProductPromotionsTab() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [mainViewMode, setMainViewMode] = useState('table');
 
   const { permissions } = usePermissions();
   const canCreate = permissions?.promotions?.coTheTao ?? false;
@@ -407,23 +411,106 @@ export default function ProductPromotionsTab() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>🏷️ Khuyến Mãi Sản Phẩm</Typography>
-        {canCreate && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
-            sx={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', color: '#333' }}>
-            Thêm Khuyến Mãi
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ToggleButtonGroup
+            value={mainViewMode}
+            exclusive
+            onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+            size="small"
+            sx={{ mr: 1 }}
+          >
+            <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+              <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+            </ToggleButton>
+            <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+              <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+            </ToggleButton>
+          </ToggleButtonGroup>
+          {canCreate && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setFormOpen(true); }}
+              sx={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', color: '#333' }}>
+              Thêm Khuyến Mãi
+            </Button>
+          )}
+        </Box>
       </Box>
 
-      <DataTable 
-        rows={promotions} 
-        columns={columns} 
-        getRowId={(row) => row.maKhuyenMai} 
-        loading={loading}
-        showDateFilter={false}
-      />
+      {mainViewMode === 'table' ? (
+        <DataTable 
+          rows={promotions} 
+          columns={columns} 
+          getRowId={(row) => row.maKhuyenMai} 
+          loading={loading}
+          showDateFilter={false}
+        />
+      ) : (
+        <Grid container spacing={3}>
+          {promotions.map((item, idx) => {
+            const isActive = item.trangThai && new Date(item.thoiGianKetThuc) >= now;
+            return (
+              <Grid item xs={12} sm={6} md={4} key={item.maKhuyenMai || idx}>
+                <Card sx={{
+                  borderRadius: 2,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#667eea', lineHeight: 1.2 }}>
+                          {item.tenKM}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                          Mã KM: {item.maKhuyenMai}
+                        </Typography>
+                      </Box>
+                      <Chip label={isActive ? 'Hiệu lực' : 'Hết hạn'} size="small" color={isActive ? 'success' : 'default'} sx={{ fontWeight: 'bold' }} />
+                    </Box>
+
+                    <Divider sx={{ my: 1.5 }} />
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Mức Giảm</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                          {item.loaiGiamGia === 'PhanTram' ? `-${item.giaTriGiam}%` : `-${formatVND(item.giaTriGiam)}`}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="textSecondary" display="block">Hạng Áp Dụng</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {item.hangThanhVien ? `⭐ ${item.hangThanhVien}` : 'Mọi hạng'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="textSecondary" display="block">Thời Hạn</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {new Date(item.thoiGianBatDau).toLocaleDateString('vi-VN')} - {new Date(item.thoiGianKetThuc).toLocaleDateString('vi-VN')}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="textSecondary" display="block">Sản Phẩm</Typography>
+                        <Button size="small" variant="outlined" onClick={() => setViewing(item)} sx={{ mt: 0.5 }}>
+                          {item.targets?.length || 0} SP Áp Dụng
+                        </Button>
+                      </Grid>
+                    </Grid>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                      {canEdit && <Button size="small" variant="outlined" onClick={() => { setEditing(item); setFormOpen(true); }}>Sửa</Button>}
+                      {canDelete && <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(item.maKhuyenMai)}>Xóa</Button>}
+                      {!canEdit && !canDelete && <Typography variant="caption" color="textDisabled">Chỉ xem</Typography>}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
+      )}
 
       <PromotionFormDialog
         open={formOpen} onClose={() => setFormOpen(false)}

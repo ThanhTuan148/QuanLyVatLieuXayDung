@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Button, Typography, Paper, Chip, LinearProgress, Card, CardContent, Grid, 
+  Box, Button, Typography, Paper, Chip, LinearProgress, Card, CardContent, Grid,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete,
   IconButton, Tabs, Tab, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  InputAdornment, Divider, Stack, Collapse
+  InputAdornment, Divider, Stack, Collapse, Checkbox, CircularProgress, Select, MenuItem,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -18,6 +19,8 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import GridViewIcon from '@mui/icons-material/GridView';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import api from '../services/api';
 import inventoryService from '../services/inventoryService';
 import productService from '../services/productService';
@@ -54,10 +57,10 @@ export default function InventoryPage() {
   const [outboundHistory, setOutboundHistory] = useState(cachedOutboundHistory || []);
   const [outboundLoading, setOutboundLoading] = useState(!cachedOutboundHistory);
   const [expandedOutbound, setExpandedOutbound] = useState(null);
-  
+
   const [outboundSearch, setOutboundSearch] = useState('');
   const [outboundFilters, setOutboundFilters] = useState({ tuNgay: '', denNgay: '', trangThai: 'All' });
-  
+
   const [confirmReceiptOpen, setConfirmReceiptOpen] = useState(false);
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [outboundHistoryLogOpen, setOutboundHistoryLogOpen] = useState(false);
@@ -68,17 +71,49 @@ export default function InventoryPage() {
   const [procurementDetailLoading, setProcurementDetailLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
+  const [mainViewMode, setMainViewMode] = useState('table');
 
   const [aiForecastOpen, setAiForecastOpen] = useState(false);
   const [aiForecastLoading, setAiForecastLoading] = useState(false);
   const [aiForecastData, setAiForecastData] = useState(null);
+  const [selectedForecastIds, setSelectedForecastIds] = useState(new Set());
+  const [forecastConfigs, setForecastConfigs] = useState({});
+  const [suppliers, setSuppliers] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [forecastViewMode, setForecastViewMode] = useState('table');
+
+  const fetchSuppliers = async () => {
+    try {
+      const res = await api.get('/suppliers');
+      setSuppliers(res.data || []);
+    } catch (err) { console.error('Fetch suppliers err:', err); }
+  };
 
   const handleRunAiForecast = async () => {
+    setSelectedForecastIds(new Set());
     setAiForecastOpen(true);
     setAiForecastLoading(true);
     try {
       const res = await api.get('/ai/demand-forecast');
       setAiForecastData(res.data);
+
+      // Initialize configurations with cheapest suppliers pre-selected
+      const configs = {};
+      res.data?.danhSachDuBao?.forEach(item => {
+        const product = products.find(p => p.maSP === item.maSP);
+        if (product) {
+          let selectedSup = null;
+          let qty = item.soLuongDeXuatNhap || 100;
+          if (product.nhaCungCaps && product.nhaCungCaps.length > 0) {
+            selectedSup = [...product.nhaCungCaps].sort((a, b) => a.giaCungCap - b.giaCungCap)[0];
+          }
+          configs[item.maSP] = {
+            selectedSupplier: selectedSup,
+            qty: qty
+          };
+        }
+      });
+      setForecastConfigs(configs);
     } catch (err) {
       alert('Lỗi khi gọi AI Dự báo nhu cầu: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -86,10 +121,87 @@ export default function InventoryPage() {
     }
   };
 
+  const handleToggleForecastSelect = (maSP) => {
+    setSelectedForecastIds(prev => {
+      const next = new Set(prev);
+      if (next.has(maSP)) next.delete(maSP);
+      else next.add(maSP);
+      return next;
+    });
+  };
+
+  const handleSelectAllForecast = (isChecked) => {
+    if (isChecked) {
+      const allIds = aiForecastData?.danhSachDuBao?.map(item => item.maSP) || [];
+      setSelectedForecastIds(new Set(allIds));
+    } else {
+      setSelectedForecastIds(new Set());
+    }
+  };
+
+  const handleCreateProposalFromForecast = async () => {
+    if (selectedForecastIds.size === 0) return alert('Vui lòng chọn ít nhất 1 sản phẩm!');
+
+    // Check if any selected item is missing a supplier
+    const missingSupplierSp = [];
+    for (const maSP of selectedForecastIds) {
+      const config = forecastConfigs[maSP];
+      if (!config || !config.selectedSupplier) {
+        const item = aiForecastData.danhSachDuBao.find(x => x.maSP === maSP);
+        missingSupplierSp.push(item?.tenSP || maSP);
+      }
+    }
+    if (missingSupplierSp.length > 0) {
+      return alert(`Vui lòng chọn Nhà cung cấp cho các sản phẩm sau:\n- ${missingSupplierSp.join('\n- ')}`);
+    }
+
+    setActionLoading(true);
+    try {
+      const proposalItems = [];
+      for (const maSP of selectedForecastIds) {
+        const forecastItem = aiForecastData.danhSachDuBao.find(item => item.maSP === maSP);
+        if (!forecastItem) continue;
+
+        const product = products.find(p => p.maSP === maSP);
+        if (!product) {
+          throw new Error(`Không tìm thấy sản phẩm ${maSP} trong hệ thống!`);
+        }
+
+        const config = forecastConfigs[maSP];
+        const supplier = config?.selectedSupplier;
+
+        proposalItems.push({
+          maSanPham: product.maSanPham,
+          soLuong: Number(config?.qty ?? forecastItem.soLuongDeXuatNhap ?? 0) || 100,
+          donGia: Number(supplier?.giaCungCap || product.giaNhap || 0),
+          maNhaCungCap: Number(supplier?.maNCC || supplier?.maNhaCungCap || 0),
+          maKhoHang: warehouses[0]?.maKhoHang || 1
+        });
+      }
+
+      if (proposalItems.length === 0) {
+        return alert('Không có sản phẩm hợp lệ nào được chọn!');
+      }
+
+      await api.post('/procurement/proposal', {
+        maNhanVien: userId || 1,
+        ghiChu: `Đề xuất nhập hàng tự động từ AI Dự Báo Nhu Cầu`,
+        chiTiet: proposalItems
+      });
+
+      alert('Gửi phiếu đề xuất nhập hàng thành công!');
+      setAiForecastOpen(false);
+    } catch (ex) {
+      alert('Lỗi khi lập đề xuất: ' + (ex.message || 'Có lỗi xảy ra'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const allTabs = [
     { label: "Tồn Kho Chi Tiết", icon: <InventoryIcon />, moduleKey: 'inventory', type: 'inventory' },
     { label: "Sản Phẩm Quà Tặng", icon: <CardGiftcardIcon />, moduleKey: 'inventory_gift', type: 'gift' },
-    { label: "Lịch Sử Xuất Kho", icon: <LocalShippingIcon />, moduleKey: 'inventory_history', type: 'history' }
+    { label: "Xuất Kho", icon: <LocalShippingIcon />, moduleKey: 'inventory_history', type: 'history' }
   ];
 
   const userStr = localStorage.getItem('user');
@@ -110,13 +222,14 @@ export default function InventoryPage() {
     if (activeTab >= visibleTabs.length) setActiveTab(0);
   }, [visibleTabs.length, activeTab]);
 
-  useEffect(() => { 
+  useEffect(() => {
     if (visibleTabs.length === 0) return;
     const currentTabType = visibleTabs[activeTab]?.type;
     if (currentTabType === 'inventory' || currentTabType === 'gift') {
-      fetchInventory(); 
+      fetchInventory();
       fetchWarehouses();
       fetchProducts();
+      fetchSuppliers();
     }
     if (currentTabType === 'history') fetchOutboundHistory();
   }, [activeTab, visibleTabs]);
@@ -191,12 +304,12 @@ export default function InventoryPage() {
   };
 
   const fetchInventory = async () => {
-    try { 
+    try {
       if (!cachedInventory) setLoading(true);
-      const res = await inventoryService.getAll(); 
+      const res = await inventoryService.getAll();
       const data = res.data || [];
       cachedInventory = data;
-      setInventory(data); 
+      setInventory(data);
     }
     catch (err) { console.error('Fetch inventory error:', err); }
     finally { setLoading(false); }
@@ -231,11 +344,11 @@ export default function InventoryPage() {
     try {
       if (editing?.maCTKho) await inventoryService.update(editing.maCTKho, payload);
       else await inventoryService.create(payload);
-      setFormOpen(false); 
+      setFormOpen(false);
       fetchInventory();
-    } catch (err) { 
+    } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Lưu thất bại';
-      alert(msg); 
+      alert(msg);
     }
   };
 
@@ -258,8 +371,8 @@ export default function InventoryPage() {
       setNewWarehouse({ tenKho: '', loaiKho: '', diaChi: '' });
       setEditingWarehouse(null);
       fetchWarehouses();
-    } catch (err) { 
-      alert(editingWarehouse ? 'Cập nhật thất bại' : 'Thêm kho thất bại'); 
+    } catch (err) {
+      alert(editingWarehouse ? 'Cập nhật thất bại' : 'Thêm kho thất bại');
     }
   };
 
@@ -287,31 +400,32 @@ export default function InventoryPage() {
   const currentModuleKey = visibleTabs[activeTab]?.moduleKey || 'inventory';
 
   const columns = [
-    { field: 'maCTKho', headerName: 'ID', width: 80, renderCell: (params) => <b>{params.value}</b> },
     { field: 'maKhoHang', headerName: 'Mã Kho', width: 90 },
-    { 
-      field: 'loaiKho', 
-      headerName: 'Loại Kho', 
-      width: 120,
+    {
+      field: 'loaiKho',
+      headerName: 'Loại Kho',
+      width: 180,
       renderCell: (params) => <Chip label={params.value || 'Kho Khác'} size="small" variant="outlined" />
     },
     { field: 'maSanPham', headerName: 'Mã SP', width: 100 },
     { field: 'tenSP', headerName: 'Tên Sản Phẩm', flex: 1.5, minWidth: 250 },
     { field: 'soLuongNhap', headerName: 'SL Nhập', width: 100 },
-    { field: 'soLuongTon', headerName: 'SL Tồn', width: 100, renderCell: (params) => {
+    {
+      field: 'soLuongTon', headerName: 'SL Tồn', width: 100, renderCell: (params) => {
         const isCritical = params.value <= (params.row.mucTonToiThieu || 0);
         return (
-          <Chip 
-            label={params.value} 
+          <Chip
+            label={params.value}
             size="small"
             color={isCritical ? 'error' : params.value < (params.row.mucTonToiThieu || 0) * 2 ? 'warning' : 'success'}
-            variant={isCritical ? 'filled' : 'outlined'} 
+            variant={isCritical ? 'filled' : 'outlined'}
           />
         );
-    }},
-    { 
-      field: 'ngayNhapCuoi', 
-      headerName: 'Ngày Nhập Cuối', 
+      }
+    },
+    {
+      field: 'ngayNhapCuoi',
+      headerName: 'Ngày Nhập Cuối',
       width: 150,
       valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('vi-VN') : '—'
     },
@@ -345,37 +459,37 @@ export default function InventoryPage() {
   const outboundColumns = [
     { field: 'maXK', headerName: 'Mã Phiếu XK', width: 130, renderCell: (params) => <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{params.value}</Typography> },
     { field: 'ngayXuat', headerName: 'Ngày Xuất', width: 150, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('vi-VN') : '' },
-    { 
-      field: 'lienKet', 
-      headerName: 'Liên Kết', 
+    {
+      field: 'lienKet',
+      headerName: 'Liên Kết',
       width: 150,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-           <Typography variant="caption" sx={{ fontWeight: 'bold' }}>📦 GH: {params.row.maGH || 'N/A'}</Typography>
-           <Typography variant="caption" color="textSecondary">🛒 HĐ: {params.row.maHD || 'N/A'}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 'bold' }}>📦 GH: {params.row.maGH || 'N/A'}</Typography>
+          <Typography variant="caption" color="textSecondary">🛒 HĐ: {params.row.maHD || 'N/A'}</Typography>
         </Box>
       )
     },
     { field: 'tenNhanVien', headerName: 'Người Thực Hiện', width: 180, renderCell: (params) => params.row.tenNhanVien || params.row.nguoiXuat },
-    { 
-      field: 'soLuongSP', 
-      headerName: 'Số Lượng SP', 
+    {
+      field: 'soLuongSP',
+      headerName: 'Số Lượng SP',
       width: 120,
       renderCell: (params) => <Chip label={`${params.row.chiTiet?.length || 0} mặt hàng`} size="small" variant="outlined" />
     },
-    { 
-      field: 'trangThai', 
-      headerName: 'Trạng Thái', 
+    {
+      field: 'trangThai',
+      headerName: 'Trạng Thái',
       width: 130,
       renderCell: (params) => (
-        <Chip 
-          label={params.value} 
-          size="small" 
+        <Chip
+          label={params.value}
+          size="small"
           color={
-            params.value?.trim() === 'Đã xuất' ? 'success' : 
-            params.value?.trim() === 'Chờ nhận' ? 'secondary' :
-            params.value?.trim() === 'Chờ xuất' ? 'warning' : 'info'
-          } 
+            params.value?.trim() === 'Đã xuất' ? 'success' :
+              params.value?.trim() === 'Chờ nhận' ? 'secondary' :
+                params.value?.trim() === 'Chờ xuất' ? 'warning' : 'info'
+          }
           variant="filled"
         />
       )
@@ -419,31 +533,31 @@ export default function InventoryPage() {
               </Tooltip>
             )}
             <Tooltip title="Xuất PDF phiếu xuất kho">
-              <IconButton 
-                size="small" 
-                color="error" 
+              <IconButton
+                size="small"
+                color="error"
                 onClick={async () => {
-                try {
-                  const response = await inventoryService.exportPdf(row.maPhieuXK);
-                  const url = window.URL.createObjectURL(new Blob([response.data]));
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.setAttribute('download', `PhieuXuatKho_${row.maXK}.pdf`);
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                } catch (e) {
-                  alert('Lỗi khi xuất PDF');
-                }
-              }}>
+                  try {
+                    const response = await inventoryService.exportPdf(row.maPhieuXK);
+                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `PhieuXuatKho_${row.maXK}.pdf`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  } catch (e) {
+                    alert('Lỗi khi xuất PDF');
+                  }
+                }}>
                 <PictureAsPdfIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Xem lịch sử xử lý">
-              <IconButton size="small" color="inherit" onClick={() => { 
-                setSelectedOutboundId(row.maPhieuXK); 
+              <IconButton size="small" color="inherit" onClick={() => {
+                setSelectedOutboundId(row.maPhieuXK);
                 setSelectedOutboundCode(row.maPXK);
-                setOutboundHistoryLogOpen(true); 
+                setOutboundHistoryLogOpen(true);
               }}>
                 <HistoryIcon />
               </IconButton>
@@ -490,11 +604,27 @@ export default function InventoryPage() {
         )}
       </Box>
 
-      <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
-        {visibleTabs.map((tab, idx) => (
-          <Tab key={idx} icon={tab.icon} iconPosition="start" label={tab.label} />
-        ))}
-      </Tabs>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+          {visibleTabs.map((tab, idx) => (
+            <Tab key={idx} icon={tab.icon} iconPosition="start" label={tab.label} />
+          ))}
+        </Tabs>
+
+        <ToggleButtonGroup
+          value={mainViewMode}
+          exclusive
+          onChange={(e, nextMode) => { if (nextMode) setMainViewMode(nextMode); }}
+          size="small"
+        >
+          <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+            <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+          </ToggleButton>
+          <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+            <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
 
       {currentTabType !== 'history' ? (
         <>
@@ -510,21 +640,99 @@ export default function InventoryPage() {
               </Grid>
             ))}
           </Grid>
-          <DataTable 
-            rows={currentList}
-            columns={columns}
-            getRowId={(row) => row.maCTKho}
-            loading={loading}
-            dateField="ngayNhapCuoi"
-          />
+          {mainViewMode === 'table' ? (
+            <DataTable
+              rows={currentList}
+              columns={columns}
+              getRowId={(row) => row.maCTKho}
+              loading={loading}
+              dateField="ngayNhapCuoi"
+            />
+          ) : (
+            <Grid container spacing={3}>
+              {currentList.map((item, idx) => {
+                const isCritical = item.soLuongTon <= (item.mucTonToiThieu || 0);
+                return (
+                  <Grid item xs={12} sm={6} md={4} key={item.maCTKho || idx}>
+                    <Card sx={{
+                      borderRadius: 2,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                      transition: 'transform 0.2s',
+                      '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+                    }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                              #{item.maCTKho} - {item.maKhoHang}
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2c3e50', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3, mt: 0.5 }}>
+                              {item.tenSP}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                              Mã SP: {item.maSanPham}
+                            </Typography>
+                          </Box>
+                          <Chip label={item.loaiKho || 'Kho Khác'} size="small" variant="outlined" sx={{ flexShrink: 0 }} />
+                        </Box>
+
+                        <Divider sx={{ my: 1.5 }} />
+
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" color="textSecondary" display="block">SL Nhập / Tối thiểu</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {item.soLuongNhap} / {item.mucTonToiThieu || 0}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" color="textSecondary" display="block">SL Tồn Kho</Typography>
+                            <Chip
+                              label={item.soLuongTon}
+                              size="small"
+                              color={isCritical ? 'error' : item.soLuongTon < (item.mucTonToiThieu || 0) * 2 ? 'warning' : 'success'}
+                              variant={isCritical ? 'filled' : 'outlined'}
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="caption" color="textSecondary" display="block">Ngày Nhập Cuối</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {item.ngayNhapCuoi ? new Date(item.ngayNhapCuoi).toLocaleDateString('vi-VN') : '—'}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                          <Tooltip title="Lịch Sử Nhập">
+                            <IconButton color="info" size="small" onClick={() => handleOpenHistory(item)}><HistoryIcon fontSize="small" /></IconButton>
+                          </Tooltip>
+                          {permissions?.[currentModuleKey]?.coTheSua && (
+                            <Tooltip title="Chỉnh Sửa">
+                              <IconButton color="primary" size="small" onClick={() => { setEditing(item); setFormOpen(true); }}><EditIcon fontSize="small" /></IconButton>
+                            </Tooltip>
+                          )}
+                          {permissions?.[currentModuleKey]?.coTheXoa && (
+                            <Tooltip title="Xóa">
+                              <IconButton color="error" size="small" onClick={() => handleDelete(item.maCTKho)}><DeleteIcon fontSize="small" /></IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          )}
         </>
       ) : (
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           {permissions?.[currentModuleKey]?.coTheTao && (
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #eee' }}>
-              <Button 
-                variant="outlined" 
-                startIcon={<HistoryIcon />} 
+              <Button
+                variant="outlined"
+                startIcon={<HistoryIcon />}
                 onClick={async () => {
                   if (window.confirm('Hệ thống sẽ quét các đơn hàng/phiếu giao cũ để tạo lịch sử xuất kho. Bạn có muốn tiếp tục?')) {
                     try {
@@ -546,14 +754,130 @@ export default function InventoryPage() {
             </Box>
           )}
           {outboundLoading && <LinearProgress />}
-          
-          <DataTable 
-            rows={outboundHistory}
-            columns={outboundColumns}
-            getRowId={(row) => row.maPhieuXK}
-            loading={outboundLoading}
-            dateField="ngayXuat"
-          />
+
+          {mainViewMode === 'table' ? (
+            <DataTable
+              rows={outboundHistory}
+              columns={outboundColumns}
+              getRowId={(row) => row.maPhieuXK}
+              loading={outboundLoading}
+              dateField="ngayXuat"
+            />
+          ) : (
+            <Grid container spacing={3} sx={{ p: 2 }}>
+              {outboundHistory.map((item, idx) => (
+                <Grid item xs={12} sm={6} md={4} key={item.maPhieuXK || idx}>
+                  <Card sx={{
+                    borderRadius: 2,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                    transition: 'transform 0.2s',
+                    '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Box>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            {item.maXK}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                            {item.ngayXuat ? new Date(item.ngayXuat).toLocaleString('vi-VN') : '—'}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={item.trangThai}
+                          size="small"
+                          color={
+                            item.trangThai?.trim() === 'Đã xuất' ? 'success' :
+                              item.trangThai?.trim() === 'Chờ nhận' ? 'secondary' :
+                                item.trangThai?.trim() === 'Chờ xuất' ? 'warning' : 'info'
+                          }
+                          variant="filled"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 1.5 }} />
+
+                      <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="textSecondary" display="block">Liên Kết Giao Hàng</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            📦 {item.maGH || 'N/A'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="caption" color="textSecondary" display="block">Liên Kết Hóa Đơn</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            🛒 {item.maHD || 'N/A'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="caption" color="textSecondary" display="block">Tổng Mặt Hàng</Typography>
+                          <Chip label={`${item.chiTiet?.length || 0} mặt hàng`} size="small" variant="outlined" sx={{ mt: 0.5 }} />
+                        </Grid>
+                      </Grid>
+
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 2, pt: 1.5, borderTop: '1px solid #f0f0f0' }}>
+                        <Tooltip title="Xem Chi Tiết">
+                          <IconButton size="small" color="info" onClick={() => setExpandedOutbound(item)}>
+                            <KeyboardArrowDownIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {item.trangThai?.trim() === 'Chờ duyệt' && isQuanLy && (
+                          <Tooltip title="Quản lý phê duyệt & Ký số (Bước 1)">
+                            <IconButton size="small" color="success" onClick={() => handleApproveOutbound(item)}>
+                              <CheckCircleOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {item.trangThai?.trim() === 'Đã duyệt' && (isThuKho || isQuanLy) && (
+                          <Tooltip title="Thủ kho xác nhận soạn hàng xong (Bước 2)">
+                            <IconButton size="small" color="primary" onClick={() => handleConfirmExport(item.maPhieuXK)}>
+                              <InventoryIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {(item.trangThai?.trim() === 'Chờ nhận' || item.trangThai?.trim() === 'Đã nhận một phần') && (isTaiXe || isQuanLy) && (
+                          <Tooltip title="Tài xế xác nhận nhận hàng để đi giao (Bước 3)">
+                            <IconButton size="small" sx={{ color: '#f57c00' }} onClick={() => { setSelectedOutbound(item); setConfirmReceiptOpen(true); }}>
+                              <LocalShippingIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Xuất PDF phiếu xuất kho">
+                          <IconButton size="small" color="error" onClick={async () => {
+                            try {
+                              const response = await inventoryService.exportPdf(item.maPhieuXK);
+                              const url = window.URL.createObjectURL(new Blob([response.data]));
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.setAttribute('download', `PhieuXuatKho_${item.maXK}.pdf`);
+                              document.body.appendChild(link);
+                              link.click();
+                              link.remove();
+                            } catch (e) {
+                              alert('Lỗi khi xuất PDF');
+                            }
+                          }}>
+                            <PictureAsPdfIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Xem Lịch Sử / Log">
+                          <IconButton size="small" color="inherit" onClick={() => {
+                            setSelectedOutboundId(item.maPhieuXK);
+                            setSelectedOutboundCode(item.maXK);
+                            setOutboundHistoryLogOpen(true);
+                          }}>
+                            <HistoryIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </Paper>
       )}
 
@@ -593,11 +917,11 @@ export default function InventoryPage() {
         </DialogActions>
       </Dialog>
 
-      <InventoryForm 
-        open={formOpen} 
-        onClose={() => setFormOpen(false)} 
-        onSaved={handleSave} 
-        initial={editing || {}} 
+      <InventoryForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSaved={handleSave}
+        initial={editing || {}}
         warehouses={warehouses}
         products={products}
       />
@@ -610,14 +934,14 @@ export default function InventoryPage() {
               {editingWarehouse ? 'Chỉnh Sửa Kho:' : 'Thêm Kho Mới:'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField size="small" label="Tên Kho" value={newWarehouse.tenKho} onChange={e => setNewWarehouse({...newWarehouse, tenKho: e.target.value})} sx={{ flex: 1.5 }} />
+              <TextField size="small" label="Tên Kho" value={newWarehouse.tenKho} onChange={e => setNewWarehouse({ ...newWarehouse, tenKho: e.target.value })} sx={{ flex: 1.5 }} />
               <Autocomplete
                 size="small" sx={{ flex: 1 }}
-                options={['Kho Cát', 'Kho Đá', 'Kho Xi Măng', 'Kho Sắt Thép', 'Kho Gạch', 'Kho Panel', 'Kho Khác']}
-                freeSolo value={newWarehouse.loaiKho} onChange={(e, val) => setNewWarehouse({...newWarehouse, loaiKho: val})}
+                options={['Kho Tổng Hợp 1', 'Kho Tổng Hợp 2', 'Kho Tổng Hợp 3', 'Kho Tổng Hợp 4', 'Kho Tổng Hợp 5', 'Kho Khác']}
+                freeSolo value={newWarehouse.loaiKho} onChange={(e, val) => setNewWarehouse({ ...newWarehouse, loaiKho: val })}
                 renderInput={(params) => <TextField {...params} label="Loại Kho" />}
               />
-              <TextField size="small" label="Địa chỉ" value={newWarehouse.diaChi} onChange={e => setNewWarehouse({...newWarehouse, diaChi: e.target.value})} sx={{ flex: 2 }} />
+              <TextField size="small" label="Địa chỉ" value={newWarehouse.diaChi} onChange={e => setNewWarehouse({ ...newWarehouse, diaChi: e.target.value })} sx={{ flex: 2 }} />
               <Stack direction="row" spacing={1}>
                 <Button variant="contained" onClick={handleAddWarehouse}>
                   {editingWarehouse ? 'Lưu' : 'Thêm'}
@@ -691,15 +1015,15 @@ export default function InventoryPage() {
                   sx={{ minWidth: 220 }}
                 />
                 <TextField size="small" label="Nhà cung cấp" value={historyFilters.tenNhaCungCap}
-                  onChange={e => { setHistoryFilters(p => ({...p, tenNhaCungCap: e.target.value})); setHistoryPage(0); }}
+                  onChange={e => { setHistoryFilters(p => ({ ...p, tenNhaCungCap: e.target.value })); setHistoryPage(0); }}
                   sx={{ minWidth: 160 }}
                 />
                 <TextField size="small" label="Từ ngày" type="date" value={historyFilters.tuNgay}
-                  onChange={e => { setHistoryFilters(p => ({...p, tuNgay: e.target.value})); setHistoryPage(0); }}
+                  onChange={e => { setHistoryFilters(p => ({ ...p, tuNgay: e.target.value })); setHistoryPage(0); }}
                   InputLabelProps={{ shrink: true }} sx={{ width: 150 }}
                 />
                 <TextField size="small" label="Đến ngày" type="date" value={historyFilters.denNgay}
-                  onChange={e => { setHistoryFilters(p => ({...p, denNgay: e.target.value})); setHistoryPage(0); }}
+                  onChange={e => { setHistoryFilters(p => ({ ...p, denNgay: e.target.value })); setHistoryPage(0); }}
                   InputLabelProps={{ shrink: true }} sx={{ width: 150 }}
                 />
                 {(historySearch || Object.values(historyFilters).some(v => v)) && (
@@ -754,10 +1078,10 @@ export default function InventoryPage() {
                             </TableRow>
                           ) : paginated.map((h, i) => (
                             <TableRow key={h.maPhieu || i} hover>
-                              <TableCell 
-                                sx={{ 
-                                  color: h.loai === 'Nhập hàng' ? 'primary.main' : 'text.primary', 
-                                  fontWeight: 'bold', 
+                              <TableCell
+                                sx={{
+                                  color: h.loai === 'Nhập hàng' ? 'primary.main' : 'text.primary',
+                                  fontWeight: 'bold',
                                   cursor: h.loai === 'Nhập hàng' ? 'pointer' : 'default',
                                   '&:hover': { textDecoration: h.loai === 'Nhập hàng' ? 'underline' : 'none' }
                                 }}
@@ -844,7 +1168,7 @@ export default function InventoryPage() {
                   <Typography variant="body2"><b>Tổng Tiền:</b> {procurementDetail?.tongTien?.toLocaleString('vi-VN')} đ</Typography>
                 </Grid>
                 <Grid item xs={12}>
-                   <Typography variant="body2"><b>Ghi Chú:</b> {procurementDetail?.ghiChu || 'Không có'}</Typography>
+                  <Typography variant="body2"><b>Ghi Chú:</b> {procurementDetail?.ghiChu || 'Không có'}</Typography>
                 </Grid>
               </Grid>
 
@@ -881,9 +1205,9 @@ export default function InventoryPage() {
           <Button onClick={() => setProcurementDetail(null)}>Đóng</Button>
         </DialogActions>
       </Dialog>
-      <ConfirmReceiptDialog 
-        open={confirmReceiptOpen} 
-        onClose={() => setConfirmReceiptOpen(false)} 
+      <ConfirmReceiptDialog
+        open={confirmReceiptOpen}
+        onClose={() => setConfirmReceiptOpen(false)}
         outboundNote={selectedOutbound}
         onConfirm={handleConfirmReceipt}
       />
@@ -894,7 +1218,7 @@ export default function InventoryPage() {
         outboundCode={selectedOutboundCode}
       />
 
-      <Dialog open={aiForecastOpen} onClose={() => setAiForecastOpen(false)} maxWidth="lg" fullWidth>
+      <Dialog open={aiForecastOpen} onClose={() => setAiForecastOpen(false)} maxWidth="xl" fullWidth>
         <DialogTitle sx={{ background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)', color: '#fff', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>🤖 AI DỰ BÁO NHU CẦU KHO HÀNG (DEMAND FORECASTING)</Typography>
@@ -920,60 +1244,393 @@ export default function InventoryPage() {
                 </Typography>
               </Paper>
 
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#2c3e50' }}>
-                📦 Chi Tiết Đề Xuất Kế Hoạch Nhập Hàng
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2c3e50' }}>
+                  📦 Chi Tiết Đề Xuất Kế Hoạch Nhập Hàng
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {forecastViewMode === 'card' && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        const allSelected = selectedForecastIds.size === (aiForecastData.danhSachDuBao?.length || 0);
+                        handleSelectAllForecast(!allSelected);
+                      }}
+                      sx={{ fontWeight: 'bold', borderRadius: 2 }}
+                    >
+                      {selectedForecastIds.size === (aiForecastData.danhSachDuBao?.length || 0) ? '❌ Hủy chọn tất cả' : '✅ Chọn tất cả'}
+                    </Button>
+                  )}
+                  <ToggleButtonGroup
+                    value={forecastViewMode}
+                    exclusive
+                    onChange={(e, nextMode) => { if (nextMode) setForecastViewMode(nextMode); }}
+                    size="small"
+                  >
+                    <ToggleButton value="table" sx={{ px: 2, fontWeight: 'bold' }}>
+                      <TableChartIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Bảng
+                    </ToggleButton>
+                    <ToggleButton value="card" sx={{ px: 2, fontWeight: 'bold' }}>
+                      <GridViewIcon sx={{ mr: 0.5, fontSize: '1.1rem' }} /> Card
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              </Box>
 
-              <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-                <Table>
-                  <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Mã SP</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Tên Sản Phẩm</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Tồn Kho Hiện Tại</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Tốc Độ Bán (tháng)</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Xu Hướng Theo Mùa</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }} align="center">Đề Xuất Nhập</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Mức Độ Ưu Tiên</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#2f3542' }}>Lý Do Đề Xuất</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {aiForecastData.danhSachDuBao?.map((item, idx) => {
-                      const isUrgent = item.mucDoUuTien?.includes('Khẩn cấp');
-                      const isNormal = item.mucDoUuTien?.includes('Bình thường');
-                      return (
-                        <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, bgcolor: isUrgent ? 'rgba(255, 71, 87, 0.05)' : 'inherit' }}>
-                          <TableCell sx={{ fontWeight: 'bold', color: '#2e86de' }}>{item.maSP}</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>{item.tenSP}</TableCell>
-                          <TableCell align="center">
-                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.tonKhoHienTai < 100 ? '#e84118' : '#273c75' }}>
-                              {item.tonKhoHienTai}
+              {forecastViewMode === 'table' ? (
+                <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'auto', maxHeight: '55vh' }}>
+                  <Table sx={{ minWidth: 1670, tableLayout: 'fixed' }}>
+                    <TableHead sx={{ background: 'linear-gradient(135deg, #f1f2f6 0%, #dfe4ea 100%)' }}>
+                      <TableRow>
+                        <TableCell padding="checkbox" sx={{ width: 50 }}>
+                          <Checkbox
+                            indeterminate={selectedForecastIds.size > 0 && selectedForecastIds.size < (aiForecastData.danhSachDuBao?.length || 0)}
+                            checked={(aiForecastData.danhSachDuBao?.length || 0) > 0 && selectedForecastIds.size === (aiForecastData.danhSachDuBao?.length || 0)}
+                            onChange={(e) => handleSelectAllForecast(e.target.checked)}
+                            color="primary"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 90, whiteSpace: 'nowrap' }}>Mã SP</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 220, whiteSpace: 'nowrap' }}>Tên Sản Phẩm</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 110, whiteSpace: 'nowrap' }} align="center">Tồn Kho</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 120, whiteSpace: 'nowrap' }} align="center">Tốc Độ Bán</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 200, whiteSpace: 'nowrap' }}>Xu Hướng Theo Mùa</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 110, whiteSpace: 'nowrap' }} align="center">Đề Xuất AI</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 130, whiteSpace: 'nowrap' }} align="center">SL Muốn Nhập</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 260, whiteSpace: 'nowrap' }}>Nhà Cung Cấp (Giá tốt nhất)</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 130, whiteSpace: 'nowrap' }}>Mức Độ Ưu Tiên</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#2f3542', width: 250, whiteSpace: 'nowrap' }}>Lý Do Đề Xuất</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {aiForecastData.danhSachDuBao?.map((item, idx) => {
+                        const isUrgent = item.mucDoUuTien?.includes('Khẩn cấp');
+                        const isNormal = item.mucDoUuTien?.includes('Bình thường');
+                        const isSelected = selectedForecastIds.has(item.maSP);
+                        return (
+                          <TableRow
+                            key={idx}
+                            hover
+                            onClick={() => handleToggleForecastSelect(item.maSP)}
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            selected={isSelected}
+                            sx={{ cursor: 'pointer', '&:last-child td, &:last-child th': { border: 0 }, bgcolor: isSelected ? 'rgba(25, 118, 210, 0.08)' : (isUrgent ? 'rgba(255, 71, 87, 0.05)' : 'inherit') }}
+                          >
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                checked={isSelected}
+                                color="primary"
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => handleToggleForecastSelect(item.maSP)}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: '#2e86de', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.maSP}</TableCell>
+                            <TableCell sx={{ p: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                {item.tenSP}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.tonKhoHienTai < 100 ? '#e84118' : '#273c75' }}>
+                                {item.tonKhoHienTai}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 'bold', color: '#44bd32' }}>{item.tocDoBanTrungBinh}</Typography></TableCell>
+                            <TableCell sx={{ p: 1 }}>
+                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#57606f', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                {item.xuHuongTheoMua}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip label={`+${item.soLuongDeXuatNhap}`} sx={{ fontWeight: 'bold', bgcolor: item.soLuongDeXuatNhap > 0 ? '#0072ff' : '#ced6e0', color: item.soLuongDeXuatNhap > 0 ? '#fff' : '#57606f' }} />
+                            </TableCell>
+                            <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={forecastConfigs[item.maSP]?.qty ?? item.soLuongDeXuatNhap ?? 0}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setForecastConfigs(prev => ({
+                                    ...prev,
+                                    [item.maSP]: {
+                                      ...prev[item.maSP],
+                                      qty: val >= 0 ? val : 0
+                                    }
+                                  }));
+                                }}
+                                sx={{
+                                  width: 95,
+                                  '& .MuiInputBase-input': {
+                                    p: '6px 8px',
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.875rem'
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {(() => {
+                                const config = forecastConfigs[item.maSP];
+                                const product = products.find(p => p.maSP === item.maSP);
+                                const productSups = product?.nhaCungCaps || [];
+
+                                const options = productSups.length > 0 ? productSups : suppliers.map(s => ({
+                                  maNCC: s.maNhaCungCap || s.maNCC,
+                                  tenNCC: s.tenNhaCungCap || s.tenNCC,
+                                  giaCungCap: product?.giaNhap || 0
+                                }));
+
+                                return (
+                                  <Select
+                                    size="small"
+                                    fullWidth
+                                    value={config?.selectedSupplier?.maNCC || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const sup = options.find(o => o.maNCC === val);
+                                      setForecastConfigs(prev => ({
+                                        ...prev,
+                                        [item.maSP]: {
+                                          ...prev[item.maSP],
+                                          selectedSupplier: sup
+                                        }
+                                      }));
+                                    }}
+                                    displayEmpty
+                                    sx={{
+                                      fontSize: '0.85rem',
+                                      bgcolor: '#fff',
+                                      borderRadius: 1,
+                                      '& .MuiSelect-select': {
+                                        p: '6px 10px'
+                                      }
+                                    }}
+                                  >
+                                    <MenuItem value="" disabled>
+                                      <em>⚠️ Chưa chọn NCC</em>
+                                    </MenuItem>
+                                    {options.map((opt) => (
+                                      <MenuItem key={opt.maNCC} value={opt.maNCC}>
+                                        {opt.tenNCC} ({opt.giaCungCap?.toLocaleString('vi-VN')} đ)
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                );
+                              })()}
+                            </TableCell>
+                            <TableCell>
+                              <Chip label={item.mucDoUuTien} size="small" sx={{ fontWeight: 'bold', bgcolor: isUrgent ? '#ff4757' : isNormal ? '#ffa502' : '#2ed573', color: '#fff' }} />
+                            </TableCell>
+                            <TableCell sx={{ p: 1 }}>
+                              <Typography variant="body2" sx={{ color: '#2f3542', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                {item.lyDoDeXuat}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Grid container spacing={3} sx={{ maxHeight: '55vh', overflowY: 'auto', p: 0.5 }}>
+                  {aiForecastData.danhSachDuBao?.map((item, idx) => {
+                    const isUrgent = item.mucDoUuTien?.includes('Khẩn cấp');
+                    const isNormal = item.mucDoUuTien?.includes('Bình thường');
+                    const isSelected = selectedForecastIds.has(item.maSP);
+                    const config = forecastConfigs[item.maSP];
+                    const product = products.find(p => p.maSP === item.maSP);
+                    const productSups = product?.nhaCungCaps || [];
+                    const options = productSups.length > 0 ? productSups : suppliers.map(s => ({
+                      maNCC: s.maNhaCungCap || s.maNCC,
+                      tenNCC: s.tenNhaCungCap || s.tenNCC,
+                      giaCungCap: product?.giaNhap || 0
+                    }));
+
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={idx}>
+                        <Card
+                          onClick={() => handleToggleForecastSelect(item.maSP)}
+                          sx={{
+                            cursor: 'pointer',
+                            position: 'relative',
+                            border: isSelected ? '2px solid #0072ff' : '1px solid #e0e0e0',
+                            borderRadius: 3,
+                            boxShadow: isSelected ? '0 8px 24px rgba(0,114,255,0.15)' : '0 4px 12px rgba(0,0,0,0.03)',
+                            transition: 'all 0.2s ease-in-out',
+                            bgcolor: isSelected ? '#f0f7ff' : '#fff',
+                            '&:hover': {
+                              transform: 'translateY(-4px)',
+                              boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
+                            }
+                          }}
+                        >
+                          <Box sx={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => handleToggleForecastSelect(item.maSP)}
+                              color="primary"
+                            />
+                          </Box>
+
+                          <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
+                            <Chip
+                              label={item.mucDoUuTien}
+                              size="small"
+                              sx={{
+                                fontWeight: 'bold',
+                                bgcolor: isUrgent ? '#ff4757' : isNormal ? '#ffa502' : '#2ed573',
+                                color: '#fff'
+                              }}
+                            />
+                          </Box>
+
+                          <CardContent sx={{ pt: 6, pb: '16px !important' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#888' }}>
+                              {item.maSP}
                             </Typography>
-                          </TableCell>
-                          <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 'bold', color: '#44bd32' }}>{item.tocDoBanTrungBinh}</Typography></TableCell>
-                          <TableCell><Typography variant="body2" sx={{ fontStyle: 'italic', color: '#57606f' }}>{item.xuHuongTheoMua}</Typography></TableCell>
-                          <TableCell align="center">
-                            <Chip label={`+${item.soLuongDeXuatNhap}`} sx={{ fontWeight: 'bold', bgcolor: item.soLuongDeXuatNhap > 0 ? '#0072ff' : '#ced6e0', color: item.soLuongDeXuatNhap > 0 ? '#fff' : '#57606f' }} />
-                          </TableCell>
-                          <TableCell>
-                            <Chip label={item.mucDoUuTien} size="small" sx={{ fontWeight: 'bold', bgcolor: isUrgent ? '#ff4757' : isNormal ? '#ffa502' : '#2ed573', color: '#fff' }} />
-                          </TableCell>
-                          <TableCell><Typography variant="body2" sx={{ color: '#2f3542' }}>{item.lyDoDeXuat}</Typography></TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#2c3e50', mt: 0.5, minHeight: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
+                              {item.tenSP}
+                            </Typography>
+
+                            <Divider sx={{ my: 1.5 }} />
+
+                            <Grid container spacing={1} sx={{ mb: 2 }}>
+                              <Grid item xs={6}>
+                                <Typography variant="caption" color="textSecondary" display="block">Tồn Kho Hiện Tại</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: item.tonKhoHienTai < 100 ? '#e84118' : '#273c75' }}>
+                                  {item.tonKhoHienTai}
+                                </Typography>
+                              </Grid>
+                              <Grid item xs={6}>
+                                <Typography variant="caption" color="textSecondary" display="block">Tốc Độ Bán / Tháng</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#44bd32' }}>
+                                  {item.tocDoBanTrungBinh}
+                                </Typography>
+                              </Grid>
+                            </Grid>
+
+                            <Box sx={{ bgcolor: '#f1f2f6', p: 1, borderRadius: 2, mb: 2, minHeight: 60 }}>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold' }}>Xu Hướng Theo Mùa:</Typography>
+                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#57606f', mt: 0.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
+                                {item.xuHuongTheoMua}
+                              </Typography>
+                            </Box>
+
+                            <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                              <Grid item xs={6}>
+                                <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 0.5 }}>Đề Xuất AI</Typography>
+                                <Chip label={`+${item.soLuongDeXuatNhap}`} sx={{ fontWeight: 'bold', bgcolor: '#0072ff', color: '#fff' }} />
+                              </Grid>
+                              <Grid item xs={6} onClick={(e) => e.stopPropagation()}>
+                                <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 0.5 }}>SL Muốn Nhập</Typography>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  fullWidth
+                                  value={config?.qty ?? item.soLuongDeXuatNhap ?? 0}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setForecastConfigs(prev => ({
+                                      ...prev,
+                                      [item.maSP]: {
+                                        ...prev[item.maSP],
+                                        qty: val >= 0 ? val : 0
+                                      }
+                                    }));
+                                  }}
+                                  sx={{
+                                    '& .MuiInputBase-input': {
+                                      p: '6px 8px',
+                                      fontWeight: 'bold'
+                                    }
+                                  }}
+                                />
+                              </Grid>
+                            </Grid>
+
+                            <Box sx={{ mb: 2 }} onClick={(e) => e.stopPropagation()}>
+                              <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 0.5 }}>Nhà Cung Cấp</Typography>
+                              <Select
+                                size="small"
+                                fullWidth
+                                value={config?.selectedSupplier?.maNCC || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const sup = options.find(o => o.maNCC === val);
+                                  setForecastConfigs(prev => ({
+                                    ...prev,
+                                    [item.maSP]: {
+                                      ...prev[item.maSP],
+                                      selectedSupplier: sup
+                                    }
+                                  }));
+                                }}
+                                displayEmpty
+                                sx={{
+                                  fontSize: '0.85rem',
+                                  bgcolor: '#fff',
+                                  borderRadius: 1,
+                                  '& .MuiSelect-select': {
+                                    p: '6px 10px'
+                                  }
+                                }}
+                              >
+                                <MenuItem value="" disabled>
+                                  <em>⚠️ Chưa chọn NCC</em>
+                                </MenuItem>
+                                {options.map((opt) => (
+                                  <MenuItem key={opt.maNCC} value={opt.maNCC}>
+                                    {opt.tenNCC} ({opt.giaCungCap?.toLocaleString('vi-VN')} đ)
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </Box>
+
+                            <Box sx={{ borderLeft: '3px solid #ff9f43', pl: 1, minHeight: 50 }}>
+                              <Typography variant="caption" color="textSecondary" display="block" sx={{ fontWeight: 'bold' }}>Lý Do Đề Xuất:</Typography>
+                              <Typography variant="body2" sx={{ color: '#2f3542', fontSize: '0.85rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
+                                {item.lyDoDeXuat}
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              )}
             </Box>
           ) : (
             <Typography color="error">Không có dữ liệu dự báo</Typography>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, bgcolor: '#fff' }}>
+        <DialogActions sx={{ p: 2.5, bgcolor: '#fff', justifyContent: 'space-between' }}>
+          <Box>
+            {selectedForecastIds.size > 0 && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleCreateProposalFromForecast}
+                disabled={actionLoading}
+                sx={{
+                  background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  boxShadow: '0 4px 15px rgba(56,239,125,0.3)',
+                  mr: 2
+                }}
+              >
+                {actionLoading ? <CircularProgress size={24} color="inherit" /> : `✨ LẬP ĐỀ XUẤT NHANH (${selectedForecastIds.size} SP)`}
+              </Button>
+            )}
+          </Box>
           <Button variant="contained" onClick={() => setAiForecastOpen(false)} sx={{ background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)' }}>
-            Đóng Giao Diện AI
+            Đóng
           </Button>
         </DialogActions>
       </Dialog>

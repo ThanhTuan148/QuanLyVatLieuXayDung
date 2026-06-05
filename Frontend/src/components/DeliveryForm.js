@@ -97,8 +97,11 @@ function DeliveryForm({ open, onClose, onSaved, initialOrderId, initialBatch }) 
       const order = res.data;
       setSelectedOrder(order);
       
-      // Nếu là đơn giao nhiều địa chỉ, không pre-fill vào ô địa chỉ tổng
-      const mainAddress = order.diaChiGiaoHang === 'Giao hàng nhiều địa chỉ' ? '' : (order.diaChiGiaoHang || '');
+      let mainAddress = order.diaChiGiaoHang || '';
+      if (mainAddress === 'Giao hàng nhiều địa chỉ' && order.chiTiet) {
+        const uniqueAddresses = [...new Set(order.chiTiet.map(ct => ct.diaChiGiaoHang || ct.DiaChiGiaoHang).filter(d => d && d !== 'Giao hàng nhiều địa chỉ'))];
+        mainAddress = uniqueAddresses.join(' và ') + (uniqueAddresses.length > 0 ? ' (Giao nhiều điểm)' : '');
+      }
       setFormData(prev => ({ ...prev, diaChi: mainAddress }));
       
         if (order.chiTiet) {

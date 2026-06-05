@@ -217,6 +217,7 @@ export default function NotificationCenter() {
                 }}
               >
                 <ListItemText
+                  disableTypography
                   primary={
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Typography variant="body2" fontWeight={n.daDoc ? 500 : 700} sx={{ mr: 1, color: n.daDoc ? 'text.primary' : '#2d3436' }}>

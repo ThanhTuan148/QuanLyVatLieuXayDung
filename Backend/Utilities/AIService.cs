@@ -171,7 +171,7 @@ namespace BuildingMaterialAPI.Utilities
 
             var prompt = @$"Bạn là chuyên gia điều phối vận tải. Hãy ghép các đơn hàng sau vào các chuyến xe (batch) tối ưu nhất dựa trên địa chỉ (cùng quận, cùng đường hoặc lộ trình gần nhau).
             Trả về kết quả dưới dạng JSON Array của các Batch object. Mỗi Batch gồm:
-            - routeName: Tên lộ trình (Ví dụ: [Quận 7] - Tuyến Nguyễn Văn Linh)
+            - routeName: Tên lộ trình (Ví dụ: [Quận 7] - Tuyến Nguyễn Văn Linh). Nếu là đơn hàng đi nhiều nơi (chứa 'Giao nhiều điểm'), hãy ghi rõ (Ví dụ: [Quận 1, Quận 3] - Tuyến giao nhiều điểm). Tuyệt đối không dùng từ 'Không xác định'. Nếu không rõ quận, hãy đặt tên theo đường hoặc tên khách hàng.
             - orders: Danh sách các maHoaDon thuộc batch này.
             
             Danh sách đơn hàng:
@@ -849,17 +849,21 @@ Chỉ trả về duy nhất chuỗi JSON đúng định dạng trên, không kè
         {
             if (addresses == null || addresses.Count == 0) return new RouteOptimizationResult();
 
-            string prompt = $@"Bạn là hệ thống AI tối ưu hóa lộ trình vận tải tích hợp Google Maps Platform (Routes Preferred).
+            string prompt = $@"Bạn là hệ thống AI phân tích và tối ưu hóa lộ trình vận tải (TMS Route Optimization) tích hợp Google Maps Platform.
 Điểm xuất phát (Kho hàng chính): 829 Lạc Long Quân, Phường Bảy Hiền, Quận Tân Bình, TP.HCM.
 Danh sách các điểm cần giao hàng:
 {JsonSerializer.Serialize(addresses)}
 
-Hãy sắp xếp lại thứ tự giao hàng sao cho tổng quãng đường di chuyển và thời gian xe chạy là ngắn nhất, tiết kiệm chi phí xăng dầu.
+Hãy tự động phân tích lộ trình và sắp xếp lại thứ tự giao hàng dựa trên các nguyên tắc thực tế sau:
+1. Gom nhóm theo khu vực: Ưu tiên gom các đơn hàng cùng phường, quận hoặc khu vực gần nhau vào cùng một cụm giao hàng để giảm thiểu thời gian di chuyển.
+2. Sắp xếp theo luồng di chuyển logic: Định tuyến di chuyển từ gần đến xa hoặc ngược lại theo luồng một chiều hợp lý, hạn chế quay đầu xe hoặc đi vòng vèo qua các tuyến hẻm phức tạp.
+3. Cửa sổ thời gian (Time Windows): Nếu có yêu cầu đặc biệt về thời gian, hãy sắp xếp các đơn ưu tiên trước. Hạn chế di chuyển vào các tuyến đường hay kẹt xe trong khung giờ cao điểm.
+
 Trả về KẾT QUẢ ĐÚNG CHUẨN JSON với cấu trúc sau:
 {{
   ""tongKhoangCachKm"": 14.5,
   ""tongThoiGian"": ""45 phút"",
-  ""tieuThuNhienLieuUocTinh"": ""Tiết kiệm 2.3 lít dầu (giảm 18% so với lộ trình gốc)"",
+  ""tieuThuNhienLieuUocTinh"": ""Tiết kiệm 2.3 lít dầu (giảm 18% so với lộ trình gốc nhờ gom nhóm khu vực và tối ưu luồng chạy)"",
   ""loTrinhToiUu"": [
     {{
       ""thuTu"": 1,
@@ -870,10 +874,10 @@ Trả về KẾT QUẢ ĐÚNG CHUẨN JSON với cấu trúc sau:
     }},
     {{
       ""thuTu"": 2,
-      ""diaChi"": ""Địa chỉ giao hàng gần nhất..."",
+      ""diaChi"": ""Địa chỉ giao hàng ưu tiên gần nhất hoặc chung khu vực..."",
       ""khoangCachKm"": 3.2,
       ""thoiGianDiChuyen"": ""12 phút"",
-      ""ghiChuLoTrinh"": ""Tuyến đường lớn, tránh giờ cao điểm""
+      ""ghiChuLoTrinh"": ""Cùng tuyến đường, giao ngoài khung giờ cao điểm""
     }}
   ]
 }}
@@ -930,69 +934,324 @@ Chỉ trả về duy nhất chuỗi JSON đúng định dạng trên, không kè
         }
 
         // ==========================================
-        // 6. TỰ ĐỘNG NHẬP LIỆU HÓA ĐƠN (OCR INVOICE AI)
+        // 6. OCR INVOICE: PaddleOCR + Gemini LLM Pipeline
+        //    Architecture: Image → PaddleOCR (text extraction) → Gemini LLM (structured parsing) → JSON
         // ==========================================
         public async Task<OcrInvoiceResult> ScanInvoiceOcrAI(string base64Image)
         {
-            if (string.IsNullOrEmpty(base64Image)) return GetOcrInvoiceLocal("");
+            if (string.IsNullOrEmpty(base64Image))
+            {
+                Console.WriteLine("[OCR] No image provided.");
+                return GetOcrInvoiceLocal("Không có ảnh được cung cấp");
+            }
 
-            string prompt = $@"Bạn là hệ thống AI Nhận diện tài liệu thông minh (Azure Form Recognizer / Google Document AI).
-Dưới đây là thông tin/hình ảnh hóa đơn nhập hàng từ nhà cung cấp (được mã hóa hoặc mô phỏng):
-{base64Image.Substring(0, Math.Min(base64Image.Length, 1000))}
+            Console.WriteLine($"[OCR] === START OCR PIPELINE ===");
+            Console.WriteLine($"[OCR] Image base64 length: {base64Image.Length}");
 
-Hãy bóc tách thông tin hóa đơn để tự động đưa vào hệ thống Inventory. Trả về KẾT QUẢ ĐÚNG CHUẨN JSON với cấu trúc sau:
+            string lastError = "";
+
+            // =====================================================
+            // BƯỚC 1: Gọi PaddleOCR Microservice để nhận diện văn bản
+            // =====================================================
+            string ocrFullText = "";
+            try
+            {
+                Console.WriteLine("[OCR] Step 1: Calling PaddleOCR service at http://localhost:5050/ocr ...");
+                var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(30);
+
+                var ocrPayload = new { base64Image = base64Image };
+                var ocrResponse = await client.PostAsJsonAsync("http://localhost:5050/ocr", ocrPayload);
+                var ocrResponseText = await ocrResponse.Content.ReadAsStringAsync();
+
+                Console.WriteLine($"[OCR] PaddleOCR response status: {ocrResponse.StatusCode}");
+
+                if (ocrResponse.IsSuccessStatusCode)
+                {
+                    var ocrResult = JsonSerializer.Deserialize<JsonElement>(ocrResponseText);
+                    bool success = ocrResult.GetProperty("success").GetBoolean();
+                    
+                    if (success)
+                    {
+                        ocrFullText = ocrResult.GetProperty("fullText").GetString() ?? "";
+                        int totalBlocks = ocrResult.GetProperty("totalBlocks").GetInt32();
+                        Console.WriteLine($"[OCR] ✅ PaddleOCR SUCCESS! {totalBlocks} text blocks found.");
+                        Console.WriteLine($"[OCR] OCR Text preview: {ocrFullText.Substring(0, Math.Min(ocrFullText.Length, 300))}");
+                    }
+                    else
+                    {
+                        lastError = $"PaddleOCR returned success=false: {ocrResponseText.Substring(0, Math.Min(ocrResponseText.Length, 200))}";
+                        Console.WriteLine($"[OCR] {lastError}");
+                    }
+                }
+                else
+                {
+                    lastError = $"PaddleOCR HTTP {ocrResponse.StatusCode}";
+                    Console.WriteLine($"[OCR] {lastError}");
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                lastError = $"PaddleOCR service unavailable (port 5050): {ex.Message}";
+                Console.WriteLine($"[OCR] ⚠️ {lastError}");
+            }
+            catch (TaskCanceledException)
+            {
+                lastError = "PaddleOCR timeout (>30s)";
+                Console.WriteLine($"[OCR] ⚠️ {lastError}");
+            }
+            catch (Exception ex)
+            {
+                lastError = $"PaddleOCR exception: {ex.Message}";
+                Console.WriteLine($"[OCR] ⚠️ {lastError}");
+            }
+
+            // =====================================================
+            // BƯỚC 2: Gửi text OCR cho Gemini LLM để phân tích cấu trúc
+            // =====================================================
+            if (!string.IsNullOrEmpty(ocrFullText))
+            {
+                Console.WriteLine("[OCR] Step 2: Sending OCR text to Gemini LLM for structured extraction...");
+
+                string llmPrompt = $@"Bạn là hệ thống AI chuyên phân tích hóa đơn.
+Dưới đây là văn bản đã được nhận diện (OCR) từ một hóa đơn/đơn hàng thực tế:
+
+--- BẮT ĐẦU VĂN BẢN OCR ---
+{ocrFullText}
+--- KẾT THÚC VĂN BẢN OCR ---
+
+Hãy phân tích và trích xuất CHÍNH XÁC các thông tin từ văn bản trên.
+Trả về ĐÚNG CHUẨN JSON (không markdown, không giải thích):
 {{
-  ""tenNhaCungCap"": ""Công ty CP Xi Măng Vicem Hà Tiên"",
-  ""soHoaDon"": ""HD-998822"",
-  ""ngayHoaDon"": ""2026-05-16"",
-  ""tongTien"": 45000000,
-  ""doTinCayAI"": 98.5,
+  ""tenNhaCungCap"": ""Tên nhà cung cấp/công ty"",
+  ""soHoaDon"": ""Số hóa đơn hoặc số phiếu"",
+  ""ngayHoaDon"": ""YYYY-MM-DD"",
+  ""tongTien"": 0,
+  ""doTinCayAI"": 95.0,
   ""danhSachSanPham"": [
     {{
-      ""maSP"": ""SP001"",
-      ""tenSP"": ""Xi măng Insee Đa Dụng 50kg"",
-      ""soLuong"": 200,
-      ""donGia"": 85000,
-      ""thanhTien"": 17000000
-    }},
-    {{
-      ""maSP"": ""SP003"",
-      ""tenSP"": ""Thép cuộn Hòa Phát D10"",
-      ""soLuong"": 150, // tính bằng kg hoặc cây
-      ""donGia"": 180000,
-      ""thanhTien"": 27000000
+      ""maSP"": """",
+      ""tenSP"": ""Tên mặt hàng"",
+      ""soLuong"": 0,
+      ""donGia"": 0,
+      ""thanhTien"": 0
     }}
   ]
 }}
 
-Chỉ trả về duy nhất chuỗi JSON đúng định dạng trên, không kèm markdown hay lời giải thích nào khác.";
+Lưu ý: tongTien, soLuong, donGia, thanhTien phải là SỐ (không có dấu chấm phân cách hàng nghìn).";
 
-            var resJson = await CallLLMAsync(prompt, 0.1f);
-            if (!string.IsNullOrEmpty(resJson))
-            {
-                var cleanJson = Regex.Match(resJson, @"\{.*\}", RegexOptions.Singleline).Value;
-                var result = JsonSerializer.Deserialize<OcrInvoiceResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (result != null && result.DanhSachSanPham.Count > 0) return result;
+                var geminiKey = _config["Gemini:ApiKey"];
+                if (!string.IsNullOrEmpty(geminiKey) && !geminiKey.Contains("YOUR_GEMINI"))
+                {
+                    for (int attempt = 1; attempt <= 3; attempt++)
+                    {
+                        try
+                        {
+                            var model = _config["Gemini:Model"] ?? "gemini-2.0-flash";
+                            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={geminiKey}";
+                            Console.WriteLine($"[OCR] Gemini LLM attempt {attempt}/3...");
+
+                            var client = _httpClientFactory.CreateClient();
+                            client.Timeout = TimeSpan.FromSeconds(30);
+
+                            // Text-only request (much faster, no Vision needed!)
+                            var requestBody = new
+                            {
+                                contents = new[] { new { parts = new[] { new { text = llmPrompt } } } }
+                            };
+
+                            var response = await client.PostAsJsonAsync(url, requestBody);
+                            var responseText = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"[OCR] Gemini LLM status: {response.StatusCode}");
+
+                            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                            {
+                                Console.WriteLine($"[OCR] Rate limited, waiting {attempt * 5}s...");
+                                await Task.Delay(attempt * 5000);
+                                continue;
+                            }
+
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var res = JsonSerializer.Deserialize<JsonElement>(responseText);
+                                string resJson = res.GetProperty("candidates")[0]
+                                    .GetProperty("content")
+                                    .GetProperty("parts")[0]
+                                    .GetProperty("text").GetString() ?? "";
+
+                                Console.WriteLine($"[OCR] Gemini LLM response: {resJson.Substring(0, Math.Min(resJson.Length, 400))}");
+
+                                var cleanJson = Regex.Match(resJson, @"\{.*\}", RegexOptions.Singleline).Value;
+                                var result = JsonSerializer.Deserialize<OcrInvoiceResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                                if (result != null && result.DanhSachSanPham != null && result.DanhSachSanPham.Count > 0)
+                                {
+                                    Console.WriteLine($"[OCR] ✅ SUCCESS! PaddleOCR + Gemini LLM pipeline completed.");
+                                    Console.WriteLine($"[OCR]   Supplier: {result.TenNhaCungCap}");
+                                    Console.WriteLine($"[OCR]   Invoice: {result.SoHoaDon}");
+                                    Console.WriteLine($"[OCR]   Items: {result.DanhSachSanPham.Count}");
+                                    Console.WriteLine($"[OCR]   Total: {result.TongTien:N0}");
+                                    return result;
+                                }
+                            }
+
+                            lastError = $"Gemini LLM parse failed on attempt {attempt}";
+                            Console.WriteLine($"[OCR] {lastError}");
+                        }
+                        catch (Exception ex)
+                        {
+                            lastError = $"Gemini LLM error: {ex.Message}";
+                            Console.WriteLine($"[OCR] {lastError}");
+                        }
+                    }
+                }
+
+                // Fallback: Try Groq LLM with OCR text
+                var groqKey = _config["Groq:ApiKey"];
+                if (!string.IsNullOrEmpty(groqKey) && !groqKey.Contains("YOUR_GROQ"))
+                {
+                    try
+                    {
+                        Console.WriteLine("[OCR] Trying Groq LLM fallback...");
+                        var client = _httpClientFactory.CreateClient();
+                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", groqKey);
+                        client.Timeout = TimeSpan.FromSeconds(30);
+
+                        var requestBody = new
+                        {
+                            model = "llama-3.3-70b-versatile",
+                            messages = new[] { new { role = "user", content = llmPrompt } },
+                            max_tokens = 2000,
+                            temperature = 0.1
+                        };
+
+                        var response = await client.PostAsJsonAsync("https://api.groq.com/openai/v1/chat/completions", requestBody);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var responseText = await response.Content.ReadAsStringAsync();
+                            var res = JsonSerializer.Deserialize<JsonElement>(responseText);
+                            string resJson = res.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+
+                            var cleanJson = Regex.Match(resJson, @"\{.*\}", RegexOptions.Singleline).Value;
+                            var result = JsonSerializer.Deserialize<OcrInvoiceResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (result != null && result.DanhSachSanPham?.Count > 0)
+                            {
+                                Console.WriteLine($"[OCR] ✅ PaddleOCR + Groq LLM SUCCESS! {result.DanhSachSanPham.Count} items");
+                                return result;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = $"Groq LLM error: {ex.Message}";
+                        Console.WriteLine($"[OCR] {lastError}");
+                    }
+                }
             }
 
-            return GetOcrInvoiceLocal(base64Image);
+            // =====================================================
+            // BƯỚC 3 (Fallback): Gemini Vision API trực tiếp (nếu PaddleOCR không khả dụng)
+            // =====================================================
+            if (string.IsNullOrEmpty(ocrFullText))
+            {
+                Console.WriteLine("[OCR] Step 3 (Fallback): PaddleOCR unavailable, trying Gemini Vision direct...");
+                
+                string cleanBase64 = base64Image;
+                string mimeType = "image/jpeg";
+                if (base64Image.Contains(","))
+                {
+                    var parts = base64Image.Split(',');
+                    cleanBase64 = parts[1];
+                    if (parts[0].Contains("png")) mimeType = "image/png";
+                }
+
+                string visionPrompt = @"Đọc hình ảnh hóa đơn và trả về JSON:
+{""tenNhaCungCap"":"""",""soHoaDon"":"""",""ngayHoaDon"":""YYYY-MM-DD"",""tongTien"":0,""doTinCayAI"":90,""danhSachSanPham"":[{""maSP"":"""",""tenSP"":"""",""soLuong"":0,""donGia"":0,""thanhTien"":0}]}
+Chỉ trả JSON, không markdown.";
+
+                var geminiKey = _config["Gemini:ApiKey"];
+                if (!string.IsNullOrEmpty(geminiKey) && !geminiKey.Contains("YOUR_GEMINI"))
+                {
+                    for (int attempt = 1; attempt <= 2; attempt++)
+                    {
+                        try
+                        {
+                            var model = _config["Gemini:Model"] ?? "gemini-2.0-flash";
+                            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={geminiKey}";
+                            
+                            var client = _httpClientFactory.CreateClient();
+                            client.Timeout = TimeSpan.FromSeconds(60);
+
+                            string jsonBody = JsonSerializer.Serialize(new
+                            {
+                                contents = new[]
+                                {
+                                    new
+                                    {
+                                        parts = new object[]
+                                        {
+                                            new Dictionary<string, object> { { "text", visionPrompt } },
+                                            new Dictionary<string, object>
+                                            {
+                                                { "inline_data", new Dictionary<string, string>
+                                                    {
+                                                        { "mime_type", mimeType },
+                                                        { "data", cleanBase64 }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+
+                            var content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
+                            var response = await client.PostAsync(url, content);
+
+                            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                            {
+                                await Task.Delay(attempt * 5000);
+                                continue;
+                            }
+
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var responseText = await response.Content.ReadAsStringAsync();
+                                var res = JsonSerializer.Deserialize<JsonElement>(responseText);
+                                string resJson = res.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
+                                var cleanJson = Regex.Match(resJson, @"\{.*\}", RegexOptions.Singleline).Value;
+                                var result = JsonSerializer.Deserialize<OcrInvoiceResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                                if (result?.DanhSachSanPham?.Count > 0)
+                                {
+                                    Console.WriteLine($"[OCR] ✅ Gemini Vision fallback SUCCESS!");
+                                    return result;
+                                }
+                            }
+                        }
+                        catch (Exception ex) { Console.WriteLine($"[OCR] Vision fallback error: {ex.Message}"); }
+                    }
+                }
+            }
+
+            Console.WriteLine($"[OCR] ❌ ALL METHODS FAILED. Last error: {lastError}");
+            return GetOcrInvoiceLocal(lastError);
         }
 
-        private OcrInvoiceResult GetOcrInvoiceLocal(string text)
+        private OcrInvoiceResult GetOcrInvoiceLocal(string errorInfo)
         {
-            var res = new OcrInvoiceResult
+            return new OcrInvoiceResult
             {
-                TenNhaCungCap = "Tổng Công ty Thép Hòa Phát & Xi Măng Hà Tiên",
-                SoHoaDon = "INV-" + new Random().Next(100000, 999999),
+                TenNhaCungCap = $"⚠️ DỮ LIỆU MẪU DEMO ({errorInfo})",
+                SoHoaDon = "DEMO-001",
                 NgayHoaDon = DateTime.Now.ToString("yyyy-MM-dd"),
-                TongTien = 52500000,
-                DoTinCayAI = 98.7
+                TongTien = 45000000,
+                DoTinCayAI = 0,
+                DanhSachSanPham = new List<OcrInvoiceItem>
+                {
+                    new OcrInvoiceItem { MaSP = "DEMO", TenSP = "Gạch Tuynel Bình Dương (Demo)", SoLuong = 900, DonGia = 50000, ThanhTien = 45000000 }
+                }
             };
-
-            res.DanhSachSanPham.Add(new OcrInvoiceItem { MaSP = "SP001", TenSP = "Xi măng Insee Đa Dụng 50kg", SoLuong = 300, DonGia = 85000, ThanhTien = 25500000 });
-            res.DanhSachSanPham.Add(new OcrInvoiceItem { MaSP = "SP003", TenSP = "Thép cuộn Hòa Phát CB240", SoLuong = 150, DonGia = 180000, ThanhTien = 27000000 });
-
-            return res;
         }
 
         // ==========================================
