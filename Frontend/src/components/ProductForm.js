@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button,
   FormControlLabel, Switch, Box, Typography, CircularProgress, IconButton, Divider, Tooltip,
-  Autocomplete, Chip
+  Autocomplete, Chip, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -20,6 +20,7 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
     isGift: false
   });
   const [suppliers, setSuppliers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
 
@@ -33,6 +34,7 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
   useEffect(() => {
     if (open) {
       loadSuppliers();
+      loadCategories();
       if (initial && Object.keys(initial).length) {
         setForm({
           tenSP: initial.tenSP || '', maSP: initial.maSP || '', moTa: initial.moTa || '',
@@ -69,6 +71,13 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
       const res = await api.get('/suppliers');
       setSuppliers(res.data);
     } catch (e) { console.error('Error loading suppliers', e); }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+      setCategories(res.data);
+    } catch (e) { console.error('Error loading categories', e); }
   };
 
   const handleChange = (e) => {
@@ -351,7 +360,23 @@ function ProductForm({ open, onClose, onSaved, initial = {} }) {
           <TextField fullWidth margin="dense" label="Xuất Xứ" name="xuatXu" value={form.xuatXu} onChange={handleChange} />
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <TextField fullWidth margin="dense" label="Mã Loại SP" name="maLoaiSP" value={form.maLoaiSP} onChange={handleChange} type="number" disabled={!!initial?.maSanPham} />
+          <FormControl fullWidth margin="dense">
+            <InputLabel id="loai-sp-label">Loại Sản Phẩm</InputLabel>
+            <Select
+              labelId="loai-sp-label"
+              label="Loại Sản Phẩm"
+              name="maLoaiSP"
+              value={form.maLoaiSP || ''}
+              onChange={handleChange}
+            >
+              <MenuItem value=""><em>-- Chọn Loại SP --</em></MenuItem>
+              {categories.map(cat => (
+                <MenuItem key={cat.maLoaiSanPham} value={cat.maLoaiSanPham}>
+                  {cat.tenLoai}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField fullWidth margin="dense" label="Mức Tồn Tối Thiểu" name="mucTonToiThieu" value={form.mucTonToiThieu} onChange={handleChange} type="number" />
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>

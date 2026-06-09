@@ -194,10 +194,10 @@ function Layout({ children }) {
               fontSize: '1.5rem',
             }}
           >
-            {user?.FullName ? user.FullName.charAt(0).toUpperCase() : '👨‍💼'}
+            {(user?.fullName || user?.FullName || user?.tenNV || user?.tenKhachHang || user?.username || 'N').charAt(0).toUpperCase()}
           </Avatar>
           <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-            {user?.FullName || user?.username || 'Nhân Viên'}
+            {user?.fullName || user?.FullName || user?.tenNV || user?.tenKhachHang || user?.username || 'Nhân Viên'}
           </Typography>
           <Typography variant="caption" color="textSecondary">
             {user?.roleName || user?.role || 'Quản trị viên'}

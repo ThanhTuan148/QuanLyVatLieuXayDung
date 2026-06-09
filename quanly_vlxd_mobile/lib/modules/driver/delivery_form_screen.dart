@@ -130,14 +130,14 @@ class _DeliveryFormScreenState extends State<DeliveryFormScreen> {
         'nguoiGiao': _selectedDriver['tenNV'],
         'diaChi': _addressController.text,
         'ghiChu': _noteController.text,
-        'maHoaDon': _selectedOrderId,
-        'maNhanVien': _selectedDriver['maNhanVien'],
+        'maHoaDon': int.tryParse(_selectedOrderId?.toString() ?? '0') ?? 0,
+        'maNhanVien': int.tryParse(_selectedDriver['maNhanVien']?.toString() ?? '0') ?? 0,
         'maNguoiLap': currentUserId,
         'items': deliverableItems.map((i) => {
-          'maSanPham': i['maSanPham'],
-          'maCTHD': i['maCTHD'],
-          'soLuongGiao': i['soLuongGiao'],
-          'ghiChu': i['ghiChu']
+          'maSanPham': int.tryParse(i['maSanPham']?.toString() ?? '0') ?? 0,
+          'maCTHD': int.tryParse(i['maCTHD']?.toString() ?? '0') ?? 0,
+          'soLuongGiao': int.tryParse(i['soLuongGiao']?.toString() ?? '0') ?? 0,
+          'ghiChu': i['ghiChu']?.toString() ?? ''
         }).toList()
       };
 

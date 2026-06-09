@@ -1210,7 +1210,7 @@ namespace BuildingMaterialAPI.Controllers
             string oldStatus = p.TrangThai;
             p.TrangThai = "Đề Xuất";
             p.GhiChu = dto.GhiChu;
-            p.MaNhaCungCap = dto.MaNhaCungCap;
+            p.MaNhaCungCap = dto.MaNhaCungCap ?? (dto.ChiTiet.FirstOrDefault()?.MaNhaCungCap ?? p.MaNhaCungCap);
             p.NgayCapNhat = DateTime.UtcNow;
             if (dto.NgayGiaoHang.HasValue) p.NgayGiaoHang = dto.NgayGiaoHang.Value;
 
@@ -1257,7 +1257,7 @@ namespace BuildingMaterialAPI.Controllers
         public DateTime? NgayGiaoHang { get; set; }
         public string? GhiChu { get; set; }
         public string? TargetStatus { get; set; }
-        public int MaNhaCungCap { get; set; }
+        public int? MaNhaCungCap { get; set; }
         public int MaNhanVien { get; set; }
         public decimal? ThanhToan { get; set; }
         public List<CTPNDto> ChiTiet { get; set; } = new List<CTPNDto>();

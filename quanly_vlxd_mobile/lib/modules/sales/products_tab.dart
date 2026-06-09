@@ -774,7 +774,7 @@ class _ProductsTabState extends State<ProductsTab>
         ),
       ),
       floatingActionButton: _canCreateCurrentTab
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () {
                 if (_tabController.index == 0) {
                   _showAddEditProductDialog(null, false);
@@ -784,17 +784,8 @@ class _ProductsTabState extends State<ProductsTab>
                   _showAddEditCategoryDialog();
                 }
               },
-              icon: Icon(
-                _tabController.index == 2 ? Icons.add_chart : Icons.add,
-              ),
-              label: Text(
-                _tabController.index == 0
-                    ? 'Thêm Sản Phẩm'
-                    : (_tabController.index == 1
-                          ? 'Thêm Quà Tặng'
-                          : 'Thêm Phân Loại'),
-              ),
               backgroundColor: Colors.purple.shade800,
+              child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
       body: _isLoading

@@ -851,7 +851,7 @@ class _PromotionsTabState extends State<PromotionsTab>
         ),
       ),
       floatingActionButton: _canCreateCurrentTab
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () {
                 if (_tabController.index == 0)
                   _showAddEditDialog('SanPham');
@@ -862,18 +862,9 @@ class _PromotionsTabState extends State<PromotionsTab>
                 else
                   _showAddEditDialog('Coupon');
               },
-              icon: const Icon(Icons.add),
-              label: Text(
-                _tabController.index == 0
-                    ? 'THÊM KHUYẾN MÃI'
-                    : (_tabController.index == 1
-                          ? 'TẠO FLASH SALE'
-                          : (_tabController.index == 2
-                                ? 'TẠO ƯU ĐÃI'
-                                : 'TẠO COUPON')),
-              ),
               backgroundColor: Colors.pink.shade600,
               foregroundColor: Colors.white,
+              child: const Icon(Icons.add),
             )
           : null,
       body: _isLoading

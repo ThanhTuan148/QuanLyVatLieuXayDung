@@ -42,9 +42,10 @@ function PromotionFormDialog({ open, onClose, onSaved, editing }) {
       if (editing) {
         setForm({
           tenKM: editing.tenKM || '', moTa: editing.moTa || '',
-          phanTramGiam: editing.phanTramGiam || '', soTienGiam: editing.soTienGiam || '',
+          phanTramGiam: editing.loaiGiamGia === 'PhanTram' ? editing.giaTriGiam : '',
+          soTienGiam: editing.loaiGiamGia === 'SoTien' ? editing.giaTriGiam : '',
           thoiGianBatDau: fmt(editing.thoiGianBatDau), thoiGianKetThuc: fmt(editing.thoiGianKetThuc),
-          soLanToiDa: editing.soLanToiDa || '', trangThai: editing.trangThai ?? true,
+          soLanToiDa: editing.soLuongToiDa || editing.soLanToiDa || '', trangThai: editing.trangThai ?? true,
           hangThanhVien: editing.hangThanhVien ? editing.hangThanhVien.split(',').map(s => s.trim()) : []
         });
         setSelectedIds((editing.targets || []).map(t => t.maSanPham));
@@ -73,6 +74,8 @@ function PromotionFormDialog({ open, onClose, onSaved, editing }) {
     if (!form.tenKM) { setErr('Vui lòng nhập tên khuyến mãi'); return; }
     if (selectedIds.length === 0) { setErr('Vui lòng chọn ít nhất 1 sản phẩm'); return; }
     if (!form.thoiGianBatDau || !form.thoiGianKetThuc) { setErr('Vui lòng nhập thời gian'); return; }
+    if (!form.phanTramGiam && !form.soTienGiam) { setErr('Vui lòng nhập mức giảm giá'); return; }
+    
     setSaving(true); setErr('');
     try {
       const payload = {
@@ -80,6 +83,7 @@ function PromotionFormDialog({ open, onClose, onSaved, editing }) {
         TenKM: form.tenKM, MoTa: form.moTa,
         LoaiGiamGia: form.phanTramGiam ? 'PhanTram' : 'SoTien',
         GiaTriGiam: form.phanTramGiam ? parseFloat(form.phanTramGiam) : parseFloat(form.soTienGiam),
+        DonHangToiThieu: 0,
         ThoiGianBatDau: new Date(form.thoiGianBatDau).toISOString(),
         ThoiGianKetThuc: new Date(form.thoiGianKetThuc).toISOString(),
         SoLuongToiDa: form.soLanToiDa ? parseInt(form.soLanToiDa) : null,

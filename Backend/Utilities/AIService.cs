@@ -1067,9 +1067,8 @@ Lưu ý: tongTien, soLuong, donGia, thanhTien phải là SỐ (không có dấu 
 
                             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                             {
-                                Console.WriteLine($"[OCR] Rate limited, waiting {attempt * 5}s...");
-                                await Task.Delay(attempt * 5000);
-                                continue;
+                                Console.WriteLine($"[OCR] Gemini quota exhausted, skipping directly to Groq fallback...");
+                                break;
                             }
 
                             if (response.IsSuccessStatusCode)
@@ -1211,8 +1210,8 @@ Chỉ trả JSON, không markdown.";
 
                             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                             {
-                                await Task.Delay(attempt * 5000);
-                                continue;
+                                Console.WriteLine($"[OCR] Gemini Vision quota exhausted, skipping directly to Groq Vision...");
+                                break;
                             }
 
                             if (response.IsSuccessStatusCode)
@@ -1231,6 +1230,65 @@ Chỉ trả JSON, không markdown.";
                         }
                         catch (Exception ex) { Console.WriteLine($"[OCR] Vision fallback error: {ex.Message}"); }
                     }
+                }
+
+                // =====================================================
+                // BƯỚC 4 (Fallback): Groq Vision API trực tiếp
+                // =====================================================
+                var groqKeyVision = _config["Groq:ApiKey"];
+                if (!string.IsNullOrEmpty(groqKeyVision) && !groqKeyVision.Contains("YOUR_GROQ"))
+                {
+                    try
+                    {
+                        Console.WriteLine("[OCR] Step 4 (Fallback): Trying Groq Vision direct...");
+                        var client = _httpClientFactory.CreateClient();
+                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", groqKeyVision);
+                        client.Timeout = TimeSpan.FromSeconds(60);
+
+                        var requestBody = new
+                        {
+                            model = "llama-3.2-90b-vision-preview",
+                            messages = new[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new { type = "text", text = visionPrompt },
+                                        new
+                                        {
+                                            type = "image_url",
+                                            image_url = new { url = $"data:{mimeType};base64,{cleanBase64}" }
+                                        }
+                                    }
+                                }
+                            },
+                            max_tokens = 2000,
+                            temperature = 0.1
+                        };
+
+                        var response = await client.PostAsJsonAsync("https://api.groq.com/openai/v1/chat/completions", requestBody);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var responseText = await response.Content.ReadAsStringAsync();
+                            var res = JsonSerializer.Deserialize<JsonElement>(responseText);
+                            string resJson = res.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+
+                            var cleanJson = Regex.Match(resJson, @"\{.*\}", RegexOptions.Singleline).Value;
+                            var result = JsonSerializer.Deserialize<OcrInvoiceResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (result?.DanhSachSanPham?.Count > 0)
+                            {
+                                Console.WriteLine($"[OCR] ✅ Groq Vision fallback SUCCESS!");
+                                return result;
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[OCR] Groq Vision error: {await response.Content.ReadAsStringAsync()}");
+                        }
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[OCR] Groq Vision fallback error: {ex.Message}"); }
                 }
             }
 

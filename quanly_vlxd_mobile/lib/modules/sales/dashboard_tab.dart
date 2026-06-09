@@ -5,7 +5,9 @@ import '../../core/app_theme.dart';
 import '../../services/api_service.dart';
 
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({super.key});
+  final void Function(String)? onNavigate;
+  
+  const DashboardTab({super.key, this.onNavigate});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -222,54 +224,63 @@ class _DashboardTabState extends State<DashboardTab> {
         'val': s['tongSanPham'] ?? 0,
         'icon': Icons.inventory_2,
         'col': AppColors.primaryStart,
+        'routeId': 'PRODUCTS',
       },
       {
         'title': 'ĐƠN HÀNG',
         'val': s['tongDonHang'] ?? 0,
         'icon': Icons.shopping_cart,
         'col': AppColors.accent,
+        'routeId': 'ORDERS',
       },
       {
         'title': 'KHÁCH HÀNG',
         'val': s['tongKhachHang'] ?? 0,
         'icon': Icons.people,
         'col': AppColors.info,
+        'routeId': 'CUSTOMERS',
       },
       {
         'title': 'DOANH THU',
         'val': _currencyFormat.format(s['doanhThu'] ?? 0),
         'icon': Icons.payments,
         'col': AppColors.success,
+        'routeId': 'REPORTS',
       },
       {
         'title': 'NHÀ CUNG CẤP',
         'val': s['tongNhaCungCap'] ?? 0,
         'icon': Icons.business,
         'col': AppColors.warning,
+        'routeId': 'SUPPLIERS',
       },
       {
         'title': 'NHÂN VIÊN',
         'val': s['tongNhanVien'] ?? 0,
         'icon': Icons.badge,
         'col': AppColors.primaryEnd,
+        'routeId': 'EMPLOYEES',
       },
       {
         'title': 'PHIẾU NHẬP',
         'val': s['tongPhieuNhap'] ?? 0,
         'icon': Icons.receipt_long,
         'col': const Color(0xFFFF6B6B),
+        'routeId': 'STOCK_ORDERS',
       },
       {
         'title': 'CÔNG NỢ',
         'val': _currencyFormat.format(s['tongCongNo'] ?? 0),
         'icon': Icons.account_balance_wallet,
         'col': AppColors.error,
+        'routeId': 'DEBTS',
       },
       {
         'title': 'TIN NHẮN',
         'val': '${s['tongTinNhan'] ?? 0} (${s['tongTinNhanChuaDoc'] ?? 0} mới)',
         'icon': Icons.mail,
         'col': const Color(0xFF00BFA5),
+        'routeId': 'CHAT',
       },
     ];
 
@@ -287,45 +298,53 @@ class _DashboardTabState extends State<DashboardTab> {
         final c = cards[index];
         return Card(
           elevation: 2,
+          clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        c['title'] as String,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.grey,
+          child: InkWell(
+            onTap: () {
+              if (widget.onNavigate != null && c['routeId'] != null) {
+                widget.onNavigate!(c['routeId'] as String);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          c['title'] as String,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
-                    ),
-                    Icon(
-                      c['icon'] as IconData,
-                      color: c['col'] as Color,
-                      size: 20,
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  c['val'].toString(),
-                  style: TextStyle(
-                    fontSize: c['val'].toString().length > 10 ? 14 : 18,
-                    fontWeight: FontWeight.bold,
-                    color: c['col'] as Color,
+                      Icon(
+                        c['icon'] as IconData,
+                        color: c['col'] as Color,
+                        size: 20,
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  Text(
+                    c['val'].toString(),
+                    style: TextStyle(
+                      fontSize: c['val'].toString().length > 10 ? 14 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: c['col'] as Color,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -470,11 +489,18 @@ class _DashboardTabState extends State<DashboardTab> {
           trailing: Chip(
             label: Text(
               order['trangThai']?.toString() ?? '',
-              style: const TextStyle(fontSize: 10),
+              style: TextStyle(
+                fontSize: 10, 
+                fontWeight: FontWeight.bold,
+                color: order['trangThai'] == 'Hoàn thành'
+                    ? Colors.green.shade900
+                    : Colors.orange.shade900,
+              ),
             ),
             backgroundColor: order['trangThai'] == 'Hoàn thành'
                 ? Colors.green.shade100
                 : Colors.orange.shade100,
+            side: BorderSide.none,
           ),
         );
       },

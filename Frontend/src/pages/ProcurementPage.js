@@ -113,7 +113,9 @@ function ProcurementPage() {
 
       // Check if this is demo/fallback data
       if (ocrData.doTinCayAI === 0 || ocrData.tenNhaCungCap?.includes('DEMO') || ocrData.tenNhaCungCap?.includes('⚠️')) {
-        ocrData.isDemo = true;
+        setAiOcrLoading(false);
+        alert('AI không tìm thấy thông tin trên hình ảnh. Vui lòng kiểm tra lại chất lượng ảnh hoặc thử lại.');
+        return;
       }
 
       // Auto-match global supplier (skip if demo warning)
@@ -190,12 +192,11 @@ function ProcurementPage() {
             matchedSupplier: bestSupplier || null
           };
         });
+        
+        // Cập nhật lại tổng tiền theo danh sách mặt hàng phân tích được
+        ocrData.tongTien = ocrData.danhSachSanPham.reduce((sum, item) => sum + (item.thanhTien || 0), 0);
       }
       setAiOcrData(ocrData);
-
-      if (ocrData.isDemo) {
-        alert('⚠️ AI Vision không phản hồi (có thể do giới hạn tần suất API). Dữ liệu hiển thị là MẪU DEMO. Vui lòng thử lại sau 30 giây.');
-      }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data || err.message;
       alert('Lỗi khi gọi AI quét hóa đơn OCR: ' + msg);
@@ -230,7 +231,7 @@ function ProcurementPage() {
     const newItems = aiOcrData.danhSachSanPham.map(item => {
       const p = item.matchedProduct;
       const s = item.matchedSupplier;
-      const maNCC = s.maNCC || s.maNhaCungCap;
+      const maNCC = s.maNhaCungCap;
       const tenNCC = s.tenNCC || s.tenNhaCungCap;
 
       return {
@@ -365,7 +366,7 @@ function ProcurementPage() {
         maSanPham: product.maSanPham,
         soLuong: config.qty,
         donGia: config.supplier.giaHienTai,
-        maNhaCungCap: Number(config.supplier.maNhaCungCap || config.supplier.maNCC || 0),
+        maNhaCungCap: Number(config.supplier.maNhaCungCap) || 0,
         maKhoHang: warehouses.find(w => w.tenKho === alert.tenKho)?.maKhoHang || 1
       };
     }).filter(Boolean);
@@ -375,7 +376,8 @@ function ProcurementPage() {
     setActionLoading(true);
     try {
       await api.post('/procurement/proposal', {
-        maNhanVien: userId,
+        maNhanVien: Number(userId) || 1,
+        maNhaCungCap: Number(selectedItems[0]?.maNhaCungCap) || 0,
         ghiChu: "Đề xuất nhanh từ cảnh báo tồn kho",
         chiTiet: selectedItems
       });
@@ -603,14 +605,15 @@ function ProcurementPage() {
     setActionLoading(true);
     try {
       const res = await api.post('/procurement/proposal', {
-        maNhanVien: userId,
+        maNhanVien: Number(userId) || 1,
+        maNhaCungCap: Number(newProposal.items[0]?.maNhaCungCap) || 0,
         ghiChu: newProposal.note,
         chiTiet: newProposal.items.map(x => ({
-          maSanPham: x.maSanPham,
-          soLuong: x.soLuong,
-          donGia: x.donGia,
-          maNhaCungCap: x.maNhaCungCap,
-          maKhoHang: x.maKhoHang
+          maSanPham: Number(x.maSanPham) || 0,
+          soLuong: Number(x.soLuong) || 1,
+          donGia: Number(x.donGia) || 0,
+          maNhaCungCap: Number(x.maNhaCungCap) || 0,
+          maKhoHang: Number(x.maKhoHang) || 1
         }))
       });
       alert(res.data.message || 'Gửi đề xuất thành công!');
@@ -618,7 +621,7 @@ function ProcurementPage() {
       setNewProposal({ note: '', items: [] });
       loadData();
     } catch (ex) {
-      alert(ex.response?.data?.message || 'Có lỗi xảy ra');
+      alert(typeof ex.response?.data === 'object' ? JSON.stringify(ex.response.data) : (ex.response?.data || ex.message || 'Có lỗi xảy ra'));
     } finally {
       setActionLoading(false);
     }
@@ -1464,9 +1467,16 @@ function ProcurementPage() {
                       sx={{ width: 80 }}
                     />
                   </TableCell>
-                  {/* Price - read only */}
-                  <TableCell align="right" sx={{ color: 'text.primary' }}>
-                    {item.donGia?.toLocaleString('vi-VN')} đ
+                  {/* Price - editable */}
+                  <TableCell align="right">
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={item.donGia}
+                      onChange={e => updateItem(item.itemKey, { donGia: Math.max(0, Number(e.target.value)) })}
+                      inputProps={{ min: 0, style: { textAlign: 'right', width: 90 } }}
+                      sx={{ width: 110 }}
+                    />
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', pt: 1.5 }}>
                     {(item.soLuong * item.donGia).toLocaleString('vi-VN')} đ
@@ -2230,20 +2240,10 @@ function ProcurementPage() {
               </Box>
             ) : aiOcrData ? (
               <Box>
-                {aiOcrData.isDemo && (
-                  <Box sx={{ mb: 2, p: 2, bgcolor: '#fff3cd', borderRadius: 2, border: '1px solid #ffc107', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#856404' }}>
-                      ⚠️ AI Vision tạm thời không khả dụng (giới hạn API). Dữ liệu bên dưới là MẪU DEMO. Vui lòng bấm "Quét" lại sau 30 giây.
-                    </Typography>
-                    <Button size="small" variant="outlined" color="warning" onClick={handleRunAiOcr} disabled={aiOcrLoading} sx={{ ml: 'auto', whiteSpace: 'nowrap' }}>
-                      🔄 Thử lại
-                    </Button>
-                  </Box>
-                )}
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   <Grid item xs={12} md={4}>
                     <Paper sx={{ p: 2, borderRadius: 2, bgcolor: '#fff', borderLeft: '5px solid #2ed573', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', height: '100%' }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Tiền Trên Hóa Đơn</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 'bold' }}>Tổng Tiền</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2ed573', mt: 1 }}>{aiOcrData.tongTien?.toLocaleString('vi-VN')} đ</Typography>
                     </Paper>
                   </Grid>

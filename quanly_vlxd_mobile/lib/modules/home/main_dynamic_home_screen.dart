@@ -38,12 +38,12 @@ class _MainDynamicHomeScreenState extends State<MainDynamicHomeScreen> {
   String _fullName = 'Người dùng';
 
   // Danh sách toàn bộ các tính năng của hệ thống (Master Menu Registry)
-  final List<Map<String, dynamic>> masterMenuItems = [
+  late final List<Map<String, dynamic>> masterMenuItems = [
     {
       'id': 'DASHBOARD',
       'title': 'Tổng quan',
       'icon': Icons.dashboard,
-      'widget': const DashboardTab(),
+      'widget': DashboardTab(onNavigate: _navigateTo),
     },
     {
       'id': 'PRODUCTS',
@@ -279,6 +279,16 @@ class _MainDynamicHomeScreenState extends State<MainDynamicHomeScreen> {
       _appBarTitle = _userMenuItems[index]['title'];
     });
     Navigator.pop(context); // Đóng Drawer
+  }
+
+  void _navigateTo(String id) {
+    final index = _userMenuItems.indexWhere((item) => item['id'] == id);
+    if (index != -1) {
+      setState(() {
+        _selectedIndex = index;
+        _appBarTitle = _userMenuItems[index]['title'];
+      });
+    }
   }
 
   @override

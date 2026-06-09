@@ -27,27 +27,25 @@ namespace BuildingMaterialAPI.Controllers
         {
             var orders = await _ctx.HoaDons
                 .AsNoTracking()
-                .Include(h => h.KhachHang)
-                .Include(h => h.NhanVien)
-                .Include(h => h.ChiTietKhuyenMais)
                 .OrderByDescending(h => h.NgayLap)
+                .Select(h => new
+                {
+                    maHoaDon = h.MaHoaDon, maHD = h.MaHD,
+                    ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
+                    tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
+                    pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
+                    maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
+                    maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
+                    maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
+                    tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
+                    tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
+                    coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
+                    yeuCauVat = h.YeuCauVat,
+                    vatEmail = h.VatEmail
+                })
                 .ToListAsync();
 
-            return Ok(orders.Select(h => new
-            {
-                maHoaDon = h.MaHoaDon, maHD = h.MaHD,
-                ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
-                tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
-                pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
-                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
-                maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
-                maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
-                tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
-                tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
-                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
-                yeuCauVat = h.YeuCauVat,
-                vatEmail = h.VatEmail
-            }));
+            return Ok(orders);
         }
 
 
@@ -57,27 +55,25 @@ namespace BuildingMaterialAPI.Controllers
             var orders = await _ctx.HoaDons
                 .AsNoTracking()
                 .Where(h => h.MaKhachHang == customerId)
-                .Include(h => h.KhachHang)
-                .Include(h => h.NhanVien)
-                .Include(h => h.ChiTietKhuyenMais)
                 .OrderByDescending(h => h.NgayLap)
+                .Select(h => new
+                {
+                    maHoaDon = h.MaHoaDon, maHD = h.MaHD,
+                    ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
+                    tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
+                    pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
+                    maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
+                    maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
+                    maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
+                    tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
+                    tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
+                    coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
+                    yeuCauVat = h.YeuCauVat,
+                    vatEmail = h.VatEmail
+                })
                 .ToListAsync();
 
-            return Ok(orders.Select(h => new
-            {
-                maHoaDon = h.MaHoaDon, maHD = h.MaHD,
-                ngayLap = h.NgayLap, ngayGiao = h.NgayGiao,
-                tongTien = h.TongTien, giamGia = h.GiamGia, thanhToan = h.ThanhToan,
-                pttt = h.PTTT, trangThai = h.TrangThai, ghiChu = h.GhiChu,
-                maNhanVien = h.MaNhanVien, maKhachHang = h.MaKhachHang,
-                maKhuyenMai = h.ChiTietKhuyenMais.FirstOrDefault() != null ? (int?)h.ChiTietKhuyenMais.FirstOrDefault().MaKhuyenMai : null,
-                maKhuyenMais = h.ChiTietKhuyenMais.Select(x => x.MaKhuyenMai).ToList(),
-                tenKhachHang = h.KhachHang != null ? h.KhachHang.TenKH : "",
-                tenNhanVien = h.NhanVien != null ? h.NhanVien.TenNV : "",
-                coYeuCauDoiTra = h.TrangThai != null && (h.TrangThai.Contains("đổi") || h.TrangThai.Contains("trả")),
-                yeuCauVat = h.YeuCauVat,
-                vatEmail = h.VatEmail
-            }));
+            return Ok(orders);
         }
 
 

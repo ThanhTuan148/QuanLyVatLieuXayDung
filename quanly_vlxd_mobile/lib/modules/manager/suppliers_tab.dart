@@ -258,11 +258,10 @@ class _SuppliersTabState extends State<SuppliersTab> {
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddEditDialog(),
-        icon: const Icon(Icons.add_business),
-        label: const Text('Thêm Nhà Cung Cấp'),
         backgroundColor: Colors.purple.shade800,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

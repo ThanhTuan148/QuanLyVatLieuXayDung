@@ -241,49 +241,57 @@ namespace BuildingMaterialAPI.Controllers
             if (string.IsNullOrEmpty(p.TrangThai) || !p.TrangThai.Contains("Chờ Hàng Về", StringComparison.OrdinalIgnoreCase)) 
                 return BadRequest("Phiếu này chưa được duyệt hoặc đã hoàn tất trước đó.");
 
-            using var transaction = await _ctx.Database.BeginTransactionAsync();
+            var strategy = _ctx.Database.CreateExecutionStrategy();
             try
             {
-                foreach(var ct in p.ChiTiet)
+                return await strategy.ExecuteAsync<IActionResult>(async () =>
                 {
-                    // Tìm kho dự kiến cũ từ phiếu nhập hoặc mặc định kho 1
-                    // Để đơn giản, ta cộng vào bản ghi tồn kho đầu tiên tìm thấy hoặc tạo mới ở kho 1
-                    var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
-                    if (kho != null)
+                    using var transaction = await _ctx.Database.BeginTransactionAsync();
+                    try
                     {
-                        kho.SoLuong += ct.SoLuongTra;
-                        kho.SoLuongTon += ct.SoLuongTra;
-                        kho.NgayCapNhat = DateTime.UtcNow;
+                        foreach(var ct in p.ChiTiet)
+                        {
+                            var kho = await _ctx.CTKhoHangs.FirstOrDefaultAsync(k => k.MaSanPham == ct.MaSanPham);
+                            if (kho != null)
+                            {
+                                kho.SoLuong += ct.SoLuongTra;
+                                kho.SoLuongTon += ct.SoLuongTra;
+                                kho.NgayCapNhat = DateTime.UtcNow;
+                            }
+                            else
+                            {
+                                _ctx.CTKhoHangs.Add(new CTKhoHang {
+                                    MaKhoHang = 1,
+                                    MaSanPham = ct.MaSanPham,
+                                    SoLuong = ct.SoLuongTra,
+                                    SoLuongTon = ct.SoLuongTra,
+                                    NgayCapNhat = DateTime.UtcNow
+                                });
+                            }
+                        }
+
+                        p.TrangThai = "Hoàn Tất";
+                        p.NgayCapNhat = DateTime.UtcNow;
+
+                        if (p.PhieuNhap != null)
+                        {
+                            p.PhieuNhap.TrangThai = "Đã Xử Lý Đổi Trả";
+                        }
+                        
+                        await _ctx.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        return Ok(new { message = "Xác nhận nhận hàng bù thành công. Tồn kho đã được cập nhật!" });
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        _ctx.CTKhoHangs.Add(new CTKhoHang {
-                            MaKhoHang = 1,
-                            MaSanPham = ct.MaSanPham,
-                            SoLuong = ct.SoLuongTra,
-                            SoLuongTon = ct.SoLuongTra,
-                            NgayCapNhat = DateTime.UtcNow
-                        });
+                        await transaction.RollbackAsync();
+                        throw;
                     }
-                }
-
-                p.TrangThai = "Hoàn Tất";
-                p.NgayCapNhat = DateTime.UtcNow;
-
-                // CHỈ KHI NÀY MỚI CẬP NHẬT PHIẾU NHẬP LÀ ĐÃ XỬ LÝ XONG
-                if (p.PhieuNhap != null)
-                {
-                    p.PhieuNhap.TrangThai = "Đã Xử Lý Đổi Trả";
-                }
-                
-                await _ctx.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "Xác nhận nhận hàng bù thành công. Tồn kho đã được cập nhật!" });
+                });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Lỗi khi nhập kho hàng bù.", error = ex.Message });
             }
         }
