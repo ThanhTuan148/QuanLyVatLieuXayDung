@@ -612,6 +612,7 @@ class _StockOrdersTabState extends State<StockOrdersTab> {
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
                         value: selectedSupplierId,
+                        isExpanded: true,
                         decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                         items: suppliers.map<DropdownMenuItem<int>>((s) {
                           return DropdownMenuItem<int>(

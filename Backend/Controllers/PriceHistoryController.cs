@@ -197,6 +197,52 @@ namespace BuildingMaterialAPI.Controllers
             await _ctx.SaveChangesAsync();
             return Ok(record);
         }
+
+        [HttpGet("export")]
+        public async Task<IActionResult> Export([FromQuery] int? productId, [FromQuery] int days = 180)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-days);
+            var query = _ctx.LichSuGias
+                .Include(l => l.SanPham)
+                .Include(l => l.NhanVien)
+                .Where(l => l.NgayThayDoi >= cutoff);
+
+            if (productId.HasValue)
+                query = query.Where(l => l.MaSanPham == productId.Value);
+
+            var data = await query.OrderByDescending(l => l.NgayThayDoi).ToListAsync();
+
+            using var package = new OfficeOpenXml.ExcelPackage();
+            var worksheet = package.Workbook.Worksheets.Add("LichSuGia");
+            worksheet.Cells[1, 1].Value = "Mã Sản Phẩm";
+            worksheet.Cells[1, 2].Value = "Tên Sản Phẩm";
+            worksheet.Cells[1, 3].Value = "Giá Bán Cũ";
+            worksheet.Cells[1, 4].Value = "Giá Bán Mới";
+            worksheet.Cells[1, 5].Value = "Lý Do";
+            worksheet.Cells[1, 6].Value = "Nguồn Thay Đổi";
+            worksheet.Cells[1, 7].Value = "Ngày Thay Đổi";
+            worksheet.Cells[1, 8].Value = "Nhân Viên";
+            worksheet.Cells["A1:H1"].Style.Font.Bold = true;
+
+            for (int i = 0; i < data.Count; i++)
+            {
+                var item = data[i];
+                worksheet.Cells[i + 2, 1].Value = item.SanPham?.MaSP ?? "";
+                worksheet.Cells[i + 2, 2].Value = item.SanPham?.TenSP ?? "";
+                worksheet.Cells[i + 2, 3].Value = item.GiaBanCu;
+                worksheet.Cells[i + 2, 4].Value = item.GiaBanMoi;
+                worksheet.Cells[i + 2, 5].Value = item.LyDo;
+                worksheet.Cells[i + 2, 6].Value = item.NguonThayDoi;
+                worksheet.Cells[i + 2, 7].Value = item.NgayThayDoi.ToString("dd/MM/yyyy HH:mm");
+                worksheet.Cells[i + 2, 8].Value = item.NhanVien?.TenNV ?? "Hệ thống";
+            }
+
+            var stream = new MemoryStream();
+            package.SaveAs(stream);
+            stream.Position = 0;
+            string excelName = $"LichSuGia_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
+            return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", excelName);
+        }
     }
 
     public class LichSuGiaDto

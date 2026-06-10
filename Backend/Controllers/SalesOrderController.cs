@@ -1212,7 +1212,7 @@ namespace BuildingMaterialAPI.Controllers
 
             var tongTien = hd.TongTien ?? 0;
             var daThanhToan = hd.ThanhToan ?? 0;
-            var conLai = tongTien - daThanhToan;
+            var conLai = Math.Max(0, tongTien - daThanhToan);
 
             if (conLai <= 0)
             {

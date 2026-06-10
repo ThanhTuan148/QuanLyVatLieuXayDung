@@ -32,6 +32,16 @@ function DebtDetailModal({ open, onClose, debt }) {
 
   const handleAddAppointment = async () => {
     if (!newAppt.date || !newAppt.amount) return;
+
+    const amount = parseFloat(newAppt.amount);
+    if (amount <= 0) {
+      alert('Số tiền dự kiến phải lớn hơn 0.');
+      return;
+    }
+    if (amount > (debt?.soTienConLai || 0)) {
+      alert('Số tiền dự kiến không được lớn hơn số nợ còn lại.');
+      return;
+    }
     try {
       await debtService.createAppointment({
         maCongNo: debt.maCongNo,

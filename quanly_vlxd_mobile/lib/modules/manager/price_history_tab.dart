@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../services/api_service.dart';
+import '../../services/shared_preferences_service.dart';
 
 class PriceHistoryTab extends StatefulWidget {
   const PriceHistoryTab({super.key});
@@ -336,13 +338,25 @@ class _PriceHistoryTabState extends State<PriceHistoryTab>
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Đang xuất báo cáo Lịch Sử Giá...'),
                               backgroundColor: Colors.green,
                             ),
                           );
+                          final baseUrl = SharedPreferencesService.getServerUrl() ?? '';
+                          final url = '${baseUrl}price-history/export?days=$_selectedDays';
+                          final uri = Uri.parse(url);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Không thể tải file!'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
                         },
                         icon: const Icon(Icons.download, size: 18),
                         label: const Text('Xuất'),

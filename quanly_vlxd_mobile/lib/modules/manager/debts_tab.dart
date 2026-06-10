@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
+import '../../services/shared_preferences_service.dart';
 import '../../core/permission_helper.dart';
 
 class DebtsTab extends StatefulWidget {
@@ -620,13 +622,27 @@ class _DebtsTabState extends State<DebtsTab>
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Đang xuất báo cáo Công Nợ...'),
                               backgroundColor: Colors.green,
                             ),
                           );
+                          final baseUrl = SharedPreferencesService.getServerUrl() ?? '';
+                          final type = activeIndex == 0 ? 'Phải thu' : (activeIndex == 1 ? 'Phải trả' : '');
+                          final status = _selectedStatus == 'Tất cả' ? '' : _selectedStatus;
+                          final url = '${baseUrl}debts/export?type=${Uri.encodeComponent(type)}&status=${Uri.encodeComponent(status)}';
+                          final uri = Uri.parse(url);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Không thể tải file!'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
                         },
                         icon: const Icon(Icons.download, size: 18),
                         label: const Text('Xuất'),

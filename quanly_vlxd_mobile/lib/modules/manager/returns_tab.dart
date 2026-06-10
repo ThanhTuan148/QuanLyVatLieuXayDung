@@ -489,6 +489,7 @@ class _ReturnsTabState extends State<ReturnsTab>
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
                         value: selectedOrderId,
+                        isExpanded: true,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -544,6 +545,7 @@ class _ReturnsTabState extends State<ReturnsTab>
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               value: returnType,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Loại xử lý',
                                 border: OutlineInputBorder(),
@@ -564,6 +566,7 @@ class _ReturnsTabState extends State<ReturnsTab>
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               value: faultBy,
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Lỗi do',
                                 border: OutlineInputBorder(),
@@ -772,6 +775,7 @@ class _ReturnsTabState extends State<ReturnsTab>
                     const SizedBox(height: 8),
                     DropdownButtonFormField<int>(
                       value: selectedProcurementId,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
